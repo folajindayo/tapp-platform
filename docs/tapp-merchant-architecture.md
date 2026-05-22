@@ -74,7 +74,7 @@ Per-platform notes:
 │  └──────────────────────────┘  │   plugin                      │  │
 │                                └───────────────────────────────┘  │
 └──────────────────────┬─────────────────────────────────────────────┘
-                       │ HTTPS (JWT) + WebSocket
+                       │ HTTPS (JWT) + SSE
                        ▼
 ┌────────────────────────────────────────────────────────────────────┐
 │  Rails backend (Sui-native, shipped)                               │
@@ -82,7 +82,7 @@ Per-platform notes:
 │  - NEW /v1/sender/me/bank-account                                  │
 │  - NEW /v1/sender/me/tap (phone-to-phone — PaymentOrder + URL)     │
 │  - NEW /v1/sender/me/tap-card (Tap Card — debit linked balance)    │
-│  - NEW /ws/sender/me/payments (push status updates)                │
+│  - NEW /v1/sender/me/payments/stream (push status updates)                │
 └──────────────────────┬─────────────────────────────────────────────┘
                        │
         ┌──────────────┼──────────────────┐
@@ -175,7 +175,7 @@ Merchant phone               Rails backend           Payer phone (any)
     │  .com/order/<id>           │                       │
     │                            │                       │
     │ WS connect                 │                       │
-    │ /ws/sender/me/payments     │                       │
+    │ /v1/sender/me/payments/stream     │                       │
     │───────────────────────────▶│                       │
     │     { subscribed: true }   │                       │
     │◀───────────────────────────│                       │
@@ -289,7 +289,7 @@ Reused: `PaymentOrder` + `PaymentOrderRecipient` (existing). The new `POST /v1/s
 - **Tap intercepted (someone else's phone reads the NDEF):** the NDEF only contains a checkout URL with a short-lived order ID. Reading it doesn't grant payment authority — the payer still needs to sign in with their own Google account and pay from their own Sui wallet. Replay risk is low.
 - **Payer pays the wrong merchant:** the order ID in the URL ties payment to a specific merchant's bank account. As long as the merchant phone's HCE service is broadcasting that specific order's URL, payment can only land on that merchant.
 - **Merchant cancels mid-broadcast after a tap but before payment lands:** the cancel endpoint flips the order's status; if a payment then arrives, the Rails indexer refunds (existing flow).
-- **Network drop on merchant phone after broadcast starts:** HCE keeps broadcasting locally. Payer still pays. Merchant's WS reconnects on app foreground; if the payment landed during the offline window, the dashboard's next refresh shows it.
+- **Network drop on merchant phone after broadcast starts:** HCE keeps broadcasting locally. Payer still pays. Merchant's SSE reconnects (with `Last-Event-ID`) on app foreground; if the payment landed during the offline window, the missed events are replayed from the server's ring buffer.
 
 ## Out of scope (v1)
 

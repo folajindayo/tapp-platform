@@ -239,21 +239,43 @@ Errors:
 
 Note: the **card-linking flow** (user logs in via zkLogin on checkout web, taps a blank NTAG215 to bind it to their Sui address + grant a debit cap) lives on the Zoracle checkout web, not in this merchant app. The merchant app only consumes cards that are already linked.
 
-### `WS /ws/sender/me/payments`
+### `GET /v1/sender/me/payments/stream` (SSE)
 
-WebSocket; keeps the broadcast screen real-time. Authenticated via `?token=<access_token>` query param (WebSocket headers are awkward across React Native libs).
+Server-Sent Events stream of payment status updates scoped to the authenticated `SenderProfile`. Purely server→client push (we never need to talk back on the same channel), so SSE is a better fit than WebSocket — plain HTTP, automatic reconnect via the `Last-Event-ID` header, `curl`-debuggable.
 
-Server pushes scoped to the authenticated `SenderProfile`:
-
-```json
-{ "event": "payment.deposited", "data": { "order_id": "ord_abc", "sui_tx_hash": "..." } }
-{ "event": "payment.processing", "data": { "order_id": "ord_abc" } }
-{ "event": "payment.fulfilled", "data": { "order_id": "ord_abc", "fiat_amount": "5000.00" } }
-{ "event": "payment.settled", "data": { "order_id": "ord_abc", "fiat_amount": "5000.00", "tx_hash": "...", "settled_at": "..." } }
-{ "event": "payment.refunded", "data": { "order_id": "ord_abc", "reason": "..." } }
+Headers:
+```
+Accept: text/event-stream
+Authorization: Bearer <access_token>
 ```
 
-Client → server pings every 30s to keep idle connections alive. Server closes on `4401` if JWT expired (client refreshes + reconnects).
+Server emits events as they happen, scoped to the authenticated sender:
+
+```
+event: payment.deposited
+data: {"order_id":"ord_abc","sui_tx_hash":"..."}
+
+event: payment.processing
+data: {"order_id":"ord_abc"}
+
+event: payment.fulfilled
+data: {"order_id":"ord_abc","fiat_amount":"5000.00"}
+
+event: payment.settled
+data: {"order_id":"ord_abc","fiat_amount":"5000.00","tx_hash":"...","settled_at":"..."}
+id: 1747920000-ord_abc
+
+event: payment.refunded
+data: {"order_id":"ord_abc","reason":"..."}
+```
+
+The trailing `id:` after `settled` (and any terminal event) lets the client resume from that point on reconnect via the `Last-Event-ID` request header. Server keeps a short ring buffer of recent events per sender.
+
+Server sends a comment line (`:heartbeat\n\n`) every 25s to keep the connection alive through intermediate proxies that drop idle TCP. The browser/RN `EventSource` polyfill handles reconnect transparently.
+
+**Client lib (RN):** [`react-native-sse`](https://github.com/binaryminds/react-native-sse) — supports `Authorization` headers natively (the browser `EventSource` API doesn't, which is the main reason we'd otherwise be forced to a query-string token). Adds custom-event listeners (`addEventListener('payment.settled', ...)`).
+
+On `401` the stream closes; client refreshes the JWT and reopens.
 
 ---
 

@@ -303,12 +303,12 @@ On Android, a "Show QR instead" link in the footer toggles to the QR variant for
 
 Lifecycle:
 
-- On mount → `useTapBroadcast({orderId, checkoutUrl, expiresAt})` → starts HCE + opens WebSocket.
+- On mount → `useTapBroadcast({orderId, checkoutUrl, expiresAt})` → starts HCE + opens SSE stream.
 - The NFC ring is an animated `react-native-reanimated` pulse, looped.
 - Header `1:47` is the countdown to `expires_at`. At 0:00 → auto-cancel + back to dashboard.
 - Back button or "Cancel" → `POST /v1/sender/orders/:id/cancel`, navigate back.
-- On WS `payment.deposited` → swap copy to "Payment detected, settling..." + spinner.
-- On WS `payment.settled` → navigate to a transient success screen (overlay with ₦ amount, confetti, dismiss → dashboard).
+- On SSE `payment.deposited` → swap copy to "Payment detected, settling..." + spinner.
+- On SSE `payment.settled` → navigate to a transient success screen (overlay with ₦ amount, confetti, dismiss → dashboard).
 
 ### `(app)/tap-card.tsx` (full-screen, no tab bar — Tap Card flow)
 
