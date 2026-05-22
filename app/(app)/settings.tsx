@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Alert, Pressable, View } from 'react-native';
+import { Alert, Linking, Pressable, View } from 'react-native';
+import { router } from 'expo-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { ChevronRight } from 'lucide-react-native';
 import { cssInterop } from 'nativewind';
@@ -9,6 +10,14 @@ import { Button, Header, Icon, Icons, Screen, Text } from '@/ui';
 import { maskAccountNumber } from '@/ui/format';
 
 cssInterop(Pressable, { className: { target: 'style' } });
+
+// External links that the settings page surfaces — kept here so brand
+// updates don't require touching the row markup.
+const SUPPORT_URLS = {
+  help:    'https://help.zoracle.com',
+  terms:   'https://zoracle.com/terms',
+  privacy: 'https://zoracle.com/privacy',
+} as const;
 
 export default function SettingsScreen() {
   const user = useAuthStore((s) => s.user);
@@ -38,6 +47,17 @@ export default function SettingsScreen() {
     ]);
   }
 
+  // External-link helper. We don't bake in-app browsers in v1 — handing
+  // off to the system browser keeps the cookie/zkLogin surface clean.
+  async function openExternal(url: string) {
+    const can = await Linking.canOpenURL(url);
+    if (!can) {
+      Alert.alert('Cannot open link', url);
+      return;
+    }
+    await Linking.openURL(url);
+  }
+
   return (
     <Screen>
       <Header title="Settings" back={false} />
@@ -63,19 +83,33 @@ export default function SettingsScreen() {
           }
           chevron
           last
+          onPress={() => router.push('/(onboarding)/bank-account')}
         />
       </Section>
 
-      <Section title="Security">
-        <Row icon={Icons.IconAppPin} label="App PIN" value="—" chevron />
-        <Row icon={Icons.IconBiometrics} label="Biometrics" value="—" chevron />
-        <Row icon={Icons.IconSessions} label="Sessions" value="" chevron last />
-      </Section>
-
       <Section title="Support">
-        <Row icon={Icons.IconHelp} label="Help" value="" chevron />
-        <Row icon={Icons.IconTerms} label="Terms of service" value="" chevron />
-        <Row icon={Icons.IconPrivacy} label="Privacy policy" value="" chevron last />
+        <Row
+          icon={Icons.IconHelp}
+          label="Help"
+          value=""
+          chevron
+          onPress={() => openExternal(SUPPORT_URLS.help)}
+        />
+        <Row
+          icon={Icons.IconTerms}
+          label="Terms of service"
+          value=""
+          chevron
+          onPress={() => openExternal(SUPPORT_URLS.terms)}
+        />
+        <Row
+          icon={Icons.IconPrivacy}
+          label="Privacy policy"
+          value=""
+          chevron
+          last
+          onPress={() => openExternal(SUPPORT_URLS.privacy)}
+        />
       </Section>
 
       <Section title="About">
@@ -110,14 +144,16 @@ function Row({
   value,
   chevron,
   last,
+  onPress,
 }: {
   icon?: string;
   label: string;
   value: string;
   chevron?: boolean;
   last?: boolean;
+  onPress?: () => void;
 }) {
-  return (
+  const inner = (
     <View
       className={`flex-row items-center justify-between p-4 ${last ? '' : 'border-b border-line-divider'}`}
     >
@@ -134,5 +170,16 @@ function Row({
         {chevron ? <ChevronRight size={16} color="#8B919C" /> : null}
       </View>
     </View>
+  );
+  if (!onPress) return inner;
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      className="active:bg-surface-subtle"
+    >
+      {inner}
+    </Pressable>
   );
 }
