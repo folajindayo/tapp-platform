@@ -1,4 +1,6 @@
-# Tapp Merchant — NFC HCE Spec
+# Tapp Merchant — NFC HCE Spec (Android phone-to-phone)
+
+> **Scope:** Android-only HCE broadcast (the merchant phone acts as an active NDEF tag the payer reads). For the iOS phone-to-phone equivalent see `qr-fallback-spec.md`. For Tap Card (NTAG215) reader mode on both platforms see `nfc-reader-spec.md`.
 
 The merchant phone emulates an **NFC Forum Type 4 Tag** carrying a single NDEF URI record (the checkout URL). When the payer phone is tapped against the merchant device, the payer's OS reads the NDEF record and opens the URL in the default browser — no payer app needed.
 

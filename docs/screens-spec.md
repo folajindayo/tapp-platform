@@ -24,8 +24,9 @@ app/
   (app)/
     _layout.tsx                      # bottom tabs
     index.tsx                        # Dashboard tab (= /)
-    new-payment.tsx                  # modal-presentation route
-    broadcast.tsx                    # full-screen, no tabs
+    new-payment.tsx                  # modal: amount + method picker (phone-to-phone | card)
+    broadcast.tsx                    # phone-to-phone active (HCE on Android, QR on iOS)
+    tap-card.tsx                     # NFC reader for NTAG215 card payment
     transactions/
       _layout.tsx                    # stack
       index.tsx                      # list
@@ -235,9 +236,43 @@ Pull-to-refresh re-fetches `/v1/sender/stats` + the first page of `/v1/sender/or
 └──────────────────────────────────────────────────────┘
 ```
 
-Bottom button enables once amount > 0. Submitting calls `POST /v1/sender/me/tap` and navigates to `(app)/broadcast` on success. Sends an Idempotency-Key UUID generated client-side per tap.
+Bottom button enables once amount > 0. Tapping it opens a method picker sheet:
 
-### `(app)/broadcast.tsx` (full-screen, no tab bar)
+```
+┌──────────────────────────────────────────────────────┐
+│            How are they paying?                      │
+│                                                      │
+│  ┌────────────────────────────────────────────────┐  │
+│  │ ╭───╮                                          │  │
+│  │ │📱│   Phone-to-phone                          │  │
+│  │ ╰───╯  They tap their phone or scan a QR.      │  │
+│  └────────────────────────────────────────────────┘  │
+│                                                      │
+│  ┌────────────────────────────────────────────────┐  │
+│  │ ╭───╮                                          │  │
+│  │ │💳│   Tap Card                                │  │
+│  │ ╰───╯  They tap a physical Tapp Card.          │  │
+│  └────────────────────────────────────────────────┘  │
+│                                                      │
+│                  Cancel                              │
+└──────────────────────────────────────────────────────┘
+```
+
+- **Phone-to-phone** → `POST /v1/sender/me/tap` → navigate to `(app)/broadcast` (HCE on Android, QR on iOS).
+- **Tap Card** → navigate to `(app)/tap-card?amount=X&memo=Y` (no backend call yet — happens after the card is read).
+
+Sends an Idempotency-Key UUID generated client-side per tap (phone-to-phone) or per card-read (Tap Card).
+
+### `(app)/broadcast.tsx` (full-screen, no tab bar — phone-to-phone)
+
+Platform-conditional rendering. The amount + countdown + cancel chrome is identical; only the broadcast surface differs:
+
+- **Android:** NFC ring animation, "Hold this phone against the customer's phone." The HCE service is broadcasting the checkout URL. See `nfc-hce-spec.md`.
+- **iOS:** QR code (≥280dp, error correction Q), "Have your customer scan this QR with their camera." Screen brightness is forced to max while mounted. See `qr-fallback-spec.md`.
+
+On Android, a "Show QR instead" link in the footer toggles to the QR variant for the rare case where the device reports `nfc.hce` missing or the user disabled NFC.
+
+
 
 ```
 ┌──────────────────────────────────────────────────────┐
@@ -274,6 +309,47 @@ Lifecycle:
 - Back button or "Cancel" → `POST /v1/sender/orders/:id/cancel`, navigate back.
 - On WS `payment.deposited` → swap copy to "Payment detected, settling..." + spinner.
 - On WS `payment.settled` → navigate to a transient success screen (overlay with ₦ amount, confetti, dismiss → dashboard).
+
+### `(app)/tap-card.tsx` (full-screen, no tab bar — Tap Card flow)
+
+```
+┌──────────────────────────────────────────────────────┐
+│  ←                                                   │
+│                                                      │
+│                    Tap Card                          │
+│                                                      │
+│                                                      │
+│                                                      │
+│                  ┌──────────────┐                    │
+│                 (   card icon   )                    │
+│                  └──────────────┘                    │
+│                                                      │
+│                                                      │
+│                    ₦ 5,000                           │
+│                                                      │
+│                                                      │
+│  Hold the customer's Tapp Card to                    │
+│  the back of your phone (Android)                    │
+│  or the top of your iPhone.                          │
+│                                                      │
+│                                                      │
+│  ┌────────────────────────────────────────────────┐  │
+│  │                  Cancel                        │  │
+│  └────────────────────────────────────────────────┘  │
+└──────────────────────────────────────────────────────┘
+```
+
+Lifecycle (full detail in `nfc-reader-spec.md`):
+
+- On mount → request NFC reader technology (Android: `NfcTech.NfcA`; iOS: `NfcTech.MifareIOS` → CoreNFC system sheet auto-rendered).
+- On Android, the screen owns the chrome above. On iOS, the system NFC sheet overlays; our chrome is what's visible behind it.
+- On card detect → capture 7-byte UID → debounce 1500ms to prevent double-reads → `POST /v1/sender/me/tap-card { amount, card_uid, memo }`.
+- On `status: settled` response → success screen (same component as phone-to-phone success).
+- On `status: processing` response → fall back to WS / polling like the phone-to-phone broadcast.
+- On error (`CARD_NOT_LINKED`, `CARD_INSUFFICIENT_BALANCE`, `CARD_DEBIT_AUTHORITY_EXPIRED`) → screen-level error message with clear guidance to the merchant about what the customer needs to do.
+- Cancel → close reader session and pop back to new-payment.
+
+iOS-specific copy variation: the system NFC sheet says "Hold your iPhone near the card." Our screen copy adds "(top edge of your iPhone)" so the merchant knows which part of the device is the antenna.
 
 ### `(app)/transactions/index.tsx`
 
@@ -376,7 +452,9 @@ Explorer link points to a Sui explorer for the settlement digest. "Copy" copies 
 - **Empty (transactions, dashboard):** illustration + copy "No payments yet. Tap 'New payment' to take your first."
 - **Network error:** screen-level banner "We can't reach Tapp right now" + retry button. Background queries also paused.
 - **Insufficient liquidity (`NO_LP_LIQUIDITY` from tap endpoint):** modal "We can't process this amount right now. Try smaller, or try again later."
-- **HCE unavailable / NFC off:** broadcast screen replaces the NFC ring with a "Turn on NFC" prompt + system-settings deep link.
+- **HCE unavailable / NFC off (Android phone-to-phone):** broadcast screen replaces the NFC ring with a "Turn on NFC" prompt + system-settings deep link, AND a "Show QR instead" affordance to switch to the QR variant.
+- **NFC off (Tap Card, both platforms):** reader screen shows a "Turn on NFC" prompt; on Android deep-links to settings, on iOS prompts the user to enable from Control Center.
+- **Tap Card error states:** screen-level error per code — `CARD_NOT_LINKED` ("Customer needs to register this card at zoracle.com/link"), `CARD_INSUFFICIENT_BALANCE` ("Card balance is too low for this amount"), `CARD_DEBIT_AUTHORITY_EXPIRED` ("Customer needs to re-link this card"). Each shows a "Try a different payment method" CTA that bounces back to the method picker.
 
 ## Accessibility
 

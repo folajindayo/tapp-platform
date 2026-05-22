@@ -196,6 +196,49 @@ Errors:
 - `503 RATE_UNAVAILABLE` — spot median oracle unhealthy
 - `503 NO_LP_LIQUIDITY` — no LP within ceiling for the amount (caller can retry with smaller amount or wait)
 
+### `POST /v1/sender/me/tap-card`
+
+Synchronous Tap Card payment. The merchant scanned a customer's NTAG215 card; backend resolves the card UID to its linked Sui zkLogin balance, debits via a pre-authorized Move capability, and settles in one round-trip.
+
+Request:
+```json
+{
+  "amount": "5000.00",
+  "card_uid": "04A3B2C1D5E6F7",
+  "memo": "Table 4"
+}
+```
+
+- `card_uid` is the 7-byte NTAG215 UID, hex-encoded, no separators. The merchant app reads this via `react-native-nfc-manager` (Android NfcAdapter or iOS CoreNFC) and posts it as-is.
+- `currency` is implied from the merchant's saved bank account.
+- `rate` is computed server-side at the spot median (same path as `/tap`).
+
+Response `200` (settled in the round-trip):
+```json
+{
+  "order_id": "ord_abc",
+  "status": "settled",
+  "amount": "5000.00",
+  "currency": "NGN",
+  "coin_amount": "3.267",
+  "coin_type": "0x...::usdc::USDC",
+  "rate_quoted": "1530.50",
+  "tx_hash": "0x9f8e...4c1a",
+  "settled_at": "2026-05-22T10:05:00Z"
+}
+```
+
+If the round-trip can't complete synchronously (e.g. the Move debit succeeds but BaaS payout is queued), the response returns `status: "processing"` with the `order_id` and the merchant app falls back to the WebSocket / polling path used by phone-to-phone.
+
+Errors:
+- `400 BANK_ACCOUNT_REQUIRED` / `400 KYC_REQUIRED` — same as `/tap`
+- `404 CARD_NOT_LINKED` — the UID has no linked Sui address (card was never registered or was unlinked)
+- `400 CARD_INSUFFICIENT_BALANCE` — linked balance < required coin amount
+- `400 CARD_DEBIT_AUTHORITY_EXPIRED` — the card's pre-authorized debit cap has expired; user must re-link
+- `503 RATE_UNAVAILABLE`
+
+Note: the **card-linking flow** (user logs in via zkLogin on checkout web, taps a blank NTAG215 to bind it to their Sui address + grant a debit cap) lives on the Zoracle checkout web, not in this merchant app. The merchant app only consumes cards that are already linked.
+
 ### `WS /ws/sender/me/payments`
 
 WebSocket; keeps the broadcast screen real-time. Authenticated via `?token=<access_token>` query param (WebSocket headers are awkward across React Native libs).
@@ -239,6 +282,9 @@ App handles known codes:
 | `BANK_ACCOUNT_VERIFICATION_FAILED` | inline form error, suggest re-entering account number |
 | `RATE_UNAVAILABLE` | toast "Rates unavailable — try again in a moment" |
 | `NO_LP_LIQUIDITY` | toast "No liquidity for this amount — try smaller" |
+| `CARD_NOT_LINKED` | screen-level error "This card isn't registered yet. The customer needs to link it at zoracle.com/link." |
+| `CARD_INSUFFICIENT_BALANCE` | screen-level error "Card balance is too low for this amount." |
+| `CARD_DEBIT_AUTHORITY_EXPIRED` | screen-level error "The card's authorization expired. Customer needs to re-link." |
 | any other | toast with `message`, log to Sentry |
 
 ---
