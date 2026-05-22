@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  HCE service descriptor: the standard NFC Forum NDEF Type 4 Tag AID
+  (D2 76 00 00 85 01 01). Payer devices look for this AID and read the
+  emulated tag as if it were a plain NDEF tag — no app required on the
+  payer side; iOS and Android both auto-open the NDEF URI.
+-->
+<host-apdu-service xmlns:android="http://schemas.android.com/apk/res/android"
+    android:description="@string/tapp_hce_service_description"
+    android:requireDeviceUnlock="false">
+  <aid-group android:description="@string/tapp_hce_aid_group_description"
+             android:category="other">
+    <aid-filter android:name="D2760000850101"/>
+  </aid-group>
+</host-apdu-service>

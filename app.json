@@ -1,0 +1,62 @@
+{
+  "expo": {
+    "name": "Tapp Merchant",
+    "slug": "tapp-merchant",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "scheme": "tappmerchant",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "assetBundlePatterns": ["**/*"],
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.usezoracle.tappmerchant",
+      "infoPlist": {
+        "NFCReaderUsageDescription": "Read Tapp Cards to take payments.",
+        "ITSAppUsesNonExemptEncryption": false
+      },
+      "entitlements": {
+        "com.apple.developer.nfc.readersession.formats": ["NDEF", "TAG"]
+      }
+    },
+    "android": {
+      "package": "com.usezoracle.tappmerchant",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/icon.png",
+        "backgroundColor": "#ffffff"
+      },
+      "permissions": [
+        "android.permission.NFC",
+        "android.permission.FOREGROUND_SERVICE",
+        "android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE",
+        "android.permission.POST_NOTIFICATIONS"
+      ]
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-build-properties",
+        {
+          "ios": { "deploymentTarget": "15.1" },
+          "android": { "minSdkVersion": 26, "compileSdkVersion": 35, "targetSdkVersion": 35 }
+        }
+      ],
+      "react-native-nfc-manager",
+      "./plugins/withNfcHce",
+      "./plugins/withIosNfc"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    },
+    "extra": {
+      "apiBaseUrl": "http://localhost:8000",
+      "checkoutBaseUrl": "https://checkout.zoracle.com"
+    }
+  }
+}
