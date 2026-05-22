@@ -6,8 +6,14 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Slot, Stack, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import { useFonts } from 'expo-font';
+import * as SplashScreen from 'expo-splash-screen';
 import { useAuthStore } from '@/auth/store';
 import { useOnboardingState, type OnboardingStep } from '@/auth/useOnboardingState';
+
+// Keep the splash up until Clash Grotesk lands — prevents a flash of
+// the system fallback on first paint.
+void SplashScreen.preventAutoHideAsync();
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -24,6 +30,23 @@ export default function RootLayout() {
   useEffect(() => {
     useAuthStore.getState().rehydrate();
   }, []);
+
+  // Clash Grotesk (Indian Type Foundry, via Fontshare). Bundled as
+  // local TTFs so the app doesn't need network access on cold start.
+  const [fontsLoaded, fontError] = useFonts({
+    'ClashGrotesk-Regular':  require('../assets/fonts/ClashGrotesk-Regular.ttf'),
+    'ClashGrotesk-Medium':   require('../assets/fonts/ClashGrotesk-Medium.ttf'),
+    'ClashGrotesk-Semibold': require('../assets/fonts/ClashGrotesk-Semibold.ttf'),
+    'ClashGrotesk-Bold':     require('../assets/fonts/ClashGrotesk-Bold.ttf'),
+  });
+
+  useEffect(() => {
+    if (fontsLoaded || fontError) {
+      void SplashScreen.hideAsync();
+    }
+  }, [fontsLoaded, fontError]);
+
+  if (!fontsLoaded && !fontError) return null;
 
   return (
     <QueryClientProvider client={queryClient}>

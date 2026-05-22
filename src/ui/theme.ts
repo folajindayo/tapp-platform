@@ -1,7 +1,7 @@
 // Design tokens — mirrors the users-app theme so both apps share a single
 // visual language. Edit in sync if either side evolves.
 
-import { Platform, StyleSheet, type TextStyle, type ViewStyle } from 'react-native';
+import { StyleSheet, type TextStyle, type ViewStyle } from 'react-native';
 
 export const colors = {
   // Surfaces
@@ -54,18 +54,20 @@ export const colors = {
   disabledControl: '#686868',
 } as const;
 
-const isIOS = Platform.OS === 'ios';
-
+// Clash Grotesk loaded via expo-font in app/_layout.tsx. We keep both
+// the literal family names AND the per-weight variant names so callers
+// can pick by intent (display/text) without hand-mapping weights.
+// The Platform isn't relevant — the loaded TTFs ship cross-platform.
 export const fontFamilies = {
-  display: isIOS ? 'SF Pro Display' : 'sans-serif',
-  displayMedium: isIOS ? 'SF Pro Display' : 'sans-serif-medium',
-  text: isIOS ? 'SF Pro Text' : 'sans-serif',
-  textRegular: isIOS ? 'SF Pro Text' : 'sans-serif',
-  textMedium: isIOS ? 'SF Pro Text' : 'sans-serif-medium',
-  textBold: isIOS ? 'SF Pro Text' : 'sans-serif',
-  rounded: isIOS ? 'SF Pro Rounded' : 'sans-serif-medium',
-  amountSymbol: isIOS ? 'SF Pro Display' : 'sans-serif',
-  amountDigit: isIOS ? 'SF Pro Display' : 'sans-serif-condensed',
+  display: 'ClashGrotesk-Semibold',
+  displayMedium: 'ClashGrotesk-Medium',
+  text: 'ClashGrotesk-Regular',
+  textRegular: 'ClashGrotesk-Regular',
+  textMedium: 'ClashGrotesk-Medium',
+  textBold: 'ClashGrotesk-Bold',
+  rounded: 'ClashGrotesk-Medium',
+  amountSymbol: 'ClashGrotesk-Semibold',
+  amountDigit: 'ClashGrotesk-Semibold',
 } as const;
 
 export const radii = {

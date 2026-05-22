@@ -68,6 +68,17 @@ module.exports = {
         '2xl': '24px',
         pill: '100000px',
       },
+      // Clash Grotesk (Indian Type Foundry, Fontshare). Loaded as
+      // local TTFs via expo-font in app/_layout.tsx. NativeWind picks
+      // these up as `font-sans` / `font-medium` / `font-semibold` /
+      // `font-bold` — keeps screen className-driven typography
+      // without hand-stamping `fontFamily` on every <Text>.
+      fontFamily: {
+        sans: ['ClashGrotesk-Regular'],
+        medium: ['ClashGrotesk-Medium'],
+        semibold: ['ClashGrotesk-Semibold'],
+        bold: ['ClashGrotesk-Bold'],
+      },
     },
   },
   plugins: [],
