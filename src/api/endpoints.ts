@@ -6,8 +6,6 @@ import type {
   AuthTokens,
   ConfirmAccountRequest,
   Currency,
-  InitiateTapCardRequest,
-  InitiateTapCardResponse,
   InitiateTapRequest,
   InitiateTapResponse,
   Institution,
@@ -23,6 +21,12 @@ import type {
   ResendTokenRequest,
   SaveBankAccountRequest,
   SenderStatsResponse,
+  TapCardDebitRequest,
+  TapCardDebitResponse,
+  TapCardNonceRequest,
+  TapCardNonceResponse,
+  TapCardStepUpResponse,
+  TapCardTokenAckRequest,
   UUID,
   VerifyAccountRequest,
   VerifyAccountResponse,
@@ -79,12 +83,39 @@ export const merchantApi = {
       data: body,
       headers: { 'Idempotency-Key': idempotencyKey },
     }),
-  initiateTapCard: (body: InitiateTapCardRequest, idempotencyKey: string) =>
-    request<InitiateTapCardResponse>({
+  // Pre-debit probe: resolves the auth tier (none / pin / step_up) and
+  // returns a single-use server_nonce the debit POST must echo.
+  tapCardNonce: (body: TapCardNonceRequest) =>
+    request<TapCardNonceResponse>({
+      method: 'GET',
+      url: '/v1/sender/me/tap-card/nonce',
+      params: body,
+    }),
+  // The debit itself. PIN response (if any) is computed on-device from
+  // K (read off the card) + the typed PIN + the server_nonce; see
+  // src/hooks/pinHmac.ts. Idempotent on server_nonce.
+  tapCardDebit: (body: TapCardDebitRequest) =>
+    request<TapCardDebitResponse>({
       method: 'POST',
       url: '/v1/sender/me/tap-card',
       data: body,
-      headers: { 'Idempotency-Key': idempotencyKey },
+    }),
+  // After a successful write of `new_card_token` back to the card.
+  // The server uses written=false to flag the card for PWA-driven
+  // resync at the cardholder's next opportunity.
+  tapCardTokenAck: (orderId: UUID, body: TapCardTokenAckRequest) =>
+    request<{ acknowledged: true }>({
+      method: 'POST',
+      url: `/v1/sender/me/tap-card/${orderId}/token-ack`,
+      data: body,
+    }),
+  // Polled by the step-up screen while the cardholder completes
+  // WebAuthn biometric in their own PWA.
+  tapCardStepUpPoll: (token: string) =>
+    request<TapCardStepUpResponse>({
+      method: 'GET',
+      url: '/v1/sender/me/tap-card/step-up',
+      params: { token },
     }),
 };
 

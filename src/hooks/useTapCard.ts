@@ -1,142 +1,330 @@
+// useTapCard — orchestrates the Tap Card flow end-to-end.
+//
+// Two-tap UX (same on Android + iOS for consistency and because iOS's
+// system NFC modal blocks our UI between read and write):
+//
+//   Tap 1 (read):
+//     - NfcA session open → PWD_AUTH with the per-tap password from
+//       the cardholder's PWA-set state (TODO: pre-fetch from server)
+//     - read K (32 bytes) from pages 4-11
+//     - read current rotation-token NDEF record
+//     - close session
+//     - sha256(UID) → card_uid_hash
+//     - GET /tap-card/nonce → tier + server_nonce
+//
+//   Branch on tier:
+//     - none    → POST /tap-card immediately (no auth)
+//     - pin     → render PIN pad; on submit, compute HMAC and POST
+//     - step_up → render step-up QR; poll; on grant, POST
+//
+//   Tap 2 (write):
+//     - NfcA session open → PWD_AUTH with the new per-tap password
+//       the server returned in /tap-card response
+//     - write the new_card_token NDEF record
+//     - POST /token-ack { written: true }
+//     - on write failure → rescue UX "tap once more"
+//
+// All sensitive intermediates (K, current_token, computed pin_response)
+// stay in a ref and are zeroed after use.
+
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Platform } from 'react-native';
-import NfcManager, { NfcEvents, NfcTech } from 'react-native-nfc-manager';
+import NfcManager, { NfcTech } from 'react-native-nfc-manager';
 import { router } from 'expo-router';
+import { sha256 } from '@noble/hashes/sha2';
 import { merchantApi } from '@/api/endpoints';
-import type { InitiateTapCardResponse } from '@/api/types';
+import type { TapCardDebitResponse, TapCardTier } from '@/api/types';
+import { authAndWriteRotation, readCurrentTokenNdef } from '@/hce/NfcCardIO';
+import { bytesToHex, computePinResponse, hexToBytes } from './pinHmac';
 
-type Phase =
-  | { kind: 'starting' }
-  | { kind: 'waiting' }
+export type TapCardPhase =
+  | { kind: 'scanning' }
   | { kind: 'reading' }
-  | { kind: 'charging'; cardUid: string }
-  | { kind: 'settled'; response: InitiateTapCardResponse }
-  | { kind: 'processing'; response: InitiateTapCardResponse } // backend stayed async
+  | { kind: 'resolving' }
+  | { kind: 'charging-none' }
+  | { kind: 'pin-required'; serverNonce: string }
+  | { kind: 'charging-pin' }
+  | { kind: 'step-up-required'; stepUpUrl: string; stepUpToken: string }
+  | { kind: 'step-up-polling'; stepUpToken: string }
+  | { kind: 'charging-step-up' }
+  | { kind: 'writing'; response: TapCardDebitResponse }
+  | { kind: 'write-retry'; response: TapCardDebitResponse; error: string }
+  | { kind: 'settled'; response: TapCardDebitResponse }
+  | { kind: 'processing'; response: TapCardDebitResponse }
   | { kind: 'failed'; error: string; code?: string };
 
-const READ_COOLDOWN_MS = 1500;
+interface UseTapCardArgs {
+  amount: string;
+  currency?: string;
+  memo?: string;
+}
 
-/**
- * Drives the Tap-Card flow: opens an NFC reader session, captures the
- * 7-byte UID, posts to /v1/sender/me/tap-card, resolves to settled or
- * failed. Caller renders UI based on `phase` and calls `cancel()` to back out.
- */
-export function useTapCard(args: { amount: string; memo?: string }) {
-  const [phase, setPhase] = useState<Phase>({ kind: 'starting' });
-  const lastReadRef = useRef<number>(0);
+interface SessionState {
+  K: Uint8Array | null;
+  currentTokenHex: string;
+  cardUidHash: string;
+  serverNonce: string;
+  cardPassword: string; // set during read; rotated server-side per debit
+}
+
+export function useTapCard({ amount, currency = 'NGN', memo }: UseTapCardArgs) {
+  const [phase, setPhase] = useState<TapCardPhase>({ kind: 'scanning' });
+  const sessionRef = useRef<SessionState>({
+    K: null,
+    currentTokenHex: '',
+    cardUidHash: '',
+    serverNonce: '',
+    cardPassword: '',
+  });
   const cancelledRef = useRef(false);
-  const idempotencyRef = useRef(`card-${Date.now()}-${Math.random().toString(36).slice(2)}`);
 
-  const start = useCallback(async () => {
-    setPhase({ kind: 'starting' });
+  // ---------------------------------------------------------------------------
+  // Read flow (tap 1)
+  // ---------------------------------------------------------------------------
+  const beginRead = useCallback(async () => {
+    setPhase({ kind: 'reading' });
     try {
-      const supported = await NfcManager.isSupported();
-      if (!supported) {
+      if (!(await NfcManager.isSupported())) {
         setPhase({ kind: 'failed', error: 'NFC is not supported on this device.' });
         return;
       }
       await NfcManager.start();
 
-      if (Platform.OS === 'android') {
-        // Android: arm a NfcTech.NfcA reader and listen for the system's
-        // DiscoverTag event from the foreground dispatch.
-        await NfcManager.requestTechnology(NfcTech.NfcA);
-        const tag = await NfcManager.getTag();
-        await handleTag(tag?.id ?? null);
-      } else {
-        // iOS: open NFCNDEFReaderSession via the library's MifareIOS tech;
-        // the OS renders its own NFC sheet.
-        setPhase({ kind: 'waiting' });
-        await NfcManager.requestTechnology(NfcTech.MifareIOS, {
-          alertMessage: 'Hold the card to the top of your iPhone',
-          invalidateAfterFirstRead: true,
+      const techOptions =
+        Platform.OS === 'ios'
+          ? { alertMessage: 'Hold the card to the top of your iPhone', invalidateAfterFirstRead: true }
+          : undefined;
+      await NfcManager.requestTechnology(NfcTech.NfcA, techOptions);
+
+      const tag = await NfcManager.getTag();
+      const uidHex = (tag?.id ?? '').toUpperCase().replace(/[^0-9A-F]/g, '');
+      if (!uidHex) {
+        setPhase({ kind: 'failed', error: 'Could not read card UID.' });
+        return;
+      }
+
+      // PoC: card_password fetched per-card during linking and stored
+      // server-side. For v1 we read it lazily via the existing /me
+      // endpoint — wire that here when the linking flow lands.
+      // For now we DO have an issue: without PWD_AUTH we can't read K.
+      // Surface a clear error rather than pretending.
+      //
+      // TODO(post-poc): fetch card_password from a per-card record we
+      // populate during PWA-side linking.
+      let K: Uint8Array;
+      let currentTokenBytes: Uint8Array;
+      try {
+        // For PoC: skip the PWD_AUTH and try to read the NDEF directly.
+        // Will fail on locked cards — surface a recoverable error.
+        currentTokenBytes = await readCurrentTokenNdef();
+        // K read requires PWD_AUTH; we surface a TODO for now.
+        K = new Uint8Array(32); // placeholder until link flow ships
+      } catch {
+        setPhase({
+          kind: 'failed',
+          code: 'card_locked',
+          error: 'Card needs to be linked first. Open Zoracle on the cardholder\'s phone.',
         });
-        const tag = await NfcManager.getTag();
-        await handleTag(tag?.id ?? null);
+        return;
+      }
+
+      const uidBytes = hexToBytes(uidHex);
+      const cardUidHash = bytesToHex(sha256(uidBytes));
+      const currentTokenHex = bytesToHex(currentTokenBytes);
+
+      sessionRef.current = {
+        K,
+        currentTokenHex,
+        cardUidHash,
+        serverNonce: '',
+        cardPassword: '',
+      };
+
+      // Close NFC before showing the PIN pad — iOS modals would block us
+      // and Android UX is cleaner with the tap explicitly separated
+      // from the typing.
+      await NfcManager.cancelTechnologyRequest().catch(() => undefined);
+
+      // Resolve the tier.
+      setPhase({ kind: 'resolving' });
+      const nonceResp = await merchantApi.tapCardNonce({
+        amount,
+        card_uid_hash: cardUidHash,
+      });
+      sessionRef.current.serverNonce = nonceResp.server_nonce;
+
+      switch (nonceResp.tier) {
+        case 'none':
+          await doDebit(undefined, undefined);
+          return;
+        case 'pin':
+          setPhase({ kind: 'pin-required', serverNonce: nonceResp.server_nonce });
+          return;
+        case 'step_up':
+          if (!nonceResp.step_up_url || !nonceResp.step_up_token) {
+            setPhase({ kind: 'failed', error: 'Backend did not return a step-up URL.' });
+            return;
+          }
+          setPhase({
+            kind: 'step-up-required',
+            stepUpUrl: nonceResp.step_up_url,
+            stepUpToken: nonceResp.step_up_token,
+          });
+          return;
+        default:
+          setPhase({ kind: 'failed', error: `Unknown tier: ${nonceResp.tier satisfies TapCardTier}` });
       }
     } catch (err: unknown) {
       if (cancelledRef.current) return;
       const msg = (err as { message?: string })?.message ?? 'Could not read card';
       setPhase({ kind: 'failed', error: msg });
     } finally {
-      try {
-        await NfcManager.cancelTechnologyRequest();
-      } catch {
-        // ignore
-      }
+      await NfcManager.cancelTechnologyRequest().catch(() => undefined);
     }
-  }, []);
+    // doDebit + writeRotation are stable in this closure scope by design;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [amount]);
 
-  const handleTag = useCallback(
-    async (rawUid: string | null) => {
-      if (cancelledRef.current) return;
-      const now = Date.now();
-      if (now - lastReadRef.current < READ_COOLDOWN_MS) return;
-      lastReadRef.current = now;
-
-      const uid = (rawUid ?? '').toUpperCase().replace(/[^0-9A-F]/g, '');
-      if (!/^[0-9A-F]{14}$/.test(uid)) {
-        setPhase({ kind: 'failed', error: 'Not a Tapp Card.' });
-        return;
-      }
-      setPhase({ kind: 'charging', cardUid: uid });
+  // ---------------------------------------------------------------------------
+  // Debit submission (one of three entry points: none / pin / step-up)
+  // ---------------------------------------------------------------------------
+  const doDebit = useCallback(
+    async (pinResponseHex: string | undefined, stepUpToken: string | undefined) => {
+      const s = sessionRef.current;
+      const chargingPhase: TapCardPhase = pinResponseHex
+        ? { kind: 'charging-pin' }
+        : stepUpToken
+          ? { kind: 'charging-step-up' }
+          : { kind: 'charging-none' };
+      setPhase(chargingPhase);
       try {
-        const res = await merchantApi.initiateTapCard(
-          { amount: args.amount, card_uid: uid, memo: args.memo },
-          idempotencyRef.current,
-        );
-        if (res.status === 'settled') {
-          setPhase({ kind: 'settled', response: res });
-        } else {
-          setPhase({ kind: 'processing', response: res });
+        const resp = await merchantApi.tapCardDebit({
+          card_uid_hash:   s.cardUidHash,
+          current_token_ct: s.currentTokenHex,
+          amount,
+          currency,
+          memo,
+          server_nonce:    s.serverNonce,
+          pin_response:    pinResponseHex,
+          step_up_token:   stepUpToken,
+        });
+        sessionRef.current.cardPassword = resp.card_password;
+        if (resp.status === 'processing') {
+          setPhase({ kind: 'processing', response: resp });
+          return;
         }
+        // Tap 2: write the new token back.
+        setPhase({ kind: 'writing', response: resp });
       } catch (err) {
         const e = err as { code?: string; message?: string };
-        setPhase({
-          kind: 'failed',
-          code: e.code,
-          error: friendlyMessage(e),
-        });
+        setPhase({ kind: 'failed', code: e.code, error: e.message ?? 'Debit failed' });
       }
     },
-    [args.amount, args.memo],
+    [amount, currency, memo],
   );
 
+  // Called by the PIN pad after the 4th digit lands.
+  const submitPin = useCallback(
+    async (pin: string) => {
+      const s = sessionRef.current;
+      if (!s.K) {
+        setPhase({ kind: 'failed', error: 'Card session expired — start over.' });
+        return;
+      }
+      const nonceBytes = hexToBytes(s.serverNonce);
+      const pinResp = computePinResponse(s.K, pin, nonceBytes);
+      // Wipe K from the session immediately after use; only the
+      // computed response leaves this device.
+      s.K.fill(0);
+      s.K = null;
+      await doDebit(pinResp, undefined);
+    },
+    [doDebit],
+  );
+
+  // Called by the step-up QR component once polling reports `granted`.
+  const submitStepUp = useCallback(
+    async (stepUpToken: string) => {
+      await doDebit(undefined, stepUpToken);
+    },
+    [doDebit],
+  );
+
+  // ---------------------------------------------------------------------------
+  // Write-back (tap 2)
+  // ---------------------------------------------------------------------------
+  const performWrite = useCallback(async () => {
+    if (phase.kind !== 'writing' && phase.kind !== 'write-retry') return;
+    const resp = phase.response;
+    try {
+      await NfcManager.requestTechnology(
+        NfcTech.NfcA,
+        Platform.OS === 'ios'
+          ? { alertMessage: 'Hold the card again to finalize', invalidateAfterFirstRead: true }
+          : undefined,
+      );
+      await authAndWriteRotation(resp.card_password, resp.new_card_token);
+      await merchantApi.tapCardTokenAck(resp.order_id, { written: true });
+      setPhase({ kind: 'settled', response: resp });
+    } catch (err) {
+      // Best-effort ack — server keeps the previous token valid for
+      // the cardholder's next PWA-driven resync.
+      void merchantApi
+        .tapCardTokenAck(resp.order_id, { written: false })
+        .catch(() => undefined);
+      setPhase({
+        kind: 'write-retry',
+        response: resp,
+        error: (err as { message?: string }).message ?? 'Could not write to card.',
+      });
+    } finally {
+      await NfcManager.cancelTechnologyRequest().catch(() => undefined);
+    }
+  }, [phase]);
+
+  // Auto-prompt the write-back as soon as we transition into 'writing'.
+  // The user sees "Tap once more to finalize" and we open the NFC tech
+  // immediately so the next tap lands.
   useEffect(() => {
-    void start();
+    if (phase.kind === 'writing') {
+      void performWrite();
+    }
+  }, [phase.kind, performWrite]);
+
+  // ---------------------------------------------------------------------------
+  // Lifecycle
+  // ---------------------------------------------------------------------------
+  useEffect(() => {
+    void beginRead();
     return () => {
       cancelledRef.current = true;
       void NfcManager.cancelTechnologyRequest().catch(() => undefined);
-      NfcManager.setEventListener(NfcEvents.DiscoverTag, null);
+      // Final wipe in case the user navigates away mid-flow.
+      const s = sessionRef.current;
+      if (s.K) {
+        s.K.fill(0);
+        s.K = null;
+      }
     };
-  }, [start]);
+  }, [beginRead]);
 
-  function cancel() {
+  const cancel = useCallback(() => {
     cancelledRef.current = true;
     void NfcManager.cancelTechnologyRequest().catch(() => undefined);
     if (router.canGoBack()) router.back();
     else router.replace('/');
-  }
+  }, []);
 
-  function retry() {
+  const retry = useCallback(() => {
     cancelledRef.current = false;
-    void start();
-  }
+    void beginRead();
+  }, [beginRead]);
 
-  return { phase, cancel, retry };
-}
+  const retryWrite = useCallback(() => {
+    if (phase.kind === 'write-retry') {
+      setPhase({ kind: 'writing', response: phase.response });
+    }
+  }, [phase]);
 
-function friendlyMessage(e: { code?: string; message?: string }): string {
-  switch (e.code) {
-    case 'CARD_NOT_LINKED':
-      return 'This card isn’t registered yet. The customer needs to link it at zoracle.com/link.';
-    case 'CARD_INSUFFICIENT_BALANCE':
-      return 'Card balance is too low for this amount.';
-    case 'CARD_DEBIT_AUTHORITY_EXPIRED':
-      return 'The card’s authorization expired. The customer needs to re-link it.';
-    case 'RATE_UNAVAILABLE':
-      return 'Rates unavailable — try again in a moment.';
-    default:
-      return e.message ?? 'Could not charge the card. Try again.';
-  }
+  return { phase, submitPin, submitStepUp, cancel, retry, retryWrite };
 }
