@@ -44,7 +44,7 @@ export const Input = forwardRef<TextInput, InputProps>(function Input(
   const isPassword = secureTextEntry === true;
 
   const borderColor = error
-    ? colors.danger
+    ? colors.brand
     : focused
     ? colors.brand
     : colors.borderMuted;
@@ -122,7 +122,7 @@ export const Input = forwardRef<TextInput, InputProps>(function Input(
       </View>
 
       {error ? (
-        <Text className="text-xs text-danger mt-1.5">{error}</Text>
+        <Text className="text-xs text-brand mt-1.5">{error}</Text>
       ) : hint ? (
         <Text className="text-xs text-muted-subtle mt-1.5">{hint}</Text>
       ) : null}

@@ -3,7 +3,16 @@ import { ActivityIndicator, Pressable, View } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { cssInterop } from 'nativewind';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import Animated, { Easing, FadeIn, FadeOut } from 'react-native-reanimated';
+import Animated, {
+  Easing,
+  FadeIn,
+  FadeOut,
+  useAnimatedStyle,
+  useSharedValue,
+  withRepeat,
+  withTiming,
+  cancelAnimation,
+} from 'react-native-reanimated';
 // Reanimated typings expect an EasingFunction; the new Easing.bezier returns
 // an EasingFunctionFactory. .factory() returns the actual function — same
 // underlying curve, satisfies the type.
@@ -36,7 +45,7 @@ export default function TapCardScreen() {
   });
 
   return (
-    <SafeAreaView edges={['top', 'left', 'right']} className="flex-1 bg-surface-bg">
+    <SafeAreaView edges={['top', 'left', 'right']} className="flex-1 bg-white">
       <Header amount={amount ?? '0'} onCancel={tap.cancel} />
 
       <Animated.View
@@ -154,10 +163,41 @@ function Body({
 // -----------------------------------------------------------------------------
 
 function ScanningView() {
+  const scale = useSharedValue(0.9);
+  useEffect(() => {
+    scale.value = withRepeat(
+      withTiming(1.12, { duration: 1500, easing: Easing.inOut(Easing.ease) }),
+      -1,
+      true,
+    );
+    return () => cancelAnimation(scale);
+  }, [scale]);
+
+  const ringStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+    opacity: 0.6,
+  }));
+
   return (
-    <View className="flex-1 items-center justify-center px-6 gap-6">
-      <View className="h-32 w-32 rounded-full bg-brand/15 items-center justify-center">
-        <Icon xml={Icons.IconContactlessCard} width={64} height={88} />
+    <View className="flex-1 items-center justify-center px-6 gap-8">
+      <View className="items-center justify-center" style={{ width: 220, height: 220 }}>
+        {/* Pulsing Ripple Rings */}
+        <Animated.View
+          style={[
+            {
+              position: 'absolute',
+              width: 190,
+              height: 190,
+              borderRadius: 95,
+              borderWidth: 2,
+              borderColor: '#0065F5',
+            },
+            ringStyle,
+          ]}
+        />
+        <View className="h-32 w-32 rounded-full bg-brand-blue/15 items-center justify-center">
+          <Icon xml={Icons.IconContactlessCard} width={64} height={88} />
+        </View>
       </View>
       <View className="items-center gap-2">
         <Text className="text-xl font-semibold text-ink">Hold the card</Text>
@@ -172,7 +212,7 @@ function ScanningView() {
 function SpinnerView({ label }: { label: string }) {
   return (
     <View className="flex-1 items-center justify-center px-6 gap-4">
-      <ActivityIndicator color="#298DFF" />
+      <ActivityIndicator color="#0065F5" />
       <Text className="text-muted-text">{label}</Text>
     </View>
   );
@@ -231,14 +271,14 @@ function PinView({ onSubmit }: { onSubmit: (pin: string) => Promise<void> }) {
 function WritingView({ label }: { label: string }) {
   return (
     <View className="flex-1 items-center justify-center px-6 gap-6">
-      <View className="h-24 w-24 rounded-full bg-brand/15 items-center justify-center">
+      <View className="h-24 w-24 rounded-full bg-brand-blue/15 items-center justify-center">
         <Icon xml={Icons.IconContactlessCard} width={52} height={72} />
       </View>
       <Text className="text-lg font-semibold text-ink text-center">
         Payment received
       </Text>
       <Text className="text-center text-muted-text">{label}</Text>
-      <ActivityIndicator color="#298DFF" />
+      <ActivityIndicator color="#0065F5" />
     </View>
   );
 }
@@ -297,7 +337,7 @@ function ProcessingView({
 }) {
   return (
     <View className="flex-1 items-center justify-center px-6 gap-6">
-      <ActivityIndicator color="#298DFF" />
+      <ActivityIndicator color="#0065F5" />
       <Text className="text-xl font-semibold text-ink">Settling…</Text>
       <Text
         className="text-3xl font-bold text-ink"

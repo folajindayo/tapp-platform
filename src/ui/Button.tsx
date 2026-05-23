@@ -5,6 +5,7 @@ import {
   View,
   type TouchableOpacityProps,
 } from 'react-native';
+import * as Haptics from 'expo-haptics';
 import { cssInterop } from 'nativewind';
 import { Text } from './Text';
 
@@ -16,7 +17,7 @@ export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger';
 export interface ButtonProps extends Omit<TouchableOpacityProps, 'children' | 'style'> {
   /** Button label. */
   label: string;
-  /** Visual variant. Defaults to primary (royal-blue rounded-xl). */
+  /** Visual variant. Defaults to primary (brand rounded-xl). */
   variant?: ButtonVariant;
   /** Show a centered spinner instead of the label and prevent presses. */
   loading?: boolean;
@@ -43,8 +44,9 @@ const textByVariant: Record<ButtonVariant, string> = {
 };
 
 /**
- * Primary CTA: 59px tall, rounded-xl, royal-blue background (#0065F5)
- * with white label. Secondary is a soft white surface with a subtle border.
+ * CTA primitive. Visual style matches users-app (tapp):
+ * 52px tall, rounded-xl (12px) corners, brand background.
+ * Secondary is a surface with a subtle border.
  */
 export const Button = forwardRef<View, ButtonProps>(function Button(
   {
@@ -57,14 +59,23 @@ export const Button = forwardRef<View, ButtonProps>(function Button(
     className,
     accessibilityLabel,
     accessibilityHint,
+    onPress,
     ...rest
   },
   ref,
 ) {
   const isDisabled = !!disabled || !!loading;
-  const containerClasses = `${containerByVariant[variant]} h-[59px] px-5 rounded-xl flex-row items-center justify-center gap-2 ${isDisabled ? 'opacity-50' : ''} ${className ?? ''}`;
-  const labelClasses = `text-base font-medium ${textByVariant[variant]}`;
+  const containerClasses = `${containerByVariant[variant]} h-[52px] px-5 rounded-xl flex-row items-center justify-center gap-2 ${isDisabled ? 'opacity-50' : ''} ${className ?? ''}`;
+  const labelClasses = `text-base font-semibold ${textByVariant[variant]}`;
   const spinnerColor = variant === 'primary' || variant === 'danger' ? '#FFFFFF' : '#FAFAFA';
+
+  const handlePress = (e: any) => {
+    if (isDisabled) return;
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    if (onPress) {
+      onPress(e);
+    }
+  };
 
   return (
     <TouchableOpacity
@@ -76,6 +87,7 @@ export const Button = forwardRef<View, ButtonProps>(function Button(
       activeOpacity={0.8}
       disabled={isDisabled}
       className={containerClasses}
+      onPress={handlePress}
       {...rest}
     >
       {loading ? (
@@ -83,7 +95,7 @@ export const Button = forwardRef<View, ButtonProps>(function Button(
       ) : (
         <>
           {leadingIcon}
-          <Text className={labelClasses}>{label}</Text>
+          {label ? <Text className={labelClasses}>{label}</Text> : null}
           {trailingIcon}
         </>
       )}
