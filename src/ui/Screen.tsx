@@ -27,7 +27,7 @@ export function Screen({
   edges = ['top', 'left', 'right'],
 }: ScreenProps) {
   return (
-    <SafeAreaView edges={edges} className={`flex-1 bg-surface ${className ?? ''}`}>
+    <SafeAreaView edges={edges} className={`flex-1 bg-surface-bg ${className ?? ''}`}>
       {scrollable ? (
         <ScrollView
           className="flex-1"

@@ -79,5 +79,5 @@ function PulsingDot() {
   // single status indicator. Per MOTION_PRINCIPLES § "Never animate
   // repeated actions" — a constant pulse on a polling indicator drains
   // attention with no information.
-  return <View className="w-2 h-2 rounded-full bg-brand-green" />;
+  return <View className="w-2 h-2 rounded-full bg-brand" />;
 }

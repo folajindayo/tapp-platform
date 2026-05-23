@@ -6,68 +6,65 @@ import { StyleSheet, type TextStyle, type ViewStyle } from 'react-native';
 export const colors = {
   // Surfaces
   trueBlack: '#000000',
-  black: '#121212',
-  ink: '#1F1F1F',
-  white: '#FFFFFF',
-  whiteSoft: '#FAFAFA',
-  background: '#F7F7F7',
-  surface: '#FFFFFF',
-  surfaceMuted: '#E7E7E7',
-  surfaceSubtle: '#F0F0F0',
-  surfaceDisabled: '#ECECEC',
-  fieldDisabled: '#EAEAEA',
+  black: '#0D0D0D',
+  ink: '#FFFFFF',
+  white: '#161616',
+  whiteSoft: '#1E1E1E',
+  background: '#0D0D0D',
+  surface: '#161616',
+  surfaceMuted: '#2C2C2E',
+  surfaceSubtle: '#1E1E1E',
+  surfaceDisabled: '#202022',
+  fieldDisabled: '#18181A',
 
   // Text
-  text: '#121212',
-  textStrong: '#333333',
-  textInverse: '#FFFFFF',
+  text: '#FAFAFA',
+  textStrong: '#FFFFFF',
+  textInverse: '#000000',
   textLight: '#FAFAFA',
-  textMuted: '#838383',
-  textSubtle: '#9A9A9A',
-  textSection: '#A3A3A3',
-  textSecondary: '#868686',
-  textTertiary: '#B5B5B5',
-  textInactive: '#AAAAAA',
-  textDisabled: '#A2A2A2',
+  textMuted: '#9A9A9A',
+  textSubtle: '#8E8E93',
+  textSection: '#8E8E93',
+  textSecondary: '#A3A3A3',
+  textTertiary: '#686868',
+  textInactive: '#555555',
+  textDisabled: '#48484A',
 
   // Lines / icons
-  border: '#D5D5D5',
-  borderStrong: '#C9C9C9',
-  borderMuted: '#DBDBDB',
-  divider: '#E8E8E8',
-  iconDisabled: '#A0A0A0',
-  arrow: '#292D32',
+  border: '#222224',
+  borderStrong: '#2C2C2E',
+  borderMuted: '#1C1C1E',
+  divider: '#1A1A1C',
+  iconDisabled: '#48484A',
+  arrow: '#FFFFFF',
 
   // Brand
-  brandGreen: '#40FF00',
-  brandBlue: '#2775CA',
+  brand: '#298DFF',
+  brandBlue: '#1D79E2',
 
   // Semantic
-  success: '#2BAB00',
-  successBg: '#E4FFDC',
-  danger: '#C9252D',
-  dangerBg: '#FFDBDD',
-  warning: '#FF6B00',
-  warningBg: '#FFF0E2',
+  success: '#30D158',
+  successBg: '#1C3D1E',
+  danger: '#FF453A',
+  dangerBg: '#4A1517',
+  warning: '#FF9F0A',
+  warningBg: '#4A2A00',
 
   // Controls
-  disabledControl: '#686868',
+  disabledControl: '#48484A',
 } as const;
 
-// Clash Grotesk loaded via expo-font in app/_layout.tsx. We keep both
-// the literal family names AND the per-weight variant names so callers
-// can pick by intent (display/text) without hand-mapping weights.
-// The Platform isn't relevant — the loaded TTFs ship cross-platform.
+// Loaded via expo-font in app/_layout.tsx.
 export const fontFamilies = {
-  display: 'ClashGrotesk-Semibold',
-  displayMedium: 'ClashGrotesk-Medium',
-  text: 'ClashGrotesk-Regular',
-  textRegular: 'ClashGrotesk-Regular',
-  textMedium: 'ClashGrotesk-Medium',
-  textBold: 'ClashGrotesk-Bold',
-  rounded: 'ClashGrotesk-Medium',
-  amountSymbol: 'ClashGrotesk-Semibold',
-  amountDigit: 'ClashGrotesk-Semibold',
+  display:       'OpenSans-Bold',
+  displayMedium: 'OpenSans-SemiBold',
+  text:          'OpenSans-Regular',
+  textRegular:   'OpenSans-Regular',
+  textMedium:    'OpenSans-Medium',
+  textBold:      'OpenSans-Bold',
+  rounded:       'OpenSans-Medium',
+  amountSymbol:  'OpenSans-SemiBold',
+  amountDigit:   'OpenSans-SemiBold',
 } as const;
 
 export const radii = {
@@ -165,7 +162,7 @@ export const typography = StyleSheet.create({
     fontSize: 16,
     lineHeight: 17,
     textAlign: 'center',
-    color: colors.trueBlack,
+    color: colors.white,
   } satisfies TextStyle,
   amount: {
     fontFamily: fontFamilies.amountDigit,

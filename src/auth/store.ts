@@ -12,18 +12,21 @@ interface AuthUser {
 
 interface AuthState {
   isAuthenticated: boolean;
+  isHydrated: boolean;
   user: AuthUser | null;
-  setSession: (access: string, refresh: string, user: AuthUser) => void;
+  setSession: (access: string, refresh: string, user?: AuthUser) => void;
   signOut: () => void;
   rehydrate: () => void;
 }
 
 export const useAuthStore = create<AuthState>((set) => ({
   isAuthenticated: false,
+  isHydrated: false,
   user: null,
   setSession: (access, refresh, user) => {
+    if (__DEV__) console.log('[auth] setSession — access:', access ? `${access.slice(0, 12)}…` : 'MISSING', '| user:', user);
     setTokens(access, refresh, user);
-    set({ isAuthenticated: true, user });
+    set({ isAuthenticated: true, user: user ?? null });
   },
   signOut: () => {
     clearAuth();
@@ -32,10 +35,12 @@ export const useAuthStore = create<AuthState>((set) => ({
   rehydrate: () => {
     const token = getAccessToken();
     const user = getUser();
-    if (token && user) {
-      set({ isAuthenticated: true, user });
-    } else {
-      set({ isAuthenticated: false, user: null });
-    }
+    // user may not be stored (API doesn't always return it); token alone is
+    // sufficient to consider the session active — /v1/me will fetch fresh state.
+    set({ isAuthenticated: !!token, user: user ?? null, isHydrated: true });
   },
 }));
+
+// MMKV reads are synchronous — hydrate before the first React render so
+// queries never fire with a missing token on cold start.
+useAuthStore.getState().rehydrate();

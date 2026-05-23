@@ -4,6 +4,7 @@ import { router } from 'expo-router';
 import { ArrowLeft } from 'lucide-react-native';
 import { cssInterop } from 'nativewind';
 import { Text } from './Text';
+import { colors } from './theme';
 
 cssInterop(TouchableOpacity, { className: { target: 'style' } });
 cssInterop(View, { className: { target: 'style' } });
@@ -37,7 +38,7 @@ export function Header({ title, back = true, right, onBack }: HeaderProps) {
             onPress={handleBack}
             className="h-10 w-10 items-center justify-center rounded-md"
           >
-            <ArrowLeft size={22} color="#121212" />
+            <ArrowLeft size={22} color={colors.text} />
           </TouchableOpacity>
         ) : null}
       </View>

@@ -12,14 +12,15 @@ export interface ApiError {
 
 // ---- Auth ----
 export interface RegisterRequest {
+  firstName: string;
+  lastName: string;
   email: string;
   password: string;
-  scope: 'sender';
 }
 export interface AuthTokens {
-  access_token: string;
-  refresh_token: string;
-  user: { id: UUID; email: string };
+  accessToken: string;
+  refreshToken: string;
+  scopes: string[];
 }
 export interface LoginRequest {
   email: string;
@@ -39,8 +40,16 @@ export interface ResendTokenRequest {
 export interface MeResponse {
   id: UUID;
   email: string;
-  email_verified: boolean;
-  kyc_status: 'pending' | 'success' | 'failed' | 'not_started';
+  first_name?: string;
+  last_name?: string;
+  scopes: string[];
+  is_email_verified: boolean;
+  kyc_status?: 'pending' | 'success' | 'failed' | 'not_started';
+  has_sender_profile: boolean;
+  has_provider_profile: boolean;
+  has_tapp_card: boolean;
+  created_at: string;
+  updated_at: string;
 }
 
 // ---- KYC ----
@@ -79,9 +88,7 @@ export interface VerifyAccountRequest {
   account_identifier: string;
   currency: string;
 }
-export interface VerifyAccountResponse {
-  account_name: string;
-}
+export type VerifyAccountResponse = string;
 
 // ---- Merchant bank account ----
 export interface SaveBankAccountRequest {
@@ -195,22 +202,63 @@ export interface PaymentOrderSummary {
   currency: string;
   status: OrderStatus;
   created_at: string;
+  updatedAt: string;
   settled_at?: string;
   gateway_id?: string;
   tx_hash?: string;
+  amountPaid: string;
+  amountReturned: string;
+  token: string;
+  senderFee: string;
+  transactionFee: string;
+  rate: string;
+  network: string;
   memo?: string;
 }
 
 export interface OrdersListResponse {
-  data: PaymentOrderSummary[];
-  next_cursor?: string;
+  total: number;
+  page: number;
+  pageSize: number;
+  orders: PaymentOrderSummary[] | null;
 }
 
 export interface SenderStatsResponse {
-  today_amount: string;
-  today_count: number;
-  total_amount: string;
-  total_count: number;
+  totalOrders: number;
+  totalOrderVolume: string;
+  totalFeeEarnings: string;
+}
+
+// ---- Auth — password management ----
+export interface ChangePasswordRequest {
+  old_password: string;
+  new_password: string;
+}
+export interface ResetPasswordTokenRequest {
+  email: string;
+}
+export interface ResetPasswordRequest {
+  token: string;
+  password: string;
+}
+
+// ---- Settings ----
+export interface SenderProfile {
+  id: UUID;
+  email: string;
+  first_name?: string;
+  last_name?: string;
+}
+export interface UpdateSenderProfileRequest {
+  first_name?: string;
+  last_name?: string;
+}
+
+// ---- Catalog — live rates ----
+export interface RateResponse {
+  rate: string;
+  inverse_rate: string;
+  expires_at: string;
 }
 
 // ---- SSE events ----

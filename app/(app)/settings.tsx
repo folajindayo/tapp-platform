@@ -2,17 +2,17 @@ import { useState } from 'react';
 import { Alert, Linking, Pressable, View } from 'react-native';
 import { router } from 'expo-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { ChevronRight } from 'lucide-react-native';
+import { ChevronRight, LogOut } from 'lucide-react-native';
 import { cssInterop } from 'nativewind';
 import { authApi, merchantApi } from '@/api/endpoints';
+import { queryKeys } from '@/queries/keys';
 import { useAuthStore } from '@/auth/store';
-import { Button, Header, Icon, Icons, Screen, Text } from '@/ui';
+import { Header, Icon, Icons, Screen, Text } from '@/ui';
 import { maskAccountNumber } from '@/ui/format';
+import { colors } from '@/ui/theme';
 
 cssInterop(Pressable, { className: { target: 'style' } });
 
-// External links that the settings page surfaces — kept here so brand
-// updates don't require touching the row markup.
 const SUPPORT_URLS = {
   help:    'https://help.zoracle.com',
   terms:   'https://zoracle.com/terms',
@@ -25,9 +25,13 @@ export default function SettingsScreen() {
   const queryClient = useQueryClient();
   const [signingOut, setSigningOut] = useState(false);
 
-  const meQuery = useQuery({ queryKey: ['auth', 'me'], queryFn: authApi.me });
+  const meQuery = useQuery({
+    queryKey: queryKeys.auth.me(),
+    queryFn: authApi.me,
+  });
+
   const bankQuery = useQuery({
-    queryKey: ['merchant', 'bank-account'],
+    queryKey: queryKeys.merchant.bankAccount(),
     queryFn: merchantApi.getBankAccount,
   });
 
@@ -47,8 +51,6 @@ export default function SettingsScreen() {
     ]);
   }
 
-  // External-link helper. We don't bake in-app browsers in v1 — handing
-  // off to the system browser keeps the cookie/zkLogin surface clean.
   async function openExternal(url: string) {
     const can = await Linking.canOpenURL(url);
     if (!can) {
@@ -58,16 +60,26 @@ export default function SettingsScreen() {
     await Linking.openURL(url);
   }
 
+  const kycStatus = meQuery.data?.kyc_status;
+  const kycLabel =
+    kycStatus === 'success'
+      ? 'Verified'
+      : kycStatus
+        ? kycStatus.charAt(0).toUpperCase() + kycStatus.slice(1)
+        : '—';
+  const kycColor = kycStatus === 'success' ? colors.success : colors.textMuted;
+
   return (
     <Screen>
-      <Header title="Settings" back={false} />
+      <Header title="Account" back={false} />
 
       <Section title="Profile">
-        <Row icon={Icons.IconEmail} label="Email" value={user?.email ?? '—'} />
+        <Row icon={Icons.IconEmail}     label="Email"    value={user?.email ?? '—'} />
         <Row
           icon={Icons.IconKycStatus}
           label="KYC"
-          value={meQuery.data?.kyc_status === 'success' ? '✓ Verified' : meQuery.data?.kyc_status ?? '—'}
+          value={kycStatus === 'success' ? `✓ ${kycLabel}` : kycLabel}
+          valueColor={kycColor}
           last
         />
       </Section>
@@ -75,7 +87,7 @@ export default function SettingsScreen() {
       <Section title="Payouts">
         <Row
           icon={Icons.IconBank}
-          label="Bank"
+          label="Bank account"
           value={
             bankQuery.data
               ? `${bankQuery.data.account_name} · ${maskAccountNumber(bankQuery.data.account_number)}`
@@ -87,10 +99,21 @@ export default function SettingsScreen() {
         />
       </Section>
 
+      <Section title="Security">
+        <Row
+          icon={Icons.IconInfo}
+          label="Change password"
+          value=""
+          chevron
+          last
+          onPress={() => router.push('/(app)/change-password')}
+        />
+      </Section>
+
       <Section title="Support">
         <Row
           icon={Icons.IconHelp}
-          label="Help"
+          label="Help centre"
           value=""
           chevron
           onPress={() => openExternal(SUPPORT_URLS.help)}
@@ -116,27 +139,57 @@ export default function SettingsScreen() {
         <Row icon={Icons.IconInfo} label="Version" value="0.1.0" last />
       </Section>
 
-      <View className="h-6" />
-
-      <Button
-        label="Sign out"
-        variant="secondary"
-        onPress={confirmSignOut}
-        loading={signingOut}
-        leadingIcon={<Icon xml={Icons.IconLogout} size={20} />}
-      />
+      {/* ── Sign out ─────────────────────────────────────── */}
+      <View className="mt-2 mb-8">
+        <Pressable
+          className="flex-row items-center justify-center gap-2.5 h-[52px] rounded-xl border active:bg-surface-subtle"
+          style={{ borderColor: colors.border }}
+          onPress={confirmSignOut}
+          disabled={signingOut}
+          accessibilityRole="button"
+          accessibilityLabel="Sign out"
+        >
+          <LogOut size={16} color={colors.danger} strokeWidth={1.8} />
+          <Text
+            style={{
+              fontSize: 15,
+              fontFamily: 'OpenSans-SemiBold',
+              color: colors.danger,
+            }}
+          >
+            {signingOut ? 'Signing out…' : 'Sign out'}
+          </Text>
+        </Pressable>
+      </View>
     </Screen>
   );
 }
 
+// ─── Section wrapper ─────────────────────────────────────────────────────────
+
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <View className="mb-6">
-      <Text className="text-xs uppercase tracking-wider text-muted-subtle mb-2">{title}</Text>
-      <View className="bg-surface-soft rounded-lg overflow-hidden">{children}</View>
+    <View className="mb-5">
+      <Text
+        className="mb-2 px-1"
+        style={{
+          fontSize: 11,
+          fontFamily: 'OpenSans-SemiBold',
+          color: colors.textMuted,
+          textTransform: 'uppercase',
+          letterSpacing: 0.8,
+        }}
+      >
+        {title}
+      </Text>
+      <View className="bg-surface rounded-2xl overflow-hidden border border-line">
+        {children}
+      </View>
     </View>
   );
 }
+
+// ─── Row item ────────────────────────────────────────────────────────────────
 
 function Row({
   icon,
@@ -145,6 +198,7 @@ function Row({
   chevron,
   last,
   onPress,
+  valueColor,
 }: {
   icon?: string;
   label: string;
@@ -152,25 +206,52 @@ function Row({
   chevron?: boolean;
   last?: boolean;
   onPress?: () => void;
+  valueColor?: string;
 }) {
   const inner = (
     <View
-      className={`flex-row items-center justify-between p-4 ${last ? '' : 'border-b border-line-divider'}`}
+      className="flex-row items-center px-4 py-3.5"
+      style={{
+        borderBottomWidth: last ? 0 : 1,
+        borderBottomColor: colors.divider,
+      }}
     >
+      {/* Left: icon + label */}
       <View className="flex-row items-center gap-3 flex-1">
-        {icon ? <Icon xml={icon} size={20} /> : null}
-        <Text className="text-ink-700">{label}</Text>
+        {icon ? <Icon xml={icon} size={18} /> : null}
+        <Text
+          style={{
+            fontSize: 15,
+            fontFamily: 'OpenSans-Regular',
+            color: colors.text,
+          }}
+        >
+          {label}
+        </Text>
       </View>
-      <View className="flex-row items-center gap-2 max-w-[60%]">
+
+      {/* Right: value + chevron */}
+      <View className="flex-row items-center gap-2" style={{ maxWidth: '55%' }}>
         {value ? (
-          <Text className="text-ink text-right" numberOfLines={1}>
+          <Text
+            numberOfLines={1}
+            style={{
+              fontSize: 13,
+              fontFamily: 'OpenSans-Regular',
+              color: valueColor ?? colors.textMuted,
+              textAlign: 'right',
+            }}
+          >
             {value}
           </Text>
         ) : null}
-        {chevron ? <ChevronRight size={16} color="#8B919C" /> : null}
+        {chevron ? (
+          <ChevronRight size={15} color={colors.textMuted} strokeWidth={1.6} />
+        ) : null}
       </View>
     </View>
   );
+
   if (!onPress) return inner;
   return (
     <Pressable

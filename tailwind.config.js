@@ -1,9 +1,9 @@
 /**
- * Visual language mirrors users-app: brandGreen pill CTAs, near-black text
- * on white surfaces, clean grayscale ramp. Tokens kept in sync with
- * src/ui/theme.ts (which is the source of truth for places NativeWind
- * can't reach — Reanimated animated styles, StyleSheet-only Native
- * primitives, etc.).
+ * Visual language: Zap-inspired — royal blue (#0065F5) CTAs, white text,
+ * rounded-xl corners, Inter typography, near-black text on white surfaces,
+ * clean grayscale ramp. Tokens kept in sync with src/ui/theme.ts (which is
+ * the source of truth for places NativeWind can't reach — Reanimated animated
+ * styles, StyleSheet-only Native primitives, etc.).
  */
 /** @type {import('tailwindcss').Config} */
 module.exports = {
@@ -13,50 +13,50 @@ module.exports = {
     extend: {
       colors: {
         brand: {
-          green: '#40FF00',
-          blue: '#2775CA',
+          DEFAULT: '#298DFF',
+          blue: '#1D79E2',
         },
         ink: {
           true: '#000000',
-          DEFAULT: '#121212',
-          800: '#1F1F1F',
-          700: '#333333',
+          DEFAULT: '#FAFAFA',
+          800: '#E5E5EA',
+          700: '#C7C7CC',
         },
         surface: {
-          DEFAULT: '#FFFFFF',
-          soft: '#FAFAFA',
-          bg: '#F7F7F7',
-          muted: '#E7E7E7',
-          subtle: '#F0F0F0',
-          disabled: '#ECECEC',
-          field: '#EAEAEA',
+          DEFAULT: '#161616',
+          soft: '#1E1E1E',
+          bg: '#0D0D0D',
+          muted: '#2C2C2E',
+          subtle: '#1E1E1E',
+          disabled: '#202022',
+          field: '#18181A',
         },
         line: {
-          DEFAULT: '#D5D5D5',
-          strong: '#C9C9C9',
-          muted: '#DBDBDB',
-          divider: '#E8E8E8',
+          DEFAULT: '#222224',
+          strong: '#2C2C2E',
+          muted: '#1C1C1E',
+          divider: '#1A1A1C',
         },
         muted: {
-          text: '#838383',
-          subtle: '#9A9A9A',
-          section: '#A3A3A3',
-          secondary: '#868686',
-          tertiary: '#B5B5B5',
-          inactive: '#AAAAAA',
-          disabled: '#A2A2A2',
+          text: '#9A9A9A',
+          subtle: '#8E8E93',
+          section: '#8E8E93',
+          secondary: '#A3A3A3',
+          tertiary: '#686868',
+          inactive: '#555555',
+          disabled: '#48484A',
         },
         success: {
-          DEFAULT: '#2BAB00',
-          bg: '#E4FFDC',
+          DEFAULT: '#30D158',
+          bg: '#1C3D1E',
         },
         danger: {
-          DEFAULT: '#C9252D',
-          bg: '#FFDBDD',
+          DEFAULT: '#FF453A',
+          bg: '#4A1517',
         },
         warning: {
-          DEFAULT: '#FF6B00',
-          bg: '#FFF0E2',
+          DEFAULT: '#FF9F0A',
+          bg: '#4A2A00',
         },
       },
       borderRadius: {
@@ -68,16 +68,14 @@ module.exports = {
         '2xl': '24px',
         pill: '100000px',
       },
-      // Clash Grotesk (Indian Type Foundry, Fontshare). Loaded as
-      // local TTFs via expo-font in app/_layout.tsx. NativeWind picks
-      // these up as `font-sans` / `font-medium` / `font-semibold` /
-      // `font-bold` — keeps screen className-driven typography
-      // without hand-stamping `fontFamily` on every <Text>.
+      // Open Sans (Google Fonts). Loaded via expo-font in
+      // app/_layout.tsx. NativeWind picks these up as `font-sans` /
+      // `font-medium` / `font-semibold` / `font-bold`.
       fontFamily: {
-        sans: ['ClashGrotesk-Regular'],
-        medium: ['ClashGrotesk-Medium'],
-        semibold: ['ClashGrotesk-Semibold'],
-        bold: ['ClashGrotesk-Bold'],
+        sans:     ['OpenSans-Regular'],
+        medium:   ['OpenSans-Medium'],
+        semibold: ['OpenSans-SemiBold'],
+        bold:     ['OpenSans-Bold'],
       },
     },
   },

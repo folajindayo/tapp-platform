@@ -1,18 +1,24 @@
 import '../global.css';
+import '@/ui/loadStyles';
 
 import { useEffect } from 'react';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { Slot, Stack, useRouter, useSegments } from 'expo-router';
+import { Slot, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useFonts } from 'expo-font';
+import {
+  OpenSans_400Regular,
+  OpenSans_500Medium,
+  OpenSans_600SemiBold,
+  OpenSans_700Bold,
+} from '@expo-google-fonts/open-sans';
 import * as SplashScreen from 'expo-splash-screen';
 import { useAuthStore } from '@/auth/store';
 import { useOnboardingState, type OnboardingStep } from '@/auth/useOnboardingState';
 
-// Keep the splash up until Clash Grotesk lands — prevents a flash of
-// the system fallback on first paint.
+// Keep the native splash up until we are ready to show a screen.
 void SplashScreen.preventAutoHideAsync();
 
 const queryClient = new QueryClient({
@@ -26,25 +32,14 @@ const queryClient = new QueryClient({
 });
 
 export default function RootLayout() {
-  // Hydrate auth state from MMKV exactly once on app start.
-  useEffect(() => {
-    useAuthStore.getState().rehydrate();
-  }, []);
-
-  // Clash Grotesk (Indian Type Foundry, via Fontshare). Bundled as
-  // local TTFs so the app doesn't need network access on cold start.
+  // Store is hydrated synchronously at module load (store.ts bottom).
+  // Fonts load asynchronously — return null (native splash stays visible) until ready.
   const [fontsLoaded, fontError] = useFonts({
-    'ClashGrotesk-Regular':  require('../assets/fonts/ClashGrotesk-Regular.ttf'),
-    'ClashGrotesk-Medium':   require('../assets/fonts/ClashGrotesk-Medium.ttf'),
-    'ClashGrotesk-Semibold': require('../assets/fonts/ClashGrotesk-Semibold.ttf'),
-    'ClashGrotesk-Bold':     require('../assets/fonts/ClashGrotesk-Bold.ttf'),
+    'OpenSans-Regular':  OpenSans_400Regular,
+    'OpenSans-Medium':   OpenSans_500Medium,
+    'OpenSans-SemiBold': OpenSans_600SemiBold,
+    'OpenSans-Bold':     OpenSans_700Bold,
   });
-
-  useEffect(() => {
-    if (fontsLoaded || fontError) {
-      void SplashScreen.hideAsync();
-    }
-  }, [fontsLoaded, fontError]);
 
   if (!fontsLoaded && !fontError) return null;
 
@@ -52,7 +47,7 @@ export default function RootLayout() {
     <QueryClientProvider client={queryClient}>
       <GestureHandlerRootView style={{ flex: 1 }}>
         <SafeAreaProvider>
-          <StatusBar style="dark" />
+          <StatusBar style="light" />
           <Guard />
         </SafeAreaProvider>
       </GestureHandlerRootView>
@@ -61,31 +56,44 @@ export default function RootLayout() {
 }
 
 /**
- * Drives the routing guard: redirects the user to the right onboarding step
- * (or to the app tabs) whenever the resolved state changes.
+ * Drives routing and controls when the native splash is hidden.
+ * Always renders a Stack so Expo Router never sees a non-navigator child.
  */
 function Guard() {
+  const isHydrated = useAuthStore((s) => s.isHydrated);
   const segments = useSegments();
   const router = useRouter();
   const { step, loading } = useOnboardingState();
 
+  // Keep the native splash visible until auth state is fully resolved.
+  // This IS the loading screen — the user sees it while we check their session.
   useEffect(() => {
-    if (loading) return;
+    if (isHydrated && !loading) {
+      void SplashScreen.hideAsync();
+    }
+  }, [isHydrated, loading]);
+
+  useEffect(() => {
+    if (!isHydrated || loading) return;
+
     const target = targetRouteForStep(step);
     const inAuth = segments[0] === '(auth)';
     const inOnboarding = segments[0] === '(onboarding)';
     const inApp = segments[0] === '(app)';
     const currentGroup = inAuth ? 'auth' : inOnboarding ? 'onboarding' : inApp ? 'app' : 'none';
-    if (target.group !== currentGroup || (target.route && segments.join('/') !== target.routeFull)) {
+
+    // Allow free navigation within auth and onboarding groups.
+    if (target.group === 'auth' && currentGroup === 'auth') return;
+    if (target.group === 'onboarding' && currentGroup === 'onboarding') return;
+
+    if (target.group !== currentGroup) {
+      router.replace(target.routeFull as never);
+    } else if (target.group !== 'auth' && segments.join('/') !== target.routeFull) {
       router.replace(target.routeFull as never);
     }
-  }, [step, loading, segments, router]);
+  }, [step, loading, segments, router, isHydrated]);
 
-  return (
-    <Stack screenOptions={{ headerShown: false, animation: 'fade' }}>
-      <Slot />
-    </Stack>
-  );
+  return <Slot />;
 }
 
 function targetRouteForStep(step: OnboardingStep): {
@@ -96,11 +104,7 @@ function targetRouteForStep(step: OnboardingStep): {
   switch (step) {
     case 'sign-in':
       return { group: 'auth', route: 'sign-in', routeFull: '/(auth)/sign-in' };
-    case 'verify-email':
-      return { group: 'auth', route: 'verify-email', routeFull: '/(auth)/verify-email' };
     case 'kyb':
-      return { group: 'onboarding', route: 'kyb', routeFull: '/(onboarding)/kyb' };
-    case 'bank-account':
       return { group: 'onboarding', route: 'bank-account', routeFull: '/(onboarding)/bank-account' };
     case 'live':
       return { group: 'app', route: 'index', routeFull: '/(app)' };

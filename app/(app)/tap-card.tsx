@@ -36,7 +36,7 @@ export default function TapCardScreen() {
   });
 
   return (
-    <SafeAreaView edges={['top', 'left', 'right']} className="flex-1 bg-white">
+    <SafeAreaView edges={['top', 'left', 'right']} className="flex-1 bg-surface-bg">
       <Header amount={amount ?? '0'} onCancel={tap.cancel} />
 
       <Animated.View
@@ -156,7 +156,7 @@ function Body({
 function ScanningView() {
   return (
     <View className="flex-1 items-center justify-center px-6 gap-6">
-      <View className="h-32 w-32 rounded-full bg-brand-green/15 items-center justify-center">
+      <View className="h-32 w-32 rounded-full bg-brand/15 items-center justify-center">
         <Icon xml={Icons.IconContactlessCard} width={64} height={88} />
       </View>
       <View className="items-center gap-2">
@@ -172,7 +172,7 @@ function ScanningView() {
 function SpinnerView({ label }: { label: string }) {
   return (
     <View className="flex-1 items-center justify-center px-6 gap-4">
-      <ActivityIndicator color="#121212" />
+      <ActivityIndicator color="#298DFF" />
       <Text className="text-muted-text">{label}</Text>
     </View>
   );
@@ -231,14 +231,14 @@ function PinView({ onSubmit }: { onSubmit: (pin: string) => Promise<void> }) {
 function WritingView({ label }: { label: string }) {
   return (
     <View className="flex-1 items-center justify-center px-6 gap-6">
-      <View className="h-24 w-24 rounded-full bg-brand-green/15 items-center justify-center">
+      <View className="h-24 w-24 rounded-full bg-brand/15 items-center justify-center">
         <Icon xml={Icons.IconContactlessCard} width={52} height={72} />
       </View>
       <Text className="text-lg font-semibold text-ink text-center">
         Payment received
       </Text>
       <Text className="text-center text-muted-text">{label}</Text>
-      <ActivityIndicator color="#121212" />
+      <ActivityIndicator color="#298DFF" />
     </View>
   );
 }
@@ -297,7 +297,7 @@ function ProcessingView({
 }) {
   return (
     <View className="flex-1 items-center justify-center px-6 gap-6">
-      <ActivityIndicator color="#121212" />
+      <ActivityIndicator color="#298DFF" />
       <Text className="text-xl font-semibold text-ink">Settling…</Text>
       <Text
         className="text-3xl font-bold text-ink"

@@ -29,8 +29,8 @@ export default function BroadcastScreen() {
 
   if (phase.kind === 'creating') {
     return (
-      <SafeAreaView edges={['top', 'left', 'right']} className="flex-1 bg-white items-center justify-center">
-        <ActivityIndicator color="#40FF00" />
+      <SafeAreaView edges={['top', 'left', 'right']} className="flex-1 bg-surface-bg items-center justify-center">
+        <ActivityIndicator color="#298DFF" />
         <Text className="mt-3 text-muted-text">Preparing payment…</Text>
       </SafeAreaView>
     );
@@ -38,7 +38,7 @@ export default function BroadcastScreen() {
 
   if (phase.kind === 'failed') {
     return (
-      <SafeAreaView edges={['top', 'left', 'right']} className="flex-1 bg-white items-center justify-center px-6">
+      <SafeAreaView edges={['top', 'left', 'right']} className="flex-1 bg-surface-bg items-center justify-center px-6">
         <Text className="text-2xl font-bold text-danger mb-3">Couldn't start payment</Text>
         <Text className="text-center text-muted-text mb-8">{phase.error}</Text>
         <Button label="Go back" onPress={cancel} variant="secondary" />
@@ -48,7 +48,7 @@ export default function BroadcastScreen() {
 
   if (phase.kind === 'settled') {
     return (
-      <SafeAreaView edges={['top', 'left', 'right']} className="flex-1 bg-white items-center justify-center px-6">
+      <SafeAreaView edges={['top', 'left', 'right']} className="flex-1 bg-surface-bg items-center justify-center px-6">
         <Icon xml={Icons.IconSuccessBadge} size={96} className="mb-6" />
         <Text className="text-2xl font-semibold text-ink mb-2">Payment received</Text>
         <Text
@@ -67,7 +67,7 @@ export default function BroadcastScreen() {
   const detecting = phase.kind === 'detected';
 
   return (
-    <SafeAreaView edges={['top', 'left', 'right']} className="flex-1 bg-white">
+    <SafeAreaView edges={['top', 'left', 'right']} className="flex-1 bg-surface-bg">
       <View className="px-5 py-4 flex-row justify-between">
         <Pressable
           className="h-10 px-3 items-center justify-center rounded-md active:bg-surface-subtle"
@@ -137,7 +137,7 @@ function NfcRing() {
             height: 240,
             borderRadius: 120,
             borderWidth: 12,
-            borderColor: '#40FF00',
+            borderColor: '#298DFF',
           },
           ring,
         ]}
@@ -147,7 +147,7 @@ function NfcRing() {
           width: 140,
           height: 140,
           borderRadius: 70,
-          backgroundColor: '#40FF00',
+          backgroundColor: '#298DFF',
           alignItems: 'center',
           justifyContent: 'center',
         }}

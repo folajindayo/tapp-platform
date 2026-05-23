@@ -1,5 +1,4 @@
-import { Text as RnText, type TextProps as RnTextProps, type TextStyle } from 'react-native';
-import { typography } from './theme';
+import { Text as RnText, type TextProps as RnTextProps } from 'react-native';
 
 type Variant =
   | 'titleLarge'
@@ -11,16 +10,34 @@ type Variant =
   | 'button'
   | 'amount';
 
+// Base NativeWind classes for each variant — user className appended after and wins
+const variantClasses: Record<Variant, string> = {
+  titleLarge:  'text-[28px] font-bold leading-[34px] text-ink',
+  titleMedium: 'text-xl font-bold leading-6 text-ink',
+  body:        'text-base font-sans text-ink',
+  bodyMuted:   'text-base font-sans text-muted-text',
+  caption:     'text-sm font-sans text-muted-text',
+  label:       'text-xs font-medium text-muted-section uppercase tracking-[0.6px]',
+  button:      'text-base font-sans text-center text-surface',
+  amount:      'text-[56px] font-semibold leading-[64px] text-ink',
+};
+
+// fontVariant can't be expressed in NativeWind — keep as inline style for amount
+const variantStyle: Partial<Record<Variant, object>> = {
+  amount: { fontVariant: ['tabular-nums'] },
+};
+
 export interface TextProps extends RnTextProps {
   variant?: Variant;
-  style?: TextStyle | TextStyle[];
+  className?: string;
 }
 
-/**
- * Themed Text. Always picks a variant from the typography scale unless
- * overridden via `style`. Use `style` for one-off color tweaks; don't
- * change font sizes ad-hoc — add a variant to the scale instead.
- */
-export function Text({ variant = 'body', style, ...rest }: TextProps) {
-  return <RnText style={[typography[variant], style]} {...rest} />;
+export function Text({ variant = 'body', className, style, ...rest }: TextProps) {
+  return (
+    <RnText
+      className={`${variantClasses[variant]}${className ? ` ${className}` : ''}`}
+      style={[variantStyle[variant], style]}
+      {...rest}
+    />
+  );
 }

@@ -1,19 +1,55 @@
-import { MMKV } from 'react-native-mmkv';
-
 // Encrypted MMKV storage for JWT + lightweight auth state.
-// Pass-phrase is a build-time constant — adequate for v1; v2 should
-// wrap with Android Keystore / iOS Keychain via expo-secure-store.
-export const storage = new MMKV({
-  id: 'tapp-merchant-auth',
-  encryptionKey: 'tapp-merchant-v0-key',
-});
+// Falls back to an in-memory store when MMKV's native module is not available
+// (e.g. running in Expo Go). In a native dev/production build, MMKV is used.
+//
+// NOTE: The in-memory fallback does NOT persist across reloads — you'll need
+// to sign in again after each Metro reload when using Expo Go.
 
-const ACCESS = 'access_token';
-const REFRESH = 'refresh_token';
+interface KVStore {
+  getString(key: string): string | undefined;
+  set(key: string, value: string): void;
+  delete(key: string): void;
+}
+
+function makeMemoryStore(): KVStore {
+  const map = new Map<string, string>();
+  return {
+    getString: (key) => map.get(key),
+    set: (key, value) => { map.set(key, value); },
+    delete: (key) => { map.delete(key); },
+  };
+}
+
+let storage: KVStore;
+
+try {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { MMKV } = require('react-native-mmkv') as typeof import('react-native-mmkv');
+  const instance = new MMKV({ id: 'tapp-merchant-auth' });
+
+  // Verify read/write works before trusting this instance.
+  instance.set('__ok__', '1');
+  const ok = instance.getString('__ok__') === '1';
+  instance.delete('__ok__');
+  if (!ok) throw new Error('MMKV verification failed');
+
+  storage = instance;
+  if (__DEV__) console.log('[storage] MMKV ready');
+} catch (err) {
+  console.warn('[storage] MMKV unavailable — using in-memory fallback. Tokens will not persist across reloads.', err);
+  storage = makeMemoryStore();
+}
+
+export { storage };
+
+const ACCESS = 'accessToken';
+const REFRESH = 'refreshToken';
 const USER = 'user';
 
 export function getAccessToken(): string | undefined {
-  return storage.getString(ACCESS);
+  const token = storage.getString(ACCESS);
+  if (__DEV__) console.log('[storage] getAccessToken →', token ? `${token.slice(0, 12)}…` : 'MISSING');
+  return token;
 }
 export function getRefreshToken(): string | undefined {
   return storage.getString(REFRESH);
@@ -28,10 +64,14 @@ export function getUser(): { id: string; email: string } | undefined {
   }
 }
 
-export function setTokens(access: string, refresh: string, user: { id: string; email: string }) {
+export function setTokens(access: string, refresh: string, user?: { id: string; email: string }) {
   storage.set(ACCESS, access);
   storage.set(REFRESH, refresh);
-  storage.set(USER, JSON.stringify(user));
+  if (user) storage.set(USER, JSON.stringify(user));
+  if (__DEV__) {
+    const verify = storage.getString(ACCESS);
+    console.log('[storage] setTokens — stored:', verify ? `${verify.slice(0, 12)}…` : 'WRITE FAILED');
+  }
 }
 
 export function clearAuth() {
