@@ -45,7 +45,7 @@ export function NoCardBanner() {
             </Button>
           </Link>
           <Link
-            href="mailto:support@zoracle.com?subject=Order%20a%20Tapp%20Card"
+            href="mailto:labs@zoracle.xyz?subject=Order%20a%20Tapp%20Card"
             className="flex-1 min-w-[140px]"
           >
             <Button variant="secondary" className="py-2 text-xs">

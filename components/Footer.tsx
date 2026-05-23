@@ -50,7 +50,7 @@ export function Footer() {
           <FiGithub className="size-4" />
         </a>
         <a
-          href="mailto:support@zoracle.com"
+          href="mailto:labs@zoracle.xyz"
           aria-label="Email support"
           className="text-gray-500 transition-opacity hover:opacity-70 dark:text-white/50"
         >

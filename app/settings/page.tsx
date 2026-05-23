@@ -105,10 +105,10 @@ export default function SettingsPage() {
 
         <div className="grid divide-y divide-dashed divide-gray-200 overflow-hidden rounded-3xl border border-gray-200 dark:divide-white/10 dark:border-white/10">
           <SettingsRow
-            href="mailto:support@zoracle.com"
+            href="mailto:labs@zoracle.xyz"
             icon={<PiQuestionBold />}
             title="Help &amp; support"
-            subtitle="support@zoracle.com"
+            subtitle="labs@zoracle.xyz"
             external
           />
           <button
