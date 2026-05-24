@@ -277,15 +277,15 @@ const s = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
     paddingHorizontal: 20,
-    marginBottom: 8,
+    marginBottom: 12,
   },
   presetPill: {
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 999,
-    backgroundColor: PAL.surface,
+    backgroundColor: '#262629',
     borderWidth: 1,
-    borderColor: PAL.border,
+    borderColor: 'rgba(255, 255, 255, 0.12)',
   },
   presetPillSelected: {
     backgroundColor: PAL.brandBg,
@@ -297,7 +297,7 @@ const s = StyleSheet.create({
   presetPillText: {
     fontFamily: 'BricolageGrotesque-Medium',
     fontSize: 13,
-    color: PAL.textMuted,
+    color: '#E5E5E5',
   },
   presetPillTextSelected: {
     color: PAL.brand,
@@ -305,7 +305,7 @@ const s = StyleSheet.create({
   },
   keypad: {
     paddingVertical: 12,
-    marginBottom: 8,
+    marginBottom: 32,
     alignItems: 'center',
   },
   actions: {
