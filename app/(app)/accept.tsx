@@ -123,13 +123,13 @@ export default function AcceptPaymentScreen() {
                   value={checkoutUrl}
                   size={196}
                   ecl="M"
-                  color={isDark ? '#FFFFFF' : '#121212'}
+                  color="#121212"
                   backgroundColor="transparent"
                 />
               </View>
             ) : (
               <View style={[s.qrSurface, s.qrPlaceholder]}>
-                <ActivityIndicator color={PAL.pulse} />
+                <ActivityIndicator color="#121212" />
               </View>
             )}
             <Text style={s.affordanceLabel}>Scan with phone</Text>
@@ -254,14 +254,16 @@ const s = StyleSheet.create({
     gap: 8,
   },
   qrSurface: {
+    backgroundColor: '#F9FAFB',
     padding: 16,
-    borderRadius: 20,
+    borderRadius: 24,
   },
   qrPlaceholder: {
     width: 228,
     height: 228,
     alignItems: 'center',
     justifyContent: 'center',
+    backgroundColor: '#F9FAFB',
   },
   affordanceLabel: {
     marginTop: 6,
