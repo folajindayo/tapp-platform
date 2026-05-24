@@ -3,6 +3,7 @@ import {
   ActivityIndicator,
   Pressable,
   StyleSheet,
+  Text as RnText,
   View,
 } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
@@ -110,7 +111,7 @@ export default function DashboardScreen() {
   }, [amountStr]);
 
   return (
-    <SafeAreaView edges={['top', 'bottom']} style={s.root}>
+    <SafeAreaView edges={['top']} style={s.root}>
       {/* Header: centered Today pill + right-aligned connectivity dot.
           No greeting — POS screens stay focused on the transaction. */}
       <View style={s.header}>
@@ -170,14 +171,14 @@ export default function DashboardScreen() {
                 pressed && s.presetPillPressed,
               ]}
             >
-              <Text
+              <RnText
                 style={[
                   s.presetPillText,
                   isSelected && s.presetPillTextSelected,
                 ]}
               >
                 {formatNgn(val)}
-              </Text>
+              </RnText>
             </Pressable>
           );
         })}
@@ -275,7 +276,6 @@ const s = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    gap: 8,
     paddingHorizontal: 20,
     marginBottom: 12,
   },
@@ -283,9 +283,10 @@ const s = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 999,
-    backgroundColor: '#262629',
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.12)',
+    borderColor: 'rgba(255, 255, 255, 0.15)',
+    marginHorizontal: 4,
   },
   presetPillSelected: {
     backgroundColor: PAL.brandBg,
@@ -305,11 +306,11 @@ const s = StyleSheet.create({
   },
   keypad: {
     paddingVertical: 12,
-    marginBottom: 32,
+    marginBottom: 16,
     alignItems: 'center',
   },
   actions: {
     paddingHorizontal: 20,
-    paddingBottom: 16,
+    paddingBottom: 12,
   },
 });
