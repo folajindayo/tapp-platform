@@ -35,7 +35,7 @@ const STATUS_LABEL: Record<string, string> = {
 };
 
 export function TransactionRow({ order, isLast }: { order: PaymentOrderSummary; isLast?: boolean }) {
-  const time = format(new Date(order.created_at), 'h:mm a');
+  const time = formatTime(order.createdAt);
   const isSettled = order.status === 'settled';
   const isFailed = order.status === 'cancelled' || order.status === 'expired' || order.status === 'refunded';
   
@@ -59,7 +59,7 @@ export function TransactionRow({ order, isLast }: { order: PaymentOrderSummary; 
       
       <View className="flex-1 gap-0.5">
         <Text className="text-base font-semibold text-ink" numberOfLines={1}>
-          {order.memo || 'Payment Received'}
+          {order.recipient?.memo || 'Payment Received'}
         </Text>
         <Text className="text-xs text-muted-text">
           <Text className={`${STATUS_COLOR[order.status] ?? 'text-muted-text'} font-medium`}>
@@ -76,4 +76,13 @@ export function TransactionRow({ order, isLast }: { order: PaymentOrderSummary; 
       </View>
     </Pressable>
   );
+}
+
+// Defensive: Rails always sends createdAt, but if it ever comes back
+// undefined/invalid we'd rather show '—' than crash the whole list.
+function formatTime(iso: string | undefined): string {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '—';
+  return format(d, 'h:mm a');
 }

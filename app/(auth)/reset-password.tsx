@@ -60,7 +60,7 @@ export default function ResetPasswordScreen() {
 
           <Text style={{
             fontSize: 28,
-            fontFamily: 'OpenSans-Bold',
+            fontFamily: 'BricolageGrotesque-Bold',
             color: colors.textStrong,
             textAlign: 'center',
             marginBottom: 12,
@@ -70,7 +70,7 @@ export default function ResetPasswordScreen() {
           <Text style={{
             fontSize: 15,
             color: colors.textMuted,
-            fontFamily: 'OpenSans-Regular',
+            fontFamily: 'BricolageGrotesque-Regular',
             textAlign: 'center',
             lineHeight: 22,
             marginBottom: 40,
@@ -137,14 +137,14 @@ export default function ResetPasswordScreen() {
 
             <Text style={{
               fontSize: 30,
-              fontFamily: 'OpenSans-Bold',
+              fontFamily: 'BricolageGrotesque-Bold',
               color: colors.textStrong,
               lineHeight: 38,
               marginBottom: 8,
             }}>
               Set new password
             </Text>
-            <Text style={{ fontSize: 15, color: colors.textMuted, fontFamily: 'OpenSans-Regular', lineHeight: 22 }}>
+            <Text style={{ fontSize: 15, color: colors.textMuted, fontFamily: 'BricolageGrotesque-Regular', lineHeight: 22 }}>
               Paste the token from your email, then choose a new password
             </Text>
           </View>
@@ -212,7 +212,7 @@ export default function ResetPasswordScreen() {
                 paddingVertical: 12,
                 paddingHorizontal: 14,
               }}>
-                <Text style={{ color: colors.danger, fontSize: 13, fontFamily: 'OpenSans-Medium' }}>
+                <Text style={{ color: colors.danger, fontSize: 13, fontFamily: 'BricolageGrotesque-Medium' }}>
                   {mutationError}
                 </Text>
               </View>

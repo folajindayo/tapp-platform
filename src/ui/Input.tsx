@@ -99,7 +99,7 @@ export const Input = forwardRef<TextInput, InputProps>(function Input(
               height: '100%',
               paddingHorizontal: 16,
               fontSize: 16,
-              fontFamily: 'OpenSans-Regular',
+              fontFamily: 'BricolageGrotesque-Regular',
               color: colors.text,
               backgroundColor: colors.surface,
             },

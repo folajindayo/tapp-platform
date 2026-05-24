@@ -153,7 +153,7 @@ export default function SettingsScreen() {
           <Text
             style={{
               fontSize: 15,
-              fontFamily: 'OpenSans-SemiBold',
+              fontFamily: 'BricolageGrotesque-SemiBold',
               color: colors.danger,
             }}
           >
@@ -174,7 +174,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
         className="mb-2 px-1"
         style={{
           fontSize: 11,
-          fontFamily: 'OpenSans-SemiBold',
+          fontFamily: 'BricolageGrotesque-SemiBold',
           color: colors.textMuted,
           textTransform: 'uppercase',
           letterSpacing: 0.8,
@@ -222,7 +222,7 @@ function Row({
         <Text
           style={{
             fontSize: 15,
-            fontFamily: 'OpenSans-Regular',
+            fontFamily: 'BricolageGrotesque-Regular',
             color: colors.text,
           }}
         >
@@ -237,7 +237,7 @@ function Row({
             numberOfLines={1}
             style={{
               fontSize: 13,
-              fontFamily: 'OpenSans-Regular',
+              fontFamily: 'BricolageGrotesque-Regular',
               color: valueColor ?? colors.textMuted,
               textAlign: 'right',
             }}

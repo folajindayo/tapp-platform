@@ -1,16 +1,52 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Alert, Pressable, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Alert,
+  FlatList,
+  Modal,
+  Pressable,
+  StyleSheet,
+  TextInput,
+  View,
+} from 'react-native';
 import { router } from 'expo-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { ChevronDown } from 'lucide-react-native';
-import { cssInterop } from 'nativewind';
+import {
+  Building2,
+  CheckCircle2,
+  ChevronDown,
+  X,
+} from 'lucide-react-native';
 import { catalogApi, merchantApi, verifyApi } from '@/api/endpoints';
-import { Button, Icon, Icons, Input, Screen, Text } from '@/ui';
+import { Button, Screen, Text } from '@/ui';
 import { StepHeader } from '@/components/StepHeader';
 
-cssInterop(Pressable, { className: { target: 'style' } });
-
 const CURRENCY = 'NGN';
+
+// Tapp /send-style palette — kept local to keep this screen self-contained
+// while we promote these into a shared form primitives module.
+const PAL = {
+  bg:           '#0D0D0D',
+  cardBg:       '#121214',  // subtle lift off the screen
+  cardBorder:   'rgba(255, 255, 255, 0.08)',
+  fieldBg:      '#1F1F22',  // distinctly brighter than card → fields read as inset
+  fieldBorder:  'rgba(255, 255, 255, 0.10)',
+  fieldFocus:   '#3B82F6',
+  text:         '#FFFFFF',
+  textValue:    'rgba(255, 255, 255, 0.92)',
+  textMuted:    'rgba(255, 255, 255, 0.55)',
+  textSubtle:   'rgba(255, 255, 255, 0.45)',
+  required:     '#F43F5E',
+  success:      '#22C55E',
+  successBg:    'rgba(34, 197, 94, 0.14)',
+  iconTint:     'rgba(255, 255, 255, 0.55)',
+  badgeBg:      'rgba(59, 130, 246, 0.14)',
+  badgeIcon:    '#3B82F6',
+  sheet:        '#1C1C1E',
+  sheetHandle:  '#3A3A3C',
+  rowPressed:   'rgba(255, 255, 255, 0.06)',
+  hairline:     'rgba(255, 255, 255, 0.08)',
+} as const;
 
 export default function BankAccountScreen() {
   const queryClient = useQueryClient();
@@ -26,6 +62,7 @@ export default function BankAccountScreen() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [picker, setPicker] = useState(false);
+  const [accountFocused, setAccountFocused] = useState(false);
 
   const bank = useMemo(
     () => institutionsQuery.data?.find((i) => i.code === bankCode),
@@ -46,8 +83,7 @@ export default function BankAccountScreen() {
         });
         setResolvedName(res);
       } catch (err) {
-        const msg = (err as { message?: string })?.message ?? 'Could not verify account';
-        setError(msg);
+        setError((err as { message?: string })?.message ?? 'Could not verify account');
       } finally {
         setResolving(false);
       }
@@ -74,12 +110,11 @@ export default function BankAccountScreen() {
   }
 
   const handleBack = () => {
-    if (router.canGoBack()) {
-      router.back();
-    } else {
-      router.replace('/(onboarding)/kyb');
-    }
+    if (router.canGoBack()) router.back();
+    else router.replace('/(onboarding)/kyb');
   };
+
+  const canSave = !!resolvedName && !resolving;
 
   return (
     <Screen>
@@ -87,101 +122,377 @@ export default function BankAccountScreen() {
         step={4}
         totalSteps={4}
         title="Where should we send your money?"
+        subtitle="Bank payouts settle in NGN to this account."
         onBack={handleBack}
       />
-      <View className="gap-6 mt-4">
-        <View className="h-14 w-14 rounded-2xl bg-brand-blue/15 items-center justify-center">
-          <Icon xml={Icons.IconBank} size={28} />
-        </View>
 
-        <View className="gap-2">
-          <Text className="text-sm font-medium text-ink-700">Bank</Text>
-          <Pressable
-            className="h-[52px] rounded-xl px-4 flex-row items-center justify-between bg-surface-soft border border-line-muted"
-            onPress={() => setPicker(true)}
-          >
-            <Text className={`text-base ${bank ? 'text-ink' : 'text-muted-subtle'}`}>
-              {bank ? bank.name : 'Choose your bank'}
-            </Text>
-            <ChevronDown size={20} color="#5E6470" />
-          </Pressable>
-        </View>
-
-        <Input
-          label="Account number"
-          placeholder="10-digit NUBAN"
-          keyboardType="number-pad"
-          value={accountNumber}
-          onChangeText={(t) => setAccountNumber(t.replace(/[^0-9]/g, '').slice(0, 10))}
-          error={error ?? undefined}
-        />
-
-        {resolving ? (
-          <Text className="text-sm text-muted-text">Verifying…</Text>
-        ) : resolvedName ? (
-          <View className="flex-row items-center gap-2 bg-success-bg rounded-md px-3 py-2 self-start">
-            <Text className="text-success font-semibold">✓ {resolvedName}</Text>
+      <View style={s.body}>
+        {/* Form card — tapp /send pattern: rounded-3xl bordered group with gap-4 fields */}
+        <View style={s.card}>
+          {/* Bank picker field */}
+          <View style={s.field}>
+            <View style={s.labelRow}>
+              <Text style={s.label}>
+                Bank <Text style={s.required}>*</Text>
+              </Text>
+            </View>
+            <Pressable
+              onPress={() => setPicker(true)}
+              style={({ pressed }) => [
+                s.control,
+                pressed && s.controlPressed,
+              ]}
+            >
+              <View style={s.bankValueWrap}>
+                {bank ? (
+                  <View style={s.bankBadge}>
+                    <Building2 size={14} color={PAL.badgeIcon} />
+                  </View>
+                ) : null}
+                <Text
+                  style={bank ? s.controlValue : s.controlPlaceholder}
+                  numberOfLines={1}
+                >
+                  {bank ? bank.name : 'Choose your bank'}
+                </Text>
+              </View>
+              <ChevronDown size={18} color={PAL.iconTint} />
+            </Pressable>
           </View>
-        ) : null}
 
-        <View className="h-2" />
+          {/* Account number field */}
+          <View style={s.field}>
+            <View style={s.labelRow}>
+              <Text style={s.label}>
+                Account number <Text style={s.required}>*</Text>
+              </Text>
+              <Text style={s.labelMeta}>{accountNumber.length}/10</Text>
+            </View>
+            <View
+              style={[
+                s.control,
+                accountFocused && { borderColor: PAL.fieldFocus },
+              ]}
+            >
+              <TextInput
+                value={accountNumber}
+                onChangeText={(t) => setAccountNumber(t.replace(/[^0-9]/g, '').slice(0, 10))}
+                placeholder="10-digit NUBAN"
+                placeholderTextColor={PAL.textSubtle}
+                keyboardType="number-pad"
+                maxLength={10}
+                onFocus={() => setAccountFocused(true)}
+                onBlur={() => setAccountFocused(false)}
+                style={s.input}
+                autoCorrect={false}
+                spellCheck={false}
+              />
+            </View>
 
-        <Button
-          label="Save"
-          onPress={save}
-          loading={saving}
-          disabled={!resolvedName || resolving}
-        />
+            {/* Helper row — verifying / resolved / error */}
+            {resolving ? (
+              <View style={s.helperRow}>
+                <ActivityIndicator size="small" color={PAL.textMuted} />
+                <Text style={s.helperText}>Verifying account…</Text>
+              </View>
+            ) : resolvedName ? (
+              <View style={s.resolvedRow}>
+                <CheckCircle2 size={14} color={PAL.success} />
+                <Text style={s.resolvedText} numberOfLines={1}>
+                  {resolvedName}
+                </Text>
+              </View>
+            ) : error ? (
+              <Text style={s.errorText}>{error}</Text>
+            ) : (
+              <Text style={s.helperText}>We&apos;ll check the name against your bank.</Text>
+            )}
+          </View>
+        </View>
+
+        {/* Action row */}
+        <View style={s.actions}>
+          <View style={{ flex: 1 }}>
+            <Button label="Cancel" variant="secondary" onPress={handleBack} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Button
+              label="Save"
+              onPress={save}
+              loading={saving}
+              disabled={!canSave}
+            />
+          </View>
+        </View>
       </View>
 
-      {picker ? (
-        <BankPicker
-          institutions={institutionsQuery.data ?? []}
-          loading={institutionsQuery.isLoading}
-          onSelect={(code) => {
-            setBankCode(code);
-            setPicker(false);
-            setResolvedName(null);
-          }}
-          onClose={() => setPicker(false)}
-        />
-      ) : null}
+      <BankPicker
+        visible={picker}
+        institutions={institutionsQuery.data ?? []}
+        loading={institutionsQuery.isLoading}
+        onSelect={(code) => {
+          setBankCode(code);
+          setPicker(false);
+          setResolvedName(null);
+        }}
+        onClose={() => setPicker(false)}
+      />
     </Screen>
   );
 }
 
-function BankPicker({
-  institutions,
-  loading,
-  onSelect,
-  onClose,
-}: {
+interface BankPickerProps {
+  visible: boolean;
   institutions: { code: string; name: string }[];
   loading: boolean;
   onSelect: (code: string) => void;
   onClose: () => void;
-}) {
+}
+
+function BankPicker({ visible, institutions, loading, onSelect, onClose }: BankPickerProps) {
   return (
-    <View className="absolute inset-0 bg-black/40 justify-end" pointerEvents="auto">
-      <Pressable className="flex-1" onPress={onClose} />
-      <View className="bg-white rounded-t-2xl p-4 max-h-[70%]">
-        <Text className="text-lg font-semibold text-ink mb-3">Pick your bank</Text>
+    <Modal
+      visible={visible}
+      transparent
+      animationType="slide"
+      statusBarTranslucent
+      onRequestClose={onClose}
+    >
+      <Pressable style={ps.backdrop} onPress={onClose} />
+      <View style={ps.sheet}>
+        <View style={ps.handle} />
+        <View style={ps.header}>
+          <Text style={ps.title}>Choose your bank</Text>
+          <Pressable hitSlop={12} onPress={onClose} style={ps.closeButton}>
+            <X size={18} color={PAL.textMuted} />
+          </Pressable>
+        </View>
+
         {loading ? (
-          <Text className="text-muted-text">Loading…</Text>
-        ) : (
-          <View>
-            {institutions.map((i) => (
-              <Pressable
-                key={i.code}
-                className="py-3 border-b border-line-divider active:bg-surface-soft"
-                onPress={() => onSelect(i.code)}
-              >
-                <Text className="text-base text-ink">{i.name}</Text>
-              </Pressable>
-            ))}
+          <View style={ps.loadingWrap}>
+            <ActivityIndicator color={PAL.fieldFocus} />
           </View>
+        ) : (
+          <FlatList
+            data={institutions}
+            keyExtractor={(i) => i.code}
+            keyboardShouldPersistTaps="handled"
+            contentContainerStyle={ps.list}
+            ItemSeparatorComponent={() => <View style={ps.divider} />}
+            renderItem={({ item }) => (
+              <Pressable
+                onPress={() => onSelect(item.code)}
+                style={({ pressed }) => [ps.row, pressed && ps.rowPressed]}
+              >
+                <Text style={ps.rowText} numberOfLines={1}>
+                  {item.name}
+                </Text>
+              </Pressable>
+            )}
+          />
         )}
       </View>
-    </View>
+    </Modal>
   );
 }
+
+const s = StyleSheet.create({
+  body: {
+    marginTop: 24,
+    gap: 20,
+  },
+  card: {
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: PAL.cardBorder,
+    backgroundColor: PAL.cardBg,
+    padding: 16,
+    gap: 18,
+  },
+  field: {
+    gap: 8,
+  },
+  labelRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    justifyContent: 'space-between',
+  },
+  label: {
+    fontFamily: 'BricolageGrotesque-SemiBold',
+    fontSize: 14,
+    color: PAL.text,
+  },
+  labelMeta: {
+    fontFamily: 'BricolageGrotesque-Regular',
+    fontSize: 12,
+    color: PAL.textMuted,
+    fontVariant: ['tabular-nums'],
+  },
+  required: {
+    color: PAL.required,
+  },
+  control: {
+    height: 52,
+    paddingHorizontal: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: PAL.fieldBorder,
+    backgroundColor: PAL.fieldBg,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  controlPressed: {
+    backgroundColor: '#27272B',
+  },
+  bankValueWrap: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  bankBadge: {
+    height: 28,
+    width: 28,
+    borderRadius: 8,
+    backgroundColor: PAL.badgeBg,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  controlValue: {
+    flex: 1,
+    fontFamily: 'BricolageGrotesque-Medium',
+    fontSize: 15,
+    color: PAL.textValue,
+  },
+  controlPlaceholder: {
+    flex: 1,
+    fontFamily: 'BricolageGrotesque-Regular',
+    fontSize: 15,
+    color: PAL.textSubtle,
+  },
+  input: {
+    flex: 1,
+    fontFamily: 'BricolageGrotesque-Medium',
+    fontSize: 15,
+    color: PAL.textValue,
+    padding: 0, // RN adds default vertical padding on Android
+    fontVariant: ['tabular-nums'],
+  },
+  helperRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 2,
+  },
+  helperText: {
+    fontFamily: 'BricolageGrotesque-Regular',
+    fontSize: 12,
+    color: PAL.textMuted,
+  },
+  resolvedRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 2,
+    alignSelf: 'flex-start',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: PAL.successBg,
+  },
+  resolvedText: {
+    fontFamily: 'BricolageGrotesque-SemiBold',
+    fontSize: 12,
+    color: PAL.success,
+    maxWidth: 220,
+  },
+  errorText: {
+    fontFamily: 'BricolageGrotesque-Regular',
+    fontSize: 12,
+    color: PAL.required,
+  },
+  actions: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+});
+
+const ps = StyleSheet.create({
+  backdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+  },
+  sheet: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    maxHeight: '82%',
+    backgroundColor: PAL.sheet,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    paddingTop: 8,
+    paddingBottom: 32,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -8 },
+    shadowOpacity: 0.4,
+    shadowRadius: 24,
+  },
+  handle: {
+    alignSelf: 'center',
+    width: 36,
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: PAL.sheetHandle,
+    marginTop: 6,
+    marginBottom: 14,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingBottom: 12,
+  },
+  title: {
+    fontFamily: 'BricolageGrotesque-Bold',
+    fontSize: 18,
+    color: PAL.text,
+  },
+  closeButton: {
+    height: 32,
+    width: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.06)',
+  },
+  loadingWrap: {
+    paddingVertical: 48,
+    alignItems: 'center',
+  },
+  list: {
+    paddingTop: 4,
+  },
+  row: {
+    minHeight: 56,
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    justifyContent: 'center',
+  },
+  rowPressed: {
+    backgroundColor: PAL.rowPressed,
+  },
+  rowText: {
+    fontFamily: 'BricolageGrotesque-Medium',
+    fontSize: 16,
+    lineHeight: 20,
+    color: PAL.textValue,
+  },
+  divider: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: PAL.hairline,
+    marginLeft: 20,
+  },
+});

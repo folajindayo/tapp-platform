@@ -47,8 +47,12 @@ export default function TransactionDetailScreen() {
   }
 
   const order = query.data;
-  const subline = order.settled_at
-    ? `${STATUS_TEXT[order.status] ?? order.status} · ${format(new Date(order.settled_at), 'h:mm a')}`
+  // "settledAt" doesn't exist in Rails' response — we use updatedAt as a
+  // proxy when status == "settled" (the row's last mutation is the
+  // settlement event).
+  const settledAt = order.status === 'settled' ? order.updatedAt : undefined;
+  const subline = settledAt
+    ? `${STATUS_TEXT[order.status] ?? order.status} · ${safeFormat(settledAt, 'h:mm a')}`
     : STATUS_TEXT[order.status] ?? order.status;
 
   return (
@@ -61,15 +65,22 @@ export default function TransactionDetailScreen() {
         <Text className="text-muted-text mt-2">{subline}</Text>
       </View>
 
-      {order.memo ? <Field label="Memo" value={order.memo} /> : null}
+      {order.recipient?.memo ? <Field label="Memo" value={order.recipient.memo} /> : null}
       <Field
         label="Created"
-        value={format(new Date(order.created_at), 'MMM d, yyyy · h:mm a')}
+        value={safeFormat(order.createdAt, 'MMM d, yyyy · h:mm a')}
       />
-      {order.tx_hash ? <Field label="Settlement tx" value={order.tx_hash} mono /> : null}
-      {order.gateway_id ? <Field label="On-chain order" value={order.gateway_id} mono /> : null}
+      {order.txHash ? <Field label="Settlement tx" value={order.txHash} mono /> : null}
+      {order.gatewayId ? <Field label="On-chain order" value={order.gatewayId} mono /> : null}
     </Screen>
   );
+}
+
+function safeFormat(iso: string | undefined, pattern: string): string {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '—';
+  return format(d, pattern);
 }
 
 function Field({ label, value, mono }: { label: string; value: string; mono?: boolean }) {

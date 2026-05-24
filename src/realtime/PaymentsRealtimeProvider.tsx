@@ -62,8 +62,8 @@ function applyToSummary(
 ): PaymentOrderSummary {
   const next: PaymentOrderSummary = { ...prev, status: nextStatus(prev.status, evt) };
   if (evt.event === 'payment.settled') {
-    next.tx_hash = evt.data.tx_hash;
-    next.settled_at = evt.data.settled_at;
+    next.txHash = evt.data.tx_hash;
+    next.updatedAt = evt.data.settled_at;
   }
   return next;
 }

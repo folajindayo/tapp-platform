@@ -72,10 +72,10 @@ module.exports = {
       // app/_layout.tsx. NativeWind picks these up as `font-sans` /
       // `font-medium` / `font-semibold` / `font-bold`.
       fontFamily: {
-        sans:     ['OpenSans-Regular'],
-        medium:   ['OpenSans-Medium'],
-        semibold: ['OpenSans-SemiBold'],
-        bold:     ['OpenSans-Bold'],
+        sans:     ['BricolageGrotesque-Regular'],
+        medium:   ['BricolageGrotesque-Medium'],
+        semibold: ['BricolageGrotesque-SemiBold'],
+        bold:     ['BricolageGrotesque-Bold'],
       },
     },
   },

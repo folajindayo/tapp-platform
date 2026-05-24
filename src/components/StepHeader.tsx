@@ -11,6 +11,7 @@ import Animated, {
 import { ArrowLeft, X } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { Text } from '@/ui';
+import { colors } from '@/ui/theme';
 
 const DURATION = 280;
 const CURVE = Easing.bezier(0.32, 0.72, 0, 1);
@@ -216,10 +217,10 @@ export const StepHeader: React.FC<StepHeaderProps> = ({
           accessibilityLabel={isFirstStep ? 'Cancel' : 'Back'}
         >
           <Animated.View style={[styles.icon, backStyle]}>
-            <ArrowLeft size={24} color="#121212" />
+            <ArrowLeft size={24} color={colors.text} />
           </Animated.View>
           <Animated.View style={[styles.icon, closeStyle, StyleSheet.absoluteFill]}>
-            <X size={24} color="#121212" />
+            <X size={24} color={colors.text} />
           </Animated.View>
         </PressableScale>
 
@@ -319,14 +320,14 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     fontSize: 26,
     lineHeight: 31,
-    color: '#121212',
+    color: colors.text,
   },
   subtitle: {
     fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif',
     fontWeight: '500',
     fontSize: 14,
     lineHeight: 19,
-    color: '#767676',
+    color: colors.textMuted,
   },
   absoluteText: {
     position: 'absolute',

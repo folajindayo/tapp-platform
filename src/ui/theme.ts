@@ -56,15 +56,15 @@ export const colors = {
 
 // Loaded via expo-font in app/_layout.tsx.
 export const fontFamilies = {
-  display:       'OpenSans-Bold',
-  displayMedium: 'OpenSans-SemiBold',
-  text:          'OpenSans-Regular',
-  textRegular:   'OpenSans-Regular',
-  textMedium:    'OpenSans-Medium',
-  textBold:      'OpenSans-Bold',
-  rounded:       'OpenSans-Medium',
-  amountSymbol:  'OpenSans-SemiBold',
-  amountDigit:   'OpenSans-SemiBold',
+  display:       'BricolageGrotesque-Bold',
+  displayMedium: 'BricolageGrotesque-SemiBold',
+  text:          'BricolageGrotesque-Regular',
+  textRegular:   'BricolageGrotesque-Regular',
+  textMedium:    'BricolageGrotesque-Medium',
+  textBold:      'BricolageGrotesque-Bold',
+  rounded:       'BricolageGrotesque-Medium',
+  amountSymbol:  'BricolageGrotesque-Bold',
+  amountDigit:   'BricolageGrotesque-Bold',
 } as const;
 
 export const radii = {

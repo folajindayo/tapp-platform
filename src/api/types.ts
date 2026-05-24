@@ -196,24 +196,33 @@ export type OrderStatus =
   | 'refunded'
   | 'expired';
 
+export interface PaymentOrderRecipient {
+  institution: string;
+  accountIdentifier: string;
+  accountName: string;
+  memo: string;
+  providerId?: string;
+  currency?: string;
+  reference?: string;
+}
+
 export interface PaymentOrderSummary {
   id: UUID;
   amount: string;
-  currency: string;
   status: OrderStatus;
-  created_at: string;
+  createdAt: string;
   updatedAt: string;
-  settled_at?: string;
-  gateway_id?: string;
-  tx_hash?: string;
-  amountPaid: string;
-  amountReturned: string;
-  token: string;
-  senderFee: string;
-  transactionFee: string;
-  rate: string;
-  network: string;
-  memo?: string;
+  txHash?: string;
+  gatewayId?: string;
+  reference?: string;
+  recipient?: PaymentOrderRecipient;
+  amountPaid?: string;
+  amountReturned?: string;
+  token?: string;
+  senderFee?: string;
+  transactionFee?: string;
+  rate?: string;
+  network?: string;
 }
 
 export interface OrdersListResponse {

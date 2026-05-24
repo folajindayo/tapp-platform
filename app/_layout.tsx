@@ -9,6 +9,12 @@ import { Slot, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useFonts } from 'expo-font';
 import {
+  BricolageGrotesque_400Regular,
+  BricolageGrotesque_500Medium,
+  BricolageGrotesque_600SemiBold,
+  BricolageGrotesque_700Bold,
+} from '@expo-google-fonts/bricolage-grotesque';
+import {
   OpenSans_400Regular,
   OpenSans_500Medium,
   OpenSans_600SemiBold,
@@ -35,10 +41,14 @@ export default function RootLayout() {
   // Store is hydrated synchronously at module load (store.ts bottom).
   // Fonts load asynchronously — return null (native splash stays visible) until ready.
   const [fontsLoaded, fontError] = useFonts({
-    'OpenSans-Regular':  OpenSans_400Regular,
-    'OpenSans-Medium':   OpenSans_500Medium,
-    'OpenSans-SemiBold': OpenSans_600SemiBold,
-    'OpenSans-Bold':     OpenSans_700Bold,
+    'BricolageGrotesque-Regular':  BricolageGrotesque_400Regular,
+    'BricolageGrotesque-Medium':   BricolageGrotesque_500Medium,
+    'BricolageGrotesque-SemiBold': BricolageGrotesque_600SemiBold,
+    'BricolageGrotesque-Bold':     BricolageGrotesque_700Bold,
+    'OpenSans-Regular':            OpenSans_400Regular,
+    'OpenSans-Medium':             OpenSans_500Medium,
+    'OpenSans-SemiBold':           OpenSans_600SemiBold,
+    'OpenSans-Bold':               OpenSans_700Bold,
   });
 
   if (!fontsLoaded && !fontError) return null;
@@ -87,8 +97,6 @@ function Guard() {
     if (target.group === 'onboarding' && currentGroup === 'onboarding') return;
 
     if (target.group !== currentGroup) {
-      router.replace(target.routeFull as never);
-    } else if (target.group !== 'auth' && segments.join('/') !== target.routeFull) {
       router.replace(target.routeFull as never);
     }
   }, [step, loading, segments, router, isHydrated]);

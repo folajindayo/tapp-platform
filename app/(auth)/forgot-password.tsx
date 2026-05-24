@@ -51,7 +51,7 @@ export default function ForgotPasswordScreen() {
 
           <Text style={{
             fontSize: 28,
-            fontFamily: 'OpenSans-Bold',
+            fontFamily: 'BricolageGrotesque-Bold',
             color: colors.textStrong,
             textAlign: 'center',
             marginBottom: 12,
@@ -61,13 +61,13 @@ export default function ForgotPasswordScreen() {
           <Text style={{
             fontSize: 15,
             color: colors.textMuted,
-            fontFamily: 'OpenSans-Regular',
+            fontFamily: 'BricolageGrotesque-Regular',
             textAlign: 'center',
             lineHeight: 22,
             marginBottom: 40,
           }}>
             We sent reset instructions to{' '}
-            <Text style={{ color: colors.text, fontFamily: 'OpenSans-SemiBold' }}>
+            <Text style={{ color: colors.text, fontFamily: 'BricolageGrotesque-SemiBold' }}>
               {getValues('email')}
             </Text>
             {'. Copy the token from the email and use it on the next screen.'}
@@ -137,14 +137,14 @@ export default function ForgotPasswordScreen() {
 
             <Text style={{
               fontSize: 30,
-              fontFamily: 'OpenSans-Bold',
+              fontFamily: 'BricolageGrotesque-Bold',
               color: colors.textStrong,
               lineHeight: 38,
               marginBottom: 8,
             }}>
               Reset password
             </Text>
-            <Text style={{ fontSize: 15, color: colors.textMuted, fontFamily: 'OpenSans-Regular', lineHeight: 22 }}>
+            <Text style={{ fontSize: 15, color: colors.textMuted, fontFamily: 'BricolageGrotesque-Regular', lineHeight: 22 }}>
               Enter your email and we'll send you a reset link
             </Text>
           </View>
@@ -177,7 +177,7 @@ export default function ForgotPasswordScreen() {
                 paddingVertical: 12,
                 paddingHorizontal: 14,
               }}>
-                <Text style={{ color: colors.danger, fontSize: 13, fontFamily: 'OpenSans-Medium' }}>
+                <Text style={{ color: colors.danger, fontSize: 13, fontFamily: 'BricolageGrotesque-Medium' }}>
                   {mutationError}
                 </Text>
               </View>

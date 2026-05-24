@@ -1,160 +1,167 @@
 import { useMemo, useState } from 'react';
-import { Pressable, View, ActivityIndicator } from 'react-native';
+import {
+  ActivityIndicator,
+  Pressable,
+  StyleSheet,
+  View,
+} from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
-import { Delete, CreditCard, Smartphone, Receipt } from 'lucide-react-native';
-import { cssInterop } from 'nativewind';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import * as Haptics from 'expo-haptics';
+import { ArrowRight } from 'lucide-react-native';
 import { ordersApi } from '@/api/endpoints';
-import { useAuthStore } from '@/auth/store';
-import { Button, Input, Text } from '@/ui';
+import { Button, Icon, Icons, Text } from '@/ui';
 import { formatNgn } from '@/ui/format';
+import { AmountKeypad, type KeypadKey } from '@/ui/AmountKeypad';
+import { DynamicAmount } from '@/ui/DynamicAmount';
+import { useNetworkStatus, type NetworkStatus } from '@/hooks/useNetworkStatus';
 
-cssInterop(SafeAreaView, { className: { target: 'style' } });
-cssInterop(View, { className: { target: 'style' } });
-cssInterop(Pressable, { className: { target: 'style' } });
+const PAL = {
+  bg:           '#0D0D0D',
+  surface:      '#1A1A1C',
+  surfaceSoft:  '#141416',
+  hairline:     'rgba(255, 255, 255, 0.06)',
+  border:       'rgba(255, 255, 255, 0.08)',
+  text:         '#FFFFFF',
+  textMuted:    'rgba(255, 255, 255, 0.55)',
+  textSubtle:   'rgba(255, 255, 255, 0.30)',
+  brand:        '#3B82F6',
+  brandBg:      'rgba(59, 130, 246, 0.12)',
+  netGood:      '#22C55E',
+  netWeak:      '#F59E0B',
+  netOff:       '#F43F5E',
+} as const;
+
+const NETWORK_ICON: Record<NetworkStatus, string> = {
+  good: Icons.IconWifiGood,
+  weak: Icons.IconWifiWeak,
+  off:  Icons.IconWifiOff,
+};
+
+const NETWORK_COLOR: Record<NetworkStatus, string> = {
+  good: PAL.netGood,
+  weak: PAL.netWeak,
+  off:  PAL.netOff,
+};
+
 
 export default function DashboardScreen() {
-  const userEmail = useAuthStore((s) => s.user?.email ?? '');
   const [amountStr, setAmountStr] = useState('');
-  const [memo, setMemo] = useState('');
+  const network = useNetworkStatus();
 
-  const statsQuery = useQuery({ 
-    queryKey: ['sender', 'stats'], 
-    queryFn: ordersApi.stats,
-    refetchOnWindowFocus: true
+  // "Today" pill — compute client-side from the recent orders list since
+  // /v1/sender/stats only returns lifetime. Cheap (one extra request,
+  // cached) and stays accurate without backend changes. Once Rails gains
+  // a `since=today` filter we can swap to a dedicated endpoint.
+  const todayOrdersQuery = useQuery({
+    queryKey: ['sender', 'orders', 'today'],
+    queryFn: () => ordersApi.list({ status: 'settled', limit: 100 }),
+    refetchOnWindowFocus: true,
   });
 
-  // Re-fetch stats when this screen comes back into focus
   useFocusEffect(() => {
-    void statsQuery.refetch();
+    void todayOrdersQuery.refetch();
   });
+
+  const today = useMemo(() => {
+    const orders = todayOrdersQuery.data?.orders ?? [];
+    const start = new Date();
+    start.setHours(0, 0, 0, 0);
+    const startMs = start.getTime();
+    let volume = 0;
+    let count = 0;
+    for (const o of orders) {
+      const t = new Date(o.createdAt).getTime();
+      if (Number.isNaN(t) || t < startMs) continue;
+      volume += Number.parseFloat(o.amount) || 0;
+      count += 1;
+    }
+    return { volume, count };
+  }, [todayOrdersQuery.data]);
 
   const display = useMemo(() => formatAmountForDisplay(amountStr), [amountStr]);
   const amountValid = Number.parseFloat(amountStr || '0') > 0;
 
-  function press(key: string) {
-    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    if (key === 'del') {
+  function press(key: KeypadKey) {
+    if (key.type === 'back') {
       setAmountStr((s) => s.slice(0, -1));
-    } else if (key === '.') {
-      if (!amountStr.includes('.')) setAmountStr((s) => (s.length === 0 ? '0.' : `${s}.`));
-    } else {
-      // Limit to two decimals + reasonable length
-      if (amountStr.includes('.')) {
-        const [, frac] = amountStr.split('.');
-        if ((frac?.length ?? 0) >= 2) return;
-      }
-      if (amountStr.length >= 9) return;
-      setAmountStr((s) => (s === '0' ? key : `${s}${key}`));
+      return;
     }
+    if (key.type === 'dot') {
+      if (!amountStr.includes('.')) {
+        setAmountStr((s) => (s.length === 0 ? '0.' : `${s}.`));
+      }
+      return;
+    }
+    // digit
+    if (amountStr.includes('.')) {
+      const [, frac] = amountStr.split('.');
+      if ((frac?.length ?? 0) >= 2) return;
+    }
+    if (amountStr.length >= 9) return;
+    setAmountStr((s) => (s === '0' ? key.value : `${s}${key.value}`));
   }
 
   const queryParams = useMemo(() => {
     const p = new URLSearchParams({ amount: amountStr });
-    if (memo) p.set('memo', memo);
     return p.toString();
-  }, [amountStr, memo]);
-
-  const handleTapCard = () => {
-    if (!amountValid) return;
-    router.push(`/(app)/tap-card?${queryParams}`);
-  };
-
-  const handlePayPhone = () => {
-    if (!amountValid) return;
-    router.push(`/(app)/broadcast?${queryParams}`);
-  };
-
-  const firstName = userEmail.split('@')[0] ?? 'there';
+  }, [amountStr]);
 
   return (
-    <SafeAreaView edges={['top', 'left', 'right']} className="flex-1 bg-white dark:bg-neutral-950">
-      {/* Sleek POS Earnings Header */}
-      <View className="px-5 py-3 flex-row items-center justify-between border-b border-line-divider/30 dark:border-white/5">
-        <Pressable 
+    <SafeAreaView edges={['top']} style={s.root}>
+      {/* Header: centered Today pill + right-aligned connectivity dot.
+          No greeting — POS screens stay focused on the transaction. */}
+      <View style={s.header}>
+        <Pressable
           onPress={() => router.push('/(app)/transactions')}
-          className="bg-surface-soft dark:bg-white/5 border border-line-divider/50 dark:border-white/10 px-3 py-1.5 rounded-xl flex-row items-center gap-1.5 active:bg-surface-subtle"
+          style={({ pressed }) => [s.todayPill, pressed && s.todayPillPressed]}
         >
-          <View className="w-1.5 h-1.5 rounded-full bg-brand-blue" />
-          {statsQuery.isLoading ? (
-            <ActivityIndicator size="small" color="#0065F5" />
+          {todayOrdersQuery.isLoading ? (
+            <ActivityIndicator size="small" color={PAL.brand} />
           ) : (
-            <Text className="text-xs text-ink font-semibold">
-              Total: {formatNgn(statsQuery.data?.totalOrderVolume ?? '0')} ({statsQuery.data?.totalOrders ?? 0} pay)
+            <Text style={s.todayText}>
+              Today · {formatNgn(today.volume)}
+              <Text style={s.todayCount}>  ·  {today.count} {today.count === 1 ? 'sale' : 'sales'}</Text>
             </Text>
           )}
         </Pressable>
-        <Text className="text-xs font-semibold text-muted-text dark:text-white/40">Hi, {firstName}</Text>
-      </View>
-
-      {/* Large Numerical Display */}
-      <View className="flex-1 items-center justify-center px-5">
-        <Text className="text-xs font-medium uppercase tracking-wider text-muted-subtle mb-1">Enter Amount</Text>
-        <Text
-          className="text-6xl font-bold text-ink dark:text-white text-center"
-          style={{ fontVariant: ['tabular-nums'] }}
-          numberOfLines={1}
-          adjustsFontSizeToFit
-        >
-          ₦ {display}
-        </Text>
-      </View>
-
-      {/* Note Input */}
-      <View className="px-5 mb-4">
-        <Input
-          placeholder="Memo (optional)"
-          value={memo}
-          onChangeText={setMemo}
-          maxLength={40}
-          className="bg-surface-soft/60 dark:bg-white/5 border-line-divider/40 dark:border-white/10 text-center"
-        />
-      </View>
-
-      {/* Premium Keypad Grid */}
-      <View className="px-5 mb-5">
-        <View className="flex-row flex-wrap justify-between" style={{ gap: 8 }}>
-          {[
-            '1', '2', '3',
-            '4', '5', '6',
-            '7', '8', '9',
-            '.', '0', 'del',
-          ].map((key) => (
-            <Pressable
-              key={key}
-              onPress={() => press(key)}
-              className="h-[56px] items-center justify-center bg-surface-soft dark:bg-white/5 rounded-xl active:bg-surface-subtle dark:active:bg-white/10"
-              style={{ width: '31.5%' }}
-            >
-              {key === 'del' ? (
-                <Delete size={20} color={useAuthStore.getState().user ? '#121212' : '#FFFFFF'} className="text-ink dark:text-white" />
-              ) : (
-                <Text className="text-xl font-semibold text-ink dark:text-white">{key}</Text>
-              )}
-            </Pressable>
-          ))}
+        <View style={s.netIcon}>
+          <Icon
+            xml={NETWORK_ICON[network]}
+            size={18}
+            color={NETWORK_COLOR[network]}
+          />
         </View>
       </View>
 
-      {/* Direct Payment CTAs */}
-      <View className="px-5 pb-28 flex-row gap-3">
-        <Button
-          label="Tap Card"
-          variant="primary"
-          className="flex-1"
-          disabled={!amountValid}
-          onPress={handleTapCard}
-          leadingIcon={<CreditCard size={18} color="#FFFFFF" />}
+      {/* Amount — focal point. DynamicAmount handles tier sizing, the
+          analog-counter digit reels, comma slot stability, and reduced
+          motion. We just pass it the formatted display string. */}
+      <View style={s.amountWrap}>
+        <Text style={s.amountLabel}>Enter amount to receive</Text>
+        <DynamicAmount
+          symbol="₦"
+          formattedValue={display}
+          active={amountValid}
+          surface="dark"
         />
+      </View>
+
+      {/* Keypad — bare digits, users-app AmountKeypad pattern */}
+      <View style={s.keypad}>
+        <AmountKeypad onKeyPress={press} surface="dark" />
+      </View>
+
+      {/* Action — single CTA. The "/accept" screen presents both
+          affordances (QR + NFC tap zone) so the customer self-selects. */}
+      <View style={s.actions}>
         <Button
-          label="Pay Phone"
-          variant="secondary"
-          className="flex-1"
+          label={amountValid ? `Accept ${formatNgn(amountStr)}` : 'Accept payment'}
+          variant="primary"
           disabled={!amountValid}
-          onPress={handlePayPhone}
-          leadingIcon={<Smartphone size={18} color="#0065F5" />}
+          onPress={() => router.push(`/(app)/accept?${queryParams}`)}
+          trailingIcon={<ArrowRight size={18} color="#FFFFFF" />}
+          className="rounded-[16px]"
         />
       </View>
     </SafeAreaView>
@@ -167,3 +174,74 @@ function formatAmountForDisplay(str: string): string {
   const grouped = (whole ?? '0').replace(/\B(?=(\d{3})+(?!\d))/g, ',');
   return frac !== undefined ? `${grouped}.${frac}` : grouped;
 }
+
+const s = StyleSheet.create({
+  root: {
+    flex: 1,
+    backgroundColor: PAL.bg,
+  },
+  // Centered pill + trailing network icon. The pill is the only meaningful
+  // content; the icon is positioned absolutely so the pill stays optically
+  // centered regardless of icon presence/width.
+  header: {
+    paddingHorizontal: 20,
+    paddingTop: 8,
+    paddingBottom: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: PAL.hairline,
+  },
+  todayPill: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 999,
+    backgroundColor: PAL.surface,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: PAL.border,
+  },
+  todayPillPressed: {
+    backgroundColor: PAL.surfaceSoft,
+  },
+  todayText: {
+    fontFamily: 'BricolageGrotesque-SemiBold',
+    fontSize: 12,
+    color: PAL.text,
+  },
+  todayCount: {
+    fontFamily: 'BricolageGrotesque-Regular',
+    color: PAL.textMuted,
+  },
+  netIcon: {
+    position: 'absolute',
+    right: 20,
+    top: 8,
+    height: 32,
+    width: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  amountWrap: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 20,
+  },
+  amountLabel: {
+    fontFamily: 'BricolageGrotesque-Medium',
+    fontSize: 11,
+    letterSpacing: 1.2,
+    textTransform: 'uppercase',
+    color: PAL.textMuted,
+    marginBottom: 12,
+  },
+  keypad: {
+    paddingVertical: 16,
+    marginBottom: 16,
+    alignItems: 'center',
+  },
+  actions: {
+    paddingHorizontal: 20,
+    paddingBottom: 16,
+  },
+});
