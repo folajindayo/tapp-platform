@@ -283,7 +283,7 @@ const s = StyleSheet.create({
   presetPill: {
     paddingHorizontal: 14,
     height: 36,
-    borderRadius: 12,
+    borderRadius: 999,
     backgroundColor: PAL.surface,
     alignItems: 'center',
     justifyContent: 'center',
