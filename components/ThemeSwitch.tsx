@@ -105,6 +105,32 @@ export function ThemeSwitch() {
 
       // @ts-ignore
       if (typeof document.startViewTransition === "function") {
+        const isMobile =
+          window.matchMedia("(max-width: 768px)").matches ||
+          "ontouchstart" in window ||
+          (typeof navigator !== "undefined" && navigator.maxTouchPoints > 0);
+
+        if (isMobile) {
+          document.documentElement.classList.add("mobile-reveal", "no-transitions");
+          document.documentElement.style.setProperty("--max-dist", `${maxDist * 1.15}px`);
+
+          // @ts-ignore
+          const transition = document.startViewTransition(() => {
+            flushSync(() => {
+              setTheme(targetTheme);
+            });
+          });
+
+          transition.ready.then(() => {
+            document.documentElement.classList.remove("no-transitions");
+          });
+
+          transition.finished.then(() => {
+            document.documentElement.classList.remove("theme-transitioning", "mobile-reveal");
+          });
+          return;
+        }
+
         // 1. Reset and draw initial state (r = 0) synchronously to prevent flashing the old expanded path
         const N = 16;
         const initialPath = getBlobPath(x, y, 0, Array(N).fill(0));

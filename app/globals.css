@@ -179,4 +179,26 @@ html.no-transitions * {
   transition: none !important;
 }
 
+/* Mobile-optimized circular reveal transition (GPU-accelerated clip-path) */
+html.theme-transitioning.mobile-reveal::view-transition-new(root) {
+  animation: clip-reveal 0.45s cubic-bezier(0.4, 0, 0.2, 1) !important;
+  mix-blend-mode: normal !important;
+  mask: none !important;
+  -webkit-mask: none !important;
+}
+
+html.theme-transitioning.mobile-reveal::view-transition-old(root) {
+  animation: none !important;
+  mix-blend-mode: normal !important;
+}
+
+@keyframes clip-reveal {
+  from {
+    clip-path: circle(0px at var(--x) var(--y));
+  }
+  to {
+    clip-path: circle(var(--max-dist) at var(--x) var(--y));
+  }
+}
+
 
