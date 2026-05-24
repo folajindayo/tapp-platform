@@ -17,7 +17,7 @@ import { useMemo } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, View, useColorScheme } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import QRCode from 'react-native-qrcode-svg';
+import QRCodeStyled from 'react-native-qrcode-styled';
 import Animated, {
   Easing,
   useAnimatedStyle,
@@ -119,12 +119,22 @@ export default function AcceptPaymentScreen() {
           <View style={s.qrSlot}>
             {checkoutUrl ? (
               <View style={[s.qrSurface, { borderColor: isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.1)' }]}>
-                <QRCode
-                  value={checkoutUrl}
+                <QRCodeStyled
+                  data={checkoutUrl}
                   size={196}
-                  ecl="M"
                   color={isDark ? '#FFFFFF' : '#121212'}
-                  backgroundColor="transparent"
+                  style={{ backgroundColor: 'transparent' }}
+                  pieceCornerType="rounded"
+                  pieceBorderRadius={4}
+                  isPiecesGlued={true}
+                  outerEyesOptions={{
+                    borderRadius: 12,
+                    color: isDark ? '#FFFFFF' : '#121212',
+                  }}
+                  innerEyesOptions={{
+                    borderRadius: 6,
+                    color: isDark ? '#FFFFFF' : '#121212',
+                  }}
                 />
               </View>
             ) : (
