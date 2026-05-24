@@ -112,6 +112,7 @@ export default function TransactionsScreen() {
           </View>
         )}
         contentContainerStyle={{ paddingBottom: 40 }}
+        showsVerticalScrollIndicator={false}
         onEndReachedThreshold={0.5}
         onEndReached={() => {
           if (query.hasNextPage && !query.isFetchingNextPage) {

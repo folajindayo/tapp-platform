@@ -167,6 +167,7 @@ export default function BankAccountScreen() {
               >
                 <Text
                   numberOfLines={1}
+                  ellipsizeMode="tail"
                   style={[
                     $.selectText,
                     !selectedBank && $.selectTextPlaceholder,
@@ -174,7 +175,12 @@ export default function BankAccountScreen() {
                 >
                   {selectedBank ? selectedBank.name : 'Tap to choose a bank'}
                 </Text>
-                <ChevronDown size={20} color={C.textSecondary} />
+                {/* Wrap the chevron in a flex-shrink:0 box so the long
+                    bank name truncates with ellipsis instead of pushing
+                    the icon out of the row. */}
+                <View style={$.selectChevron}>
+                  <ChevronDown size={20} color={C.textSecondary} />
+                </View>
               </Pressable>
             </View>
 
@@ -487,6 +493,8 @@ const $ = StyleSheet.create({
   selectFieldFocused: { borderColor: C.focus },
   selectText: {
     flex: 1,
+    minWidth: 0,         // RN flex quirk: lets the text shrink instead of growing to content
+    flexShrink: 1,
     fontSize: 16,
     fontWeight: '500',
     color: C.textPrimary,
@@ -495,6 +503,12 @@ const $ = StyleSheet.create({
   selectTextPlaceholder: {
     color: C.textSecondary,
     fontWeight: '400',
+  },
+  selectChevron: {
+    flexShrink: 0,
+    width: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   chevron: {
     fontSize: 18,

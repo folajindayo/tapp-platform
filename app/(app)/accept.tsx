@@ -166,7 +166,9 @@ export default function AcceptPaymentScreen() {
           <View style={s.statusDot} />
           <Text style={s.statusText}>
             {phase.kind === 'creating' ? 'Preparing payment…'
-              : phase.kind === 'detected' ? 'Settling…'
+              : phase.kind === 'detected' ? 'Tap received — confirming…'
+              : phase.kind === 'processing' ? 'Bridging funds…'
+              : phase.kind === 'fulfilled' ? 'Settling to your bank…'
               : 'Waiting for payment'}
           </Text>
         </View>

@@ -273,11 +273,7 @@ export interface UpdateSenderProfileRequest {
 }
 
 // ---- Catalog — live rates ----
-export interface RateResponse {
-  rate: string;
-  inverse_rate: string;
-  expires_at: string;
-}
+export type RateResponse = string;
 
 // ---- SSE events ----
 export type SsePaymentEvent =

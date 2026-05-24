@@ -34,6 +34,7 @@ export default function AppLayout() {
       <Tabs.Screen name="broadcast" options={{ href: null }} />
       <Tabs.Screen name="tap-card" options={{ href: null }} />
       <Tabs.Screen name="accept" options={{ href: null }} />
+      <Tabs.Screen name="profile" options={{ href: null }} />
     </Tabs>
     </PaymentsRealtimeProvider>
   );

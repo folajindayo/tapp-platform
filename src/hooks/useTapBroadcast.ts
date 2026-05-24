@@ -12,7 +12,14 @@ type Phase =
   | { kind: 'idle' }
   | { kind: 'creating' }
   | { kind: 'broadcasting'; order: InitiateTapResponse; remainingMs: number }
+  // After the customer pays — the on-chain deposit landed. Bridge has not
+  // run yet; we're waiting for Rails to advance state.
   | { kind: 'detected'; order: InitiateTapResponse }
+  // Bridge is in flight (LiFi quote + source-chain tx submitted).
+  | { kind: 'processing'; order: InitiateTapResponse }
+  // LP has filled the order on the destination chain; settlement is
+  // imminent.
+  | { kind: 'fulfilled'; order: InitiateTapResponse; fiat_amount: string }
   | { kind: 'settled'; order: InitiateTapResponse; fiat_amount: string; tx_hash: string }
   | { kind: 'failed'; error: string };
 
@@ -86,24 +93,46 @@ export function useTapBroadcast(args: { amount: string; memo?: string }) {
       }
     }
 
-    // SSE
+    // SSE — Rails emits the full lifecycle so the UI can show the
+    // customer + merchant where things are in real-time:
+    //
+    //   deposited → processing → fulfilled → settled
+    //
+    // Bridge stalls usually surface as `processing` lasting longer than
+    // expected; refunds end on `refunded`. Anything we don't recognise
+    // we ignore so future Rails events don't break the hook.
     sseCloseRef.current = subscribePayments({
       onEvent: (evt) => {
         if (evt.data.order_id !== order.order_id) return;
-        if (evt.event === 'payment.deposited') {
-          setPhase({ kind: 'detected', order });
-        } else if (evt.event === 'payment.settled') {
-          const d = evt.data;
-          setPhase({
-            kind: 'settled',
-            order,
-            fiat_amount: d.fiat_amount,
-            tx_hash: d.tx_hash,
-          });
-          // Stop the broadcast surface — payment is in.
-          void NfcHce.stop().catch(() => undefined);
-        } else if (evt.event === 'payment.refunded') {
-          setPhase({ kind: 'failed', error: 'Payment was refunded.' });
+        switch (evt.event) {
+          case 'payment.deposited':
+            setPhase({ kind: 'detected', order });
+            // The customer tap is in — close the HCE broadcast so the
+            // tag doesn't keep advertising the (now-paid) URL.
+            void NfcHce.stop().catch(() => undefined);
+            return;
+          case 'payment.processing':
+            setPhase({ kind: 'processing', order });
+            return;
+          case 'payment.fulfilled':
+            setPhase({
+              kind: 'fulfilled',
+              order,
+              fiat_amount: evt.data.fiat_amount,
+            });
+            return;
+          case 'payment.settled':
+            setPhase({
+              kind: 'settled',
+              order,
+              fiat_amount: evt.data.fiat_amount,
+              tx_hash: evt.data.tx_hash,
+            });
+            void NfcHce.stop().catch(() => undefined);
+            return;
+          case 'payment.refunded':
+            setPhase({ kind: 'failed', error: 'Payment was refunded.' });
+            return;
         }
       },
     });

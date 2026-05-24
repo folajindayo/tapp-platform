@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -11,12 +11,11 @@ import { router, useFocusEffect } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ArrowRight } from 'lucide-react-native';
-import { ordersApi } from '@/api/endpoints';
-import { Button, Icon, Icons, Text } from '@/ui';
+import { catalogApi, ordersApi } from '@/api/endpoints';
+import { Button, Text, formatNumber } from '@/ui';
 import { formatNgn } from '@/ui/format';
 import { AmountKeypad, type KeypadKey } from '@/ui/AmountKeypad';
 import { DynamicAmount } from '@/ui/DynamicAmount';
-import { useNetworkStatus, type NetworkStatus } from '@/hooks/useNetworkStatus';
 import { useAuthStore } from '@/auth/store';
 
 const PAL = {
@@ -30,65 +29,69 @@ const PAL = {
   textSubtle:   'rgba(255, 255, 255, 0.30)',
   brand:        '#3B82F6',
   brandBg:      'rgba(59, 130, 246, 0.12)',
-  netGood:      '#22C55E',
-  netWeak:      '#F59E0B',
-  netOff:       '#F43F5E',
 } as const;
-
-const NETWORK_ICON: Record<NetworkStatus, string> = {
-  good: Icons.IconWifiGood,
-  weak: Icons.IconWifiWeak,
-  off:  Icons.IconWifiOff,
-};
-
-const NETWORK_COLOR: Record<NetworkStatus, string> = {
-  good: PAL.netGood,
-  weak: PAL.netWeak,
-  off:  PAL.netOff,
-};
 
 const PRESETS = [5000, 10000, 50000];
 
 
 export default function DashboardScreen() {
   const [amountStr, setAmountStr] = useState('');
-  const network = useNetworkStatus();
 
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
 
-  // "Today" pill — compute client-side from the recent orders list since
-  // /v1/sender/stats only returns lifetime. Cheap (one extra request,
-  // cached) and stays accurate without backend changes. Once Rails gains
-  // a `since=today` filter we can swap to a dedicated endpoint.
-  const todayOrdersQuery = useQuery({
-    queryKey: ['sender', 'orders', 'today'],
-    queryFn: () => ordersApi.list({ status: 'settled', limit: 100 }),
+  // Today's running totals. Rails accepts ?period=today so we don't
+  // have to hand-roll the aggregate client-side.
+  const todayStatsQuery = useQuery({
+    queryKey: ['sender', 'stats', 'today'],
+    queryFn: () => ordersApi.stats('today'),
     enabled: isAuthenticated,
     refetchOnWindowFocus: true,
   });
 
   useFocusEffect(() => {
-    void todayOrdersQuery.refetch();
+    void todayStatsQuery.refetch();
   });
 
   const today = useMemo(() => {
-    const orders = todayOrdersQuery.data?.orders ?? [];
-    const start = new Date();
-    start.setHours(0, 0, 0, 0);
-    const startMs = start.getTime();
-    let volume = 0;
-    let count = 0;
-    for (const o of orders) {
-      const t = new Date(o.createdAt).getTime();
-      if (Number.isNaN(t) || t < startMs) continue;
-      volume += Number.parseFloat(o.amount) || 0;
-      count += 1;
-    }
-    return { volume, count };
-  }, [todayOrdersQuery.data]);
+    const s = todayStatsQuery.data;
+    return {
+      volume: Number.parseFloat(s?.totalOrderVolume ?? '0') || 0,
+      count: s?.totalOrders ?? 0,
+    };
+  }, [todayStatsQuery.data]);
 
   const display = useMemo(() => formatAmountForDisplay(amountStr), [amountStr]);
   const amountValid = Number.parseFloat(amountStr || '0') > 0;
+
+  const [debouncedAmountStr, setDebouncedAmountStr] = useState('');
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedAmountStr(amountStr);
+    }, 300);
+    return () => clearTimeout(handler);
+  }, [amountStr]);
+
+  const rateQuery = useQuery({
+    queryKey: ['rate', 'USDC', debouncedAmountStr, 'NGN'],
+    queryFn: () => catalogApi.rates('USDC', debouncedAmountStr, 'NGN'),
+    enabled: debouncedAmountStr !== '' && Number.parseFloat(debouncedAmountStr || '0') > 0,
+  });
+
+  const usdcValue = useMemo(() => {
+    if (!amountStr || !rateQuery.data) return null;
+    const fiatVal = Number.parseFloat(amountStr);
+    const rateVal = Number.parseFloat(rateQuery.data);
+    if (!fiatVal || !rateVal) return null;
+    return fiatVal / rateVal;
+  }, [amountStr, rateQuery.data]);
+
+  const hintText = useMemo(() => {
+    if (!amountValid) return '—';
+    if (rateQuery.isLoading) return '—';
+    if (usdcValue === null) return '—';
+    return `≈ ${formatNumber(usdcValue)} USDC`;
+  }, [amountValid, rateQuery.isLoading, usdcValue]);
 
   function press(key: KeypadKey) {
     if (key.type === 'back') {
@@ -117,14 +120,14 @@ export default function DashboardScreen() {
 
   return (
     <SafeAreaView edges={['top']} style={s.root}>
-      {/* Header: centered Today pill + right-aligned connectivity dot.
-          No greeting — POS screens stay focused on the transaction. */}
+      {/* Header: centered Today pill. POS-focused — no greeting, no
+          extra glyphs. */}
       <View style={s.header}>
         <Pressable
           onPress={() => router.push('/(app)/transactions')}
           style={({ pressed }) => [s.todayPill, pressed && s.todayPillPressed]}
         >
-          {todayOrdersQuery.isLoading ? (
+          {todayStatsQuery.isLoading ? (
             <ActivityIndicator size="small" color={PAL.brand} />
           ) : (
             <Text style={s.todayText}>
@@ -133,13 +136,6 @@ export default function DashboardScreen() {
             </Text>
           )}
         </Pressable>
-        <View style={s.netIcon}>
-          <Icon
-            xml={NETWORK_ICON[network]}
-            size={18}
-            color={NETWORK_COLOR[network]}
-          />
-        </View>
       </View>
 
       {/* Amount — focal point. DynamicAmount handles tier sizing, the
@@ -153,6 +149,7 @@ export default function DashboardScreen() {
           active={amountValid}
           surface="dark"
         />
+        <Text style={s.rateHint}>{hintText}</Text>
       </View>
 
       {/* Preset Amount Pills */}
@@ -239,15 +236,6 @@ const s = StyleSheet.create({
     fontFamily: 'BricolageGrotesque-Regular',
     color: PAL.textMuted,
   },
-  netIcon: {
-    position: 'absolute',
-    right: 20,
-    top: 8,
-    height: 32,
-    width: 32,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   amountWrap: {
     flex: 1,
     alignItems: 'center',
@@ -261,6 +249,12 @@ const s = StyleSheet.create({
     textTransform: 'uppercase',
     color: PAL.textMuted,
     marginBottom: 12,
+  },
+  rateHint: {
+    fontFamily: 'BricolageGrotesque-Medium',
+    fontSize: 12,
+    color: PAL.textMuted,
+    marginTop: 12,
   },
   presetsRow: {
     flexDirection: 'row',

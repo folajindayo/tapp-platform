@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Alert, Linking, Pressable, View } from 'react-native';
+import { Alert, Linking, Pressable, ScrollView, View } from 'react-native';
 import { router } from 'expo-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { ChevronRight, LogOut } from 'lucide-react-native';
@@ -70,10 +70,29 @@ export default function SettingsScreen() {
   const kycColor = kycStatus === 'success' ? colors.success : colors.textMuted;
 
   return (
-    <Screen>
+    // scrollable=false so the Header stays pinned; the body content
+    // scrolls inside its own ScrollView below.
+    <Screen scrollable={false}>
       <Header title="Account" back={false} />
 
+      <ScrollView
+        style={{ flex: 1, marginHorizontal: -20 }}
+        contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 24 }}
+        showsVerticalScrollIndicator={false}
+      >
+
       <Section title="Profile">
+        <Row
+          icon={Icons.IconName}
+          label="Merchant Name"
+          value={
+            meQuery.data?.first_name || meQuery.data?.last_name
+              ? `${meQuery.data?.first_name ?? ''} ${meQuery.data?.last_name ?? ''}`.trim()
+              : 'Add your name'
+          }
+          chevron
+          onPress={() => router.push('/(app)/profile')}
+        />
         <Row icon={Icons.IconEmail}     label="Email"    value={user?.email ?? '—'} />
         <Row
           icon={Icons.IconKycStatus}
@@ -161,6 +180,7 @@ export default function SettingsScreen() {
           </Text>
         </Pressable>
       </View>
+      </ScrollView>
     </Screen>
   );
 }
@@ -218,7 +238,7 @@ function Row({
     >
       {/* Left: icon + label */}
       <View className="flex-row items-center gap-3 flex-1">
-        {icon ? <Icon xml={icon} size={18} /> : null}
+        {icon ? <Icon xml={icon} size={18} color={colors.textMuted} /> : null}
         <Text
           style={{
             fontSize: 15,
@@ -240,13 +260,16 @@ function Row({
               fontFamily: 'BricolageGrotesque-Regular',
               color: valueColor ?? colors.textMuted,
               textAlign: 'right',
+              flexShrink: 1,
             }}
           >
             {value}
           </Text>
         ) : null}
         {chevron ? (
-          <ChevronRight size={15} color={colors.textMuted} strokeWidth={1.6} />
+          <View style={{ flexShrink: 0 }}>
+            <ChevronRight size={15} color={colors.textMuted} strokeWidth={1.6} />
+          </View>
         ) : null}
       </View>
     </View>

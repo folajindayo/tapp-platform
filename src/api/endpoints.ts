@@ -54,6 +54,10 @@ export const authApi = {
     request<{ ok: true }>({ method: 'POST', url: '/v1/auth/resend-token', data: body }),
   me: () =>
     request<MeResponse>({ method: 'GET', url: '/v1/me' }),
+  // Update the authenticated user's first/last name. Email and scope
+  // are intentionally not editable here.
+  updateMe: (body: { firstName?: string; lastName?: string }) =>
+    request<MeResponse>({ method: 'PATCH', url: '/v1/me', data: body }),
   resetPasswordToken: (body: ResetPasswordTokenRequest) =>
     request<{ ok: true }>({ method: 'POST', url: '/v1/auth/reset-password-token', data: body }),
   resetPassword: (body: ResetPasswordRequest) =>
@@ -155,6 +159,8 @@ export const ordersApi = {
     request<PaymentOrderSummary>({ method: 'GET', url: `/v1/sender/orders/${id}` }),
   cancel: (id: UUID) =>
     request<{ ok: true }>({ method: 'POST', url: `/v1/sender/orders/${id}/cancel` }),
-  stats: () =>
-    request<SenderStatsResponse>({ method: 'GET', url: '/v1/sender/stats' }),
+  stats: (period?: 'today' | 'week' | 'month' | 'all') => {
+    const url = period ? `/v1/sender/stats?period=${period}` : '/v1/sender/stats';
+    return request<SenderStatsResponse>({ method: 'GET', url });
+  },
 };

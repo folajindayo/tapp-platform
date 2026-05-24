@@ -91,7 +91,7 @@ export default function PasswordScreen() {
         )}
 
         <View style={s.badge}>
-          <Icon xml={Icons.IconEmail} size={32} color={PAL.badgeIcon} />
+          <Icon xml={Icons.IconKey} size={32} color={PAL.badgeIcon} />
         </View>
 
         <Text style={s.title}>Enter your password</Text>
