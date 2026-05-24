@@ -61,13 +61,18 @@ export default function SettingsScreen() {
   }
 
   const kycStatus = meQuery.data?.kyc_status;
-  const kycLabel =
-    kycStatus === 'success'
+  const kycLabel = meQuery.isLoading
+    ? 'Loading…'
+    : kycStatus === 'success'
       ? 'Verified'
       : kycStatus
-        ? kycStatus.charAt(0).toUpperCase() + kycStatus.slice(1)
-        : '—';
+        ? kycStatus === 'not_started'
+          ? 'Not started'
+          : kycStatus.charAt(0).toUpperCase() + kycStatus.slice(1).replace('_', ' ')
+        : 'Not started';
   const kycColor = kycStatus === 'success' ? colors.success : colors.textMuted;
+
+  const userEmail = meQuery.data?.email ?? user?.email ?? (meQuery.isLoading ? 'Loading…' : '—');
 
   return (
     <Screen scrollable={false}>
@@ -79,7 +84,7 @@ export default function SettingsScreen() {
         showsVerticalScrollIndicator={false}
       >
         <Section title="Profile">
-          <Row icon={Icons.IconEmail}     label="Email"    value={user?.email ?? '—'} />
+          <Row icon={Icons.IconEmail}     label="Email"    value={userEmail} />
           <Row
             icon={Icons.IconKycStatus}
             label="KYC"
@@ -246,6 +251,7 @@ function Row({
               fontFamily: 'BricolageGrotesque-Regular',
               color: valueColor ?? colors.textMuted,
               textAlign: 'right',
+              flexShrink: 1,
             }}
           >
             {value}
