@@ -44,6 +44,8 @@ const NETWORK_COLOR: Record<NetworkStatus, string> = {
   off:  PAL.netOff,
 };
 
+const PRESETS = [5000, 10000, 50000];
+
 
 export default function DashboardScreen() {
   const [amountStr, setAmountStr] = useState('');
@@ -108,7 +110,7 @@ export default function DashboardScreen() {
   }, [amountStr]);
 
   return (
-    <SafeAreaView edges={['top']} style={s.root}>
+    <SafeAreaView edges={['top', 'bottom']} style={s.root}>
       {/* Header: centered Today pill + right-aligned connectivity dot.
           No greeting — POS screens stay focused on the transaction. */}
       <View style={s.header}>
@@ -145,6 +147,40 @@ export default function DashboardScreen() {
           active={amountValid}
           surface="dark"
         />
+      </View>
+
+      {/* Preset Amount Pills */}
+      <View style={s.presetsRow}>
+        {PRESETS.map((val) => {
+          const valStr = val.toString();
+          const isSelected = amountStr === valStr;
+          return (
+            <Pressable
+              key={val}
+              onPress={() => {
+                if (amountStr === valStr) {
+                  setAmountStr('');
+                } else {
+                  setAmountStr(valStr);
+                }
+              }}
+              style={({ pressed }) => [
+                s.presetPill,
+                isSelected && s.presetPillSelected,
+                pressed && s.presetPillPressed,
+              ]}
+            >
+              <Text
+                style={[
+                  s.presetPillText,
+                  isSelected && s.presetPillTextSelected,
+                ]}
+              >
+                {formatNgn(val)}
+              </Text>
+            </Pressable>
+          );
+        })}
       </View>
 
       {/* Keypad — bare digits, users-app AmountKeypad pattern */}
@@ -235,9 +271,41 @@ const s = StyleSheet.create({
     color: PAL.textMuted,
     marginBottom: 12,
   },
+  presetsRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 20,
+    marginBottom: 8,
+  },
+  presetPill: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 999,
+    backgroundColor: PAL.surface,
+    borderWidth: 1,
+    borderColor: PAL.border,
+  },
+  presetPillSelected: {
+    backgroundColor: PAL.brandBg,
+    borderColor: PAL.brand,
+  },
+  presetPillPressed: {
+    opacity: 0.7,
+  },
+  presetPillText: {
+    fontFamily: 'BricolageGrotesque-Medium',
+    fontSize: 13,
+    color: PAL.textMuted,
+  },
+  presetPillTextSelected: {
+    color: PAL.brand,
+    fontFamily: 'BricolageGrotesque-SemiBold',
+  },
   keypad: {
-    paddingVertical: 16,
-    marginBottom: 16,
+    paddingVertical: 12,
+    marginBottom: 8,
     alignItems: 'center',
   },
   actions: {
