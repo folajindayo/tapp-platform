@@ -67,6 +67,12 @@ export interface OrderDetails {
   reference?: string;
   expires_at: number;          // unix ms
   step_up_required: boolean;
+  // On-chain deposit target. Populated by Rails from the merchant's
+  // SuiReceiveAddress row. The customer's wallet sends `amount_subunit`
+  // of `coin_type` here; Rails' Sui event indexer picks the deposit up
+  // and advances the order state (SSE emits payment.deposited).
+  receive_address?: string;
+  coin_type?: string;
 }
 
 // -----------------------------------------------------------------------------
@@ -258,6 +264,22 @@ async function realGet<T>(path: string, jwt: string): Promise<T> {
   return json.data;
 }
 
+async function realPost<T>(path: string, body: unknown, jwt?: string): Promise<T> {
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    "ngrok-skip-browser-warning": "1",
+  };
+  if (jwt) headers.Authorization = `Bearer ${jwt}`;
+  const res = await fetch(`${API_BASE}${path}`, {
+    method:  "POST",
+    headers,
+    body:    JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error(`${path} → ${res.status}`);
+  const json = (await res.json()) as { data: T };
+  return json.data;
+}
+
 export const walletApi = {
   me: async (
     jwt: string,
@@ -295,18 +317,100 @@ export const walletApi = {
     if (WALLET_MOCK) return mockOrder(id);
     return realGet<OrderDetails>(`/v1/orders/${id}`, jwt);
   },
+  /**
+   * Pay an order by sending USDC from the customer's zkLogin wallet to
+   * the merchant's receive_address. Rails' Sui event indexer picks up
+   * the deposit and advances the order state — clients observe progress
+   * via the existing SSE stream (payment.deposited → settled).
+   *
+   * Returns the on-chain tx digest so the UI can deep-link to it. In
+   * mock mode, fabricates a digest after a short delay.
+   *
+   * Caller responsibilities:
+   *   • Pre-check insufficient balance (cleaner UX than the chain
+   *     reverting on transferObjects).
+   *   • Subscribe to the order's SSE stream and route to the success
+   *     screen on `payment.deposited` / `payment.settled` rather than
+   *     waiting on this call alone — the chain confirmation here is
+   *     necessary but not sufficient for end-to-end settlement.
+   */
   confirmOrder: async (
     _jwt: string,
-    _id: string,
-    _txDigest: string,
-  ): Promise<{ acknowledged: true }> => {
+    order: OrderDetails,
+    session: { suiAddress: string; zkLoginReady: boolean },
+  ): Promise<{ acknowledged: true; digest: string }> => {
     if (WALLET_MOCK) {
       await new Promise((r) => setTimeout(r, 800));
-      return { acknowledged: true };
+      const fakeDigest = "0xtx_mock_" + Date.now().toString(36);
+      // Even in mock mode, fire-and-forget the confirm so the merchant's
+      // mock-mode SSE consumers advance (no-op when Rails is offline).
+      void realPost(`/v1/orders/${order.id}/confirm`, { txDigest: fakeDigest }).catch(() => {});
+      return { acknowledged: true, digest: fakeDigest };
     }
-    throw new Error("Live order confirmation not wired yet.");
+
+    if (!session.zkLoginReady) {
+      throw new Error(
+        "Your sign-in didn't complete the full zkLogin handshake — sign out and back in to enable on-chain payments.",
+      );
+    }
+    if (!order.receive_address) {
+      throw new Error(
+        "This order is missing a receive address. Ask the merchant to regenerate it.",
+      );
+    }
+    if (order.amount_subunit <= 0) {
+      throw new Error("Order amount must be greater than zero.");
+    }
+
+    // Dynamic import — keep the heavy Sui + zkLogin code out of the
+    // initial bundle. Matches the pattern in /send/page.tsx.
+    const { executeZkLoginTx } = await import("@/lib/zklogin");
+    const { Transaction } = await import("@mysten/sui/transactions");
+    const { suiReadClient } = await import("@/lib/sui-client");
+
+    const coinType = order.coin_type ?? USDC_COIN_TYPE;
+    const recipient = order.receive_address;
+    const amountSubunit = order.amount_subunit;
+
+    const result = await executeZkLoginTx(async (tx: InstanceType<typeof Transaction>) => {
+      const client = suiReadClient();
+      const coins = await client.getCoins({
+        owner:    session.suiAddress,
+        coinType,
+      });
+      if (coins.data.length === 0) {
+        throw new Error("No USDC coin objects found in this wallet. Top up first.");
+      }
+      const inputs = coins.data.map((c) => tx.object(c.coinObjectId));
+      const primary = inputs[0];
+      if (inputs.length > 1) {
+        // Multi-coin wallets need a merge so we can split a single
+        // (potentially large) coin into the exact amount the merchant
+        // expects — Sui PTBs can't aggregate balance across inputs.
+        tx.mergeCoins(primary, inputs.slice(1));
+      }
+      const [out] = tx.splitCoins(primary, [tx.pure.u64(BigInt(amountSubunit))]);
+      tx.transferObjects([out], tx.pure.address(recipient));
+    });
+
+    // Best-effort ack so Rails pre-emits payment.deposited and the
+    // merchant's SSE advances without waiting on the Sui indexer's
+    // poll interval. Indexer remains authoritative — if this POST
+    // fails the deposit still settles, just a few seconds slower.
+    void realPost(`/v1/orders/${order.id}/confirm`, { txDigest: result.digest })
+      .catch((err) => console.warn("order confirm ack failed:", err));
+
+    return { acknowledged: true, digest: result.digest };
   },
 };
+
+// SSE URL the customer checkout PWA connects to after submitting an
+// on-chain payment. Public — order id is the auth (unguessable v4
+// UUID). Server only forwards events whose payload.order_id matches
+// the URL param, so subscribers see ONLY their own order's lifecycle.
+export function orderStreamURL(orderID: string): string {
+  return `${API_BASE}/v1/orders/${encodeURIComponent(orderID)}/stream`;
+}
 
 // -----------------------------------------------------------------------------
 // Hooks

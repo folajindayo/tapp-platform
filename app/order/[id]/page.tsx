@@ -27,10 +27,28 @@ import {
   walletApi,
   formatUsdc,
   formatNgnFromUsdc,
+  orderStreamURL,
 } from "@/lib/wallet";
 import { useHaptic } from "@/lib/motion";
 
-type Phase = "review" | "step-up" | "signing" | "submitting" | "done" | "expired" | "error";
+// Lifecycle: review → (optional step-up) → signing → submitting
+//   → submitted   (chain tx confirmed; awaiting Rails indexer)
+//   → bridging    (Rails has started LiFi bridge)
+//   → fulfilled   (LP filled — settlement imminent)
+//   → done        (fiat at merchant — final success)
+// Plus failure branches: expired, error, refunded.
+type Phase =
+  | "review"
+  | "step-up"
+  | "signing"
+  | "submitting"
+  | "submitted"
+  | "bridging"
+  | "fulfilled"
+  | "done"
+  | "expired"
+  | "error"
+  | "refunded";
 
 export default function OrderPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -41,6 +59,7 @@ export default function OrderPage({ params }: { params: Promise<{ id: string }> 
 
   const [phase, setPhase] = useState<Phase>("review");
   const [error, setError] = useState<string | null>(null);
+  const [digest, setDigest] = useState<string | null>(null);
   const haptic = useHaptic();
 
   useEffect(() => {
@@ -60,11 +79,16 @@ export default function OrderPage({ params }: { params: Promise<{ id: string }> 
 
     setPhase("signing");
     try {
-      await new Promise((r) => setTimeout(r, 700)); // mock zkLogin sign latency
-      const txDigest = "0xtx_" + Date.now().toString(36);
-      setPhase("submitting");
-      await walletApi.confirmOrder(session.jwt, order.data.id, txDigest);
-      setPhase("done");
+      setTimeout(() => setPhase((p) => (p === "signing" ? "submitting" : p)), 600);
+      const res = await walletApi.confirmOrder(session.jwt, order.data, {
+        suiAddress:    session.suiAddress,
+        zkLoginReady:  session.zkLoginReady,
+      });
+      setDigest(res.digest);
+      // We don't jump to "done" yet — Rails still has to bridge + settle.
+      // The SSE subscription below advances the phase through bridging
+      // → fulfilled → done as the on-chain pipeline progresses.
+      setPhase("submitted");
       haptic.success();
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Payment failed";
@@ -73,6 +97,34 @@ export default function OrderPage({ params }: { params: Promise<{ id: string }> 
       haptic.error();
     }
   }
+
+  // Per-order SSE subscription. Opens once we've submitted on-chain and
+  // closes on terminal state (done / refunded) or component unmount.
+  // EventSource auto-reconnects on transient drops; we leave Last-Event-
+  // ID handling to the browser since the customer page is a one-shot
+  // (refreshing the page just opens a new connection from "now").
+  useEffect(() => {
+    const live = phase === "submitted" || phase === "bridging" || phase === "fulfilled";
+    if (!live || !order.data) return;
+
+    const es = new EventSource(orderStreamURL(order.data.id));
+    const advance = (next: Phase) => setPhase((p) => (p === "done" || p === "refunded" ? p : next));
+
+    es.addEventListener("payment.deposited", () => advance("submitted"));
+    es.addEventListener("payment.processing", () => advance("bridging"));
+    es.addEventListener("payment.fulfilled", () => advance("fulfilled"));
+    es.addEventListener("payment.settled", () => {
+      setPhase("done");
+      haptic.success();
+      es.close();
+    });
+    es.addEventListener("payment.refunded", () => {
+      setPhase("refunded");
+      haptic.error();
+      es.close();
+    });
+    return () => es.close();
+  }, [phase, order.data?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function runStepUp() {
     setError(null);
@@ -154,6 +206,11 @@ export default function OrderPage({ params }: { params: Promise<{ id: string }> 
               to {o.merchant_name} · ≈{" "}
               {formatNgnFromUsdc(o.amount_subunit, o.ngn_rate)}
             </p>
+            {digest ? (
+              <p className="break-all rounded-full bg-gray-50 px-3 py-1.5 font-mono text-[11px] text-gray-500 dark:bg-white/5 dark:text-white/50">
+                {digest}
+              </p>
+            ) : null}
           </div>
           <div className="flex w-full gap-3">
             <Link href="/wallet" className="flex-1">
@@ -174,6 +231,28 @@ export default function OrderPage({ params }: { params: Promise<{ id: string }> 
           </h1>
           <p className="text-sm text-gray-500 dark:text-white/50">
             Ask the merchant to generate a new one.
+          </p>
+          <Link href="/wallet" className="w-full">
+            <Button variant="secondary">Back to wallet</Button>
+          </Link>
+        </div>
+      </Screen>
+    );
+  }
+
+  if (phase === "refunded") {
+    return (
+      <Screen centered>
+        <div className="flex flex-col items-center gap-6 text-center">
+          <h1 className="text-xl font-medium text-rose-600 dark:text-rose-500">
+            Payment refunded
+          </h1>
+          <p className="text-sm text-gray-500 dark:text-white/50">
+            The merchant couldn&apos;t complete settlement, so your USDC has
+            been returned to your wallet.
+            {digest ? (
+              <span className="mt-3 block break-all font-mono text-[11px]">{digest}</span>
+            ) : null}
           </p>
           <Link href="/wallet" className="w-full">
             <Button variant="secondary">Back to wallet</Button>
@@ -278,11 +357,15 @@ export default function OrderPage({ params }: { params: Promise<{ id: string }> 
           </div>
         )}
 
-        {(phase === "signing" || phase === "submitting") && (
+        {(phase === "signing" || phase === "submitting" || phase === "submitted" || phase === "bridging" || phase === "fulfilled") && (
           <div className="flex flex-col items-center gap-3 py-2">
             <div className="loader" />
             <p className="text-xs text-gray-500 dark:text-white/50">
-              {phase === "signing" ? "Signing on Sui…" : "Confirming with merchant…"}
+              {phase === "signing" ? "Signing on Sui…"
+                : phase === "submitting" ? "Submitting on-chain…"
+                : phase === "submitted" ? "Payment on chain — notifying merchant…"
+                : phase === "bridging" ? "Merchant is bridging your funds…"
+                : "Settling to merchant's bank…"}
             </p>
           </div>
         )}
