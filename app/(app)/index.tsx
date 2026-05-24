@@ -17,6 +17,7 @@ import { formatNgn } from '@/ui/format';
 import { AmountKeypad, type KeypadKey } from '@/ui/AmountKeypad';
 import { DynamicAmount } from '@/ui/DynamicAmount';
 import { useNetworkStatus, type NetworkStatus } from '@/hooks/useNetworkStatus';
+import { useAuthStore } from '@/auth/store';
 
 const PAL = {
   bg:           '#0D0D0D',
@@ -53,6 +54,8 @@ export default function DashboardScreen() {
   const [amountStr, setAmountStr] = useState('');
   const network = useNetworkStatus();
 
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+
   // "Today" pill — compute client-side from the recent orders list since
   // /v1/sender/stats only returns lifetime. Cheap (one extra request,
   // cached) and stays accurate without backend changes. Once Rails gains
@@ -60,6 +63,7 @@ export default function DashboardScreen() {
   const todayOrdersQuery = useQuery({
     queryKey: ['sender', 'orders', 'today'],
     queryFn: () => ordersApi.list({ status: 'settled', limit: 100 }),
+    enabled: isAuthenticated,
     refetchOnWindowFocus: true,
   });
 

@@ -55,26 +55,22 @@ export default function SignUpScreen() {
     mode: 'onChange',
   });
 
-  // Rails' /v1/auth/register returns only the user record — tokens come
-  // from /v1/auth/login. In dev the email is auto-verified, so we can
-  // log in immediately. In prod the login will reject with "Email is
-  // not verified"; we catch that case and route to verify-email
-  // without tokens so the user can finish onboarding once verified.
-  type LoginResult = Awaited<ReturnType<typeof authApi.login>> | null;
-  const mutation = useMutation<LoginResult, ApiError, FormValues>({
+  const mutation = useMutation<void, ApiError, FormValues>({
     mutationFn: async (values) => {
-      await authApi.register(values);
-      try {
-        return await authApi.login({ email: values.email, password: values.password });
-      } catch (err) {
-        const msg = ((err as ApiError)?.message ?? '').toLowerCase();
-        if (msg.includes('email is not verified')) return null;
-        throw err;
+      const tokens = await authApi.register(values);
+      // If the backend returns tokens on register, set the session immediately.
+      // The Guard will resolve the correct next step (verify-email or onboarding)
+      // based on the /me response.
+      if (tokens?.accessToken) {
+        setSession(tokens.accessToken, tokens.refreshToken);
+      } else {
+        // Tokens absent — route to verify-email with email so the user can
+        // verify without needing to be authenticated.
+        router.replace({
+          pathname: '/(auth)/verify-email',
+          params: { email: values.email },
+        });
       }
-    },
-    onSuccess: (tokens) => {
-      if (tokens) setSession(tokens.accessToken, tokens.refreshToken);
-      router.replace('/(auth)/verify-email');
     },
     onError: (err) => {
       Alert.alert('Sign up failed', err.message ?? 'Try again');
@@ -194,9 +190,6 @@ export default function SignUpScreen() {
     </Screen>
   );
 }
-
-// ── Form primitives (duplicated from sign-in.tsx — lift to @/ui when a
-// third caller appears).
 
 interface FormFieldProps {
   label: string;

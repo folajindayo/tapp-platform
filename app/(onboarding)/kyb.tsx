@@ -1,15 +1,32 @@
 import { useEffect, useState } from 'react';
-import { Alert, View } from 'react-native';
+import {
+  Alert,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import * as WebBrowser from 'expo-web-browser';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { router } from 'expo-router';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { kycApi } from '@/api/endpoints';
 import { useAuthStore } from '@/auth/store';
-import { Button, Screen, Text } from '@/ui';
-import { StepHeader } from '@/components/StepHeader';
+import { Button } from '@/ui';
 
 const POLL_INTERVAL_MS = 5_000;
 const POLL_MAX_DURATION_MS = 5 * 60 * 1000;
+
+// ─── Colors (same palette as bank-account) ───────────────────────────────────
+const C = {
+  bg: '#0A0A0C',
+  textPrimary: '#F5F5F7',
+  textSecondary: 'rgba(255,255,255,0.60)',
+  accent: '#3B82F6',
+  accentSoft: 'rgba(59,130,246,0.15)',
+  green: '#34D399',
+  greenSoft: 'rgba(52,211,153,0.12)',
+} as const;
 
 export default function KybScreen() {
   const userId = useAuthStore((s) => s.user?.id);
@@ -37,26 +54,8 @@ export default function KybScreen() {
     }
   }, [statusQuery.data, queryClient]);
 
-  async function startVerification() {
-    if (!userId) return;
-    setStarting(true);
-    try {
-      const res = await kycApi.request({
-        wallet_address: userId,
-        id_types: [{ country: 'NG', id_type: 'BVN' }],
-      });
-      // Open Smile Identity hosted page in an in-app browser; user returns
-      // to our app after they finish / cancel. We poll status either way.
-      await WebBrowser.openBrowserAsync(res.url);
-      setPollUntil(Date.now() + POLL_MAX_DURATION_MS);
-    } catch (err) {
-      Alert.alert(
-        'Could not start verification',
-        (err as { message?: string })?.message ?? 'Try again',
-      );
-    } finally {
-      setStarting(false);
-    }
+  const startVerification = () => {
+    router.replace("/(onboarding)/bank-account");
   }
 
   const handleBack = () => {
@@ -68,30 +67,46 @@ export default function KybScreen() {
   };
 
   return (
-    <Screen scrollable={false}>
-      <StepHeader
-        step={3}
-        totalSteps={4}
-        title="Verify your identity"
-        subtitle="We use your BVN to confirm your identity. Takes about 30 seconds."
-        onBack={handleBack}
-      />
-      <View className="flex-1 gap-6 mt-4">
+    <SafeAreaView style={$.safeArea} edges={['top', 'left', 'right']}>
+      <View style={$.container}>
+        {/* ── Top bar (same as bank-account) ──────────── */}
+        <View style={$.topBar}>
+          <Pressable onPress={handleBack} hitSlop={14} style={$.backCircle}>
+            <Text style={$.backArrow}>‹</Text>
+          </Pressable>
+          <View style={$.dots}>
+            <View style={[$.dot, $.dotDone]} />
+            <View style={[$.dot, $.dotDone]} />
+            <View style={[$.dot, $.dotActive]} />
+            <View style={$.dot} />
+          </View>
+          <View style={{ width: 36 }} />
+        </View>
 
-        <View className="gap-3 mt-4">
+        {/* ── Title ──────────────────────────────────────── */}
+        <Text style={$.heading}>Verify your identity</Text>
+        <Text style={$.subheading}>
+          We use your BVN to confirm your identity.{'\n'}Takes about 30 seconds.
+        </Text>
+
+        {/* ── Bullet points ─────────────────────────────── */}
+        <View style={$.bullets}>
           <BulletRow text="Your BVN is never stored on our servers" />
           <BulletRow text="You won't be charged" />
           <BulletRow text="Required to enable bank payouts" />
         </View>
 
-        <View className="flex-1" />
+        {/* Spacer */}
+        <View style={$.flex} />
 
-        {isPolling ? (
-          <Text className="text-center text-muted-text mb-2">
+        {/* ── Status text ───────────────────────────────── */}
+        {isPolling && (
+          <Text style={$.pollingText}>
             Verifying — this can take up to a minute.
           </Text>
-        ) : null}
+        )}
 
+        {/* ── CTA ───────────────────────────────────────── */}
         <Button
           label={isPolling ? 'Verifying…' : 'Start verification'}
           onPress={startVerification}
@@ -99,15 +114,101 @@ export default function KybScreen() {
           disabled={isPolling}
         />
       </View>
-    </Screen>
+    </SafeAreaView>
   );
 }
 
+// ─── Bullet row ──────────────────────────────────────────────────────────────
 function BulletRow({ text }: { text: string }) {
   return (
-    <View className="flex-row gap-3 items-start">
-      <View className="h-1.5 w-1.5 rounded-full bg-brand-blue mt-2.5" />
-      <Text className="flex-1 text-ink-700">{text}</Text>
+    <View style={$.bulletRow}>
+      <View style={$.bulletDot} />
+      <Text style={$.bulletText}>{text}</Text>
     </View>
   );
 }
+
+// ─── Styles ──────────────────────────────────────────────────────────────────
+const $ = StyleSheet.create({
+  safeArea: { flex: 1, backgroundColor: C.bg },
+  container: { flex: 1, paddingHorizontal: 20, paddingBottom: 32 },
+  flex: { flex: 1 },
+
+  // Top bar — identical to bank-account
+  topBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingTop: 8,
+    marginBottom: 28,
+  },
+  backCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255,255,255,0.07)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  backArrow: {
+    fontSize: 22,
+    color: C.textPrimary,
+    marginTop: -2,
+  },
+  dots: { flexDirection: 'row', gap: 6 },
+  dot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: 'rgba(255,255,255,0.12)',
+  },
+  dotDone: { backgroundColor: 'rgba(59,130,246,0.45)' },
+  dotActive: { backgroundColor: C.accent },
+
+  // Title
+  heading: {
+    fontSize: 28,
+    fontWeight: '700',
+    color: C.textPrimary,
+    lineHeight: 36,
+    marginBottom: 8,
+  },
+  subheading: {
+    fontSize: 15,
+    fontWeight: '400',
+    color: C.textSecondary,
+    lineHeight: 22,
+    marginBottom: 28,
+  },
+
+  // Bullets
+  bullets: { gap: 14 },
+  bulletRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+  },
+  bulletDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: C.accent,
+    marginTop: 7,
+  },
+  bulletText: {
+    flex: 1,
+    fontSize: 15,
+    fontWeight: '400',
+    color: C.textPrimary,
+    lineHeight: 22,
+  },
+
+  // Polling text
+  pollingText: {
+    fontSize: 14,
+    fontWeight: '400',
+    color: C.textSecondary,
+    textAlign: 'center',
+    marginBottom: 12,
+  },
+});

@@ -97,7 +97,7 @@ export const verifyApi = {
 // ---- Merchant self ----
 export const merchantApi = {
   saveBankAccount: (body: SaveBankAccountRequest) =>
-    request<MerchantBankAccount>({ method: 'POST', url: '/v1/sender/me/bank-account', data: body }),
+    request<MerchantBankAccount>({ method: 'POST', url: '/v1/sender/me/bank-account', data: body, }),
   getBankAccount: () =>
     request<MerchantBankAccount>({ method: 'GET', url: '/v1/sender/me/bank-account' }),
   initiateTap: (body: InitiateTapRequest, idempotencyKey: string) =>

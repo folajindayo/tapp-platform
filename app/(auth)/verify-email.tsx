@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Alert, TextInput, View, useColorScheme } from 'react-native';
 import { useQueryClient } from '@tanstack/react-query';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { authApi } from '@/api/endpoints';
 import { useAuthStore } from '@/auth/store';
@@ -11,7 +11,15 @@ import { StepHeader } from '@/components/StepHeader';
 const CODE_LEN = 6;
 
 export default function VerifyEmailScreen() {
-  const email = useAuthStore((s) => s.user?.email ?? '');
+  const { email: paramEmail } = useLocalSearchParams<{ email?: string }>();
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const storeEmail = useAuthStore((s) => s.user?.email);
+
+  // Email is available from the auth store for authenticated users (signed in
+  // via password), or from route params for unauthenticated users (just
+  // registered but email not yet verified).
+  const email = storeEmail ?? paramEmail ?? '';
+
   const queryClient = useQueryClient();
   const [code, setCode] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -32,17 +40,28 @@ export default function VerifyEmailScreen() {
   }, [cooldown]);
 
   useEffect(() => {
-    if (code.length === CODE_LEN) {
-      void submit(code);
-    }
+    if (code.length === CODE_LEN) void submit(code);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [code]);
 
   async function submit(token: string) {
     setSubmitting(true);
     try {
       await authApi.confirmAccount({ token });
-      // Invalidate /me so the root guard advances.
-      await queryClient.invalidateQueries({ queryKey: ['auth', 'me'] });
+
+      if (isAuthenticated) {
+        // Authenticated path: invalidate /me so the Guard sees the updated
+        // is_email_verified flag and advances to the next onboarding step.
+        await queryClient.invalidateQueries({ queryKey: ['auth', 'me'] });
+      } else {
+        // Unauthenticated path: user registered but couldn't log in until now.
+        // Route back to the password screen so they can sign in; a success
+        // banner will tell them their email is verified.
+        router.replace({
+          pathname: '/(auth)/password',
+          params: { email, verified: 'true' },
+        });
+      }
     } catch (err) {
       Alert.alert('Invalid code', (err as { message?: string })?.message ?? 'Try again');
       setCode('');
@@ -75,7 +94,6 @@ export default function VerifyEmailScreen() {
 
   return (
     <Screen scrollable={false} className="bg-surface-bg dark:bg-neutral-950 px-4">
-      {/* Ambient Background Glows */}
       <View className="absolute top-0 left-0 right-0 bottom-0 overflow-hidden" pointerEvents="none">
         <View className="absolute -top-20 -right-20 w-[300px] h-[300px] rounded-full bg-brand-blue/5 dark:bg-brand-blue/10 opacity-70" />
         <View className="absolute -bottom-20 -left-20 w-[320px] h-[320px] rounded-full bg-brand-blue/5 dark:bg-brand-blue/10 opacity-45" />

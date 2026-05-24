@@ -1,8 +1,3 @@
-// Step 2 of the auth flow — password entry.
-// Same layout language as the email step: badge → bold title → muted
-// subtitle (with the email under it) → pill input with eye toggle →
-// 24px gap → solid brand-blue Continue/Sign-in button.
-
 import { useState } from 'react';
 import {
   Keyboard,
@@ -30,32 +25,41 @@ const PAL = {
   textSubtle: 'rgba(255, 255, 255, 0.35)',
   inputBg:    'rgba(255, 255, 255, 0.06)',
   required:   '#F43F5E',
+  success:    '#22C55E',
+  successBg:  'rgba(34, 197, 94, 0.10)',
 } as const;
 
 export default function PasswordScreen() {
-  const { email } = useLocalSearchParams<{ email?: string }>();
+  const { email, verified } = useLocalSearchParams<{ email?: string; verified?: string }>();
   const setSession = useAuthStore((s) => s.setSession);
   const [password, setPassword] = useState('');
   const [visible, setVisible] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const justVerified = verified === 'true';
   const valid = password.length >= 6 && !!email;
 
   const mutation = useMutation<Awaited<ReturnType<typeof authApi.login>>, ApiError>({
     mutationFn: () => authApi.login({ email: email!, password }),
     onSuccess: (data) => {
+      // Session set — Guard will route to the correct step based on /me response.
       setSession(data.accessToken, data.refreshToken);
     },
     onError: (err) => {
       const msg = (err?.message ?? '').toLowerCase();
+
       if (msg.includes('do not match') || msg.includes('not found')) {
-        // Account doesn't exist with this email → route to sign-up.
-        router.push({
-          pathname: '/(auth)/sign-up',
-          params: { email },
-        });
+        // No account with this email → offer to sign up.
+        router.push({ pathname: '/(auth)/sign-up', params: { email } });
         return;
       }
+
+      if (msg.includes('not verified') || msg.includes('verify')) {
+        // Account exists but email not verified — route to verify-email.
+        router.push({ pathname: '/(auth)/verify-email', params: { email } });
+        return;
+      }
+
       setError(err?.message ?? 'Could not sign in. Try again.');
     },
   });
@@ -79,6 +83,12 @@ export default function PasswordScreen() {
           <ChevronLeft size={20} color={PAL.textMuted} />
           <Text style={s.backText}>Back</Text>
         </Pressable>
+
+        {justVerified && (
+          <View style={s.verifiedBanner}>
+            <Text style={s.verifiedText}>Email verified — sign in to continue.</Text>
+          </View>
+        )}
 
         <View style={s.badge}>
           <Icon xml={Icons.IconEmail} size={32} color={PAL.badgeIcon} />
@@ -120,6 +130,14 @@ export default function PasswordScreen() {
             className="rounded-[16px]"
           />
         </View>
+
+        <Pressable
+          hitSlop={8}
+          onPress={() => router.push({ pathname: '/(auth)/forgot-password', params: { email } })}
+          style={s.forgotRow}
+        >
+          <Text style={s.forgotText}>Forgot password?</Text>
+        </Pressable>
       </ScrollView>
     </SafeAreaView>
   );
@@ -148,6 +166,19 @@ const s = StyleSheet.create({
     fontFamily: 'BricolageGrotesque-Medium',
     fontSize: 15,
     color: PAL.textMuted,
+  },
+  verifiedBanner: {
+    backgroundColor: PAL.successBg,
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    marginBottom: 20,
+  },
+  verifiedText: {
+    fontFamily: 'BricolageGrotesque-Medium',
+    fontSize: 13,
+    color: PAL.success,
+    textAlign: 'center',
   },
   badge: {
     width: 56,
@@ -202,5 +233,14 @@ const s = StyleSheet.create({
   },
   buttonWrap: {
     width: '100%',
+  },
+  forgotRow: {
+    alignSelf: 'center',
+    marginTop: 20,
+  },
+  forgotText: {
+    fontFamily: 'BricolageGrotesque-Medium',
+    fontSize: 14,
+    color: PAL.textMuted,
   },
 });

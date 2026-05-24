@@ -3,9 +3,11 @@ import { authApi, merchantApi } from '@/api/endpoints';
 import { useAuthStore } from './store';
 
 export type OnboardingStep =
-  | 'sign-in' // not authenticated
-  | 'kyb'     // authenticated, bank account not yet set up
-  | 'live';   // authenticated + bank account saved → home/dashboard
+  | 'sign-in'      // not authenticated
+  | 'verify-email' // authenticated, email not verified
+  | 'kyb'          // authenticated + email verified, KYC not complete
+  | 'bank-account' // authenticated + email verified + KYC done, no bank account
+  | 'live';        // fully onboarded
 
 export interface OnboardingState {
   step: OnboardingStep;
@@ -23,14 +25,17 @@ export function useOnboardingState(): OnboardingState {
     retry: 1,
   });
 
-  // Only run once we know the user is real (me succeeded).
+  const me = meQuery.data;
+  const kycDone = me?.kyc_status === 'success';
+
+  // Fetch bank account as soon as email is verified — KYC and bank-account
+  // setup can proceed in parallel from the user's perspective.
   const bankQuery = useQuery({
     queryKey: ['merchant', 'bank-account'],
     queryFn: merchantApi.getBankAccount,
-    enabled: isAuthenticated && meQuery.isSuccess,
+    enabled: isAuthenticated && !!me && me.is_email_verified,
     staleTime: 30_000,
     retry: (_, error) => {
-      // 404 = no bank account yet; 401 = endpoint auth mismatch — don't retry either.
       const code = (error as { code?: string })?.code;
       return code !== 'HTTP_404' && code !== 'HTTP_401';
     },
@@ -39,15 +44,19 @@ export function useOnboardingState(): OnboardingState {
   if (!isAuthenticated) return { step: 'sign-in', loading: false };
   if (meQuery.isLoading) return { step: 'sign-in', loading: true };
 
-  const me = meQuery.data;
-  if (!me) return { step: 'sign-in', loading: false };
+  const user = meQuery.data;
+  if (!user) return { step: 'sign-in', loading: false };
 
-  if (bankQuery.isLoading) return { step: 'kyb', loading: true };
+  if (!user.is_email_verified) return { step: 'verify-email', loading: false };
 
-  // A saved bank account = fully onboarded → home.
-  // If the query errored (404, 401 backend mismatch, etc.) treat it
-  // the same as "no bank account" so the user lands on onboarding.
+  if (bankQuery.isLoading) return { step: kycDone ? 'bank-account' : 'kyb', loading: true };
+
+  // A saved bank account means onboarding is complete regardless of KYC state.
   if (bankQuery.data) return { step: 'live', loading: false };
 
-  return { step: 'kyb', loading: false };
+  // No bank account yet — show kyb first so the user completes identity
+  // verification before setting up payouts.
+  if (!kycDone) return { step: 'kyb', loading: false };
+
+  return { step: 'bank-account', loading: false };
 }

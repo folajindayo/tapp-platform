@@ -13,7 +13,7 @@ interface ApiEnvelope<T> {
 const http = axios.create({
   baseURL: API_BASE_URL,
   timeout: 30_000,
-  headers: { 'X-Client': 'tapp-merchant', 'Client-Type': 'web' },
+  headers: { 'X-Client': 'tapp-merchant' },
 });
 
 // Public paths that must never carry an Authorization header.
@@ -30,7 +30,10 @@ const PUBLIC_PATHS = new Set([
 // --- Attach JWT to every outbound request (except public paths) ---
 http.interceptors.request.use((config) => {
   const path = config.url ?? '';
-  if (PUBLIC_PATHS.has(path)) return config;
+  if (PUBLIC_PATHS.has(path)) {
+    config.headers.set('Client-Type', 'web');
+    return config;
+  }
 
   const token = getAccessToken();
 
@@ -54,7 +57,11 @@ async function refreshAccessToken(): Promise<string | null> {
   if (!refresh) return null;
   if (!refreshInFlight) {
     refreshInFlight = axios
-      .post<ApiEnvelope<AuthTokens>>(`${API_BASE_URL}/v1/auth/refresh`, { refresh_token: refresh })
+      .post<ApiEnvelope<AuthTokens>>(
+        `${API_BASE_URL}/v1/auth/refresh`,
+        { refresh_token: refresh },
+        { headers: { 'X-Client': 'tapp-merchant', 'Client-Type': 'web' } }
+      )
       .then((res) => {
         const tokens = res.data.data;
         // user is not in the refresh response; keep whatever is stored

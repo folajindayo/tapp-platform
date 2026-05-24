@@ -2,6 +2,7 @@ import '../global.css';
 import '@/ui/loadStyles';
 
 import { useEffect } from 'react';
+import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -24,7 +25,6 @@ import * as SplashScreen from 'expo-splash-screen';
 import { useAuthStore } from '@/auth/store';
 import { useOnboardingState, type OnboardingStep } from '@/auth/useOnboardingState';
 
-// Keep the native splash up until we are ready to show a screen.
 void SplashScreen.preventAutoHideAsync();
 
 const queryClient = new QueryClient({
@@ -38,8 +38,6 @@ const queryClient = new QueryClient({
 });
 
 export default function RootLayout() {
-  // Store is hydrated synchronously at module load (store.ts bottom).
-  // Fonts load asynchronously — return null (native splash stays visible) until ready.
   const [fontsLoaded, fontError] = useFonts({
     'BricolageGrotesque-Regular':  BricolageGrotesque_400Regular,
     'BricolageGrotesque-Medium':   BricolageGrotesque_500Medium,
@@ -65,56 +63,116 @@ export default function RootLayout() {
   );
 }
 
-/**
- * Drives routing and controls when the native splash is hidden.
- * Always renders a Stack so Expo Router never sees a non-navigator child.
- */
 function Guard() {
   const isHydrated = useAuthStore((s) => s.isHydrated);
   const segments = useSegments();
   const router = useRouter();
   const { step, loading } = useOnboardingState();
 
-  // Keep the native splash visible until auth state is fully resolved.
-  // This IS the loading screen — the user sees it while we check their session.
+  const ready = isHydrated && !loading;
+
   useEffect(() => {
-    if (isHydrated && !loading) {
-      void SplashScreen.hideAsync();
-    }
-  }, [isHydrated, loading]);
+    if (ready) void SplashScreen.hideAsync();
+  }, [ready]);
 
   useEffect(() => {
     if (!isHydrated || loading) return;
 
-    const target = targetRouteForStep(step);
-    const inAuth = segments[0] === '(auth)';
-    const inOnboarding = segments[0] === '(onboarding)';
-    const inApp = segments[0] === '(app)';
-    const currentGroup = inAuth ? 'auth' : inOnboarding ? 'onboarding' : inApp ? 'app' : 'none';
+    const target = targetForStep(step);
+    const seg0 = (segments[0] ?? '') as string;
+    const seg1 = (segments[1] ?? '') as string;
 
-    // Allow free navigation within auth and onboarding groups.
-    if (target.group === 'auth' && currentGroup === 'auth') return;
+    const currentGroup =
+      seg0 === '(auth)' ? 'auth'
+      : seg0 === '(onboarding)' ? 'onboarding'
+      : seg0 === '(app)' ? 'app'
+      : 'none';
+
+    // ── Allow free navigation within the unauthenticated sign-in flow ──
+    // sign-in → password → sign-up → forgot-password are all valid to visit
+    // when target is sign-in; don't redirect mid-flow.
+    const signInScreens = new Set(['sign-in', 'password', 'sign-up', 'forgot-password', 'reset-password']);
+    if (step === 'sign-in' && currentGroup === 'auth' && signInScreens.has(seg1)) return;
+
+    // ── Allow verify-email only when that is the resolved target ──
+    if (step === 'verify-email' && currentGroup === 'auth' && seg1 === 'verify-email') return;
+
+    // ── Allow free navigation within the onboarding group ──
     if (target.group === 'onboarding' && currentGroup === 'onboarding') return;
 
-    if (target.group !== currentGroup) {
-      router.replace(target.routeFull as never);
-    }
+    // ── Already on the right screen ──
+    if (target.group === currentGroup) return;
+
+    router.replace(target.route as never);
   }, [step, loading, segments, router, isHydrated]);
 
-  return <Slot />;
+  return (
+    <View style={{ flex: 1 }}>
+      <Slot />
+      {!ready && <LoadingOverlay />}
+    </View>
+  );
 }
 
-function targetRouteForStep(step: OnboardingStep): {
-  group: 'auth' | 'onboarding' | 'app';
-  route: string;
-  routeFull: string;
-} {
+function LoadingOverlay() {
+  return (
+    <View style={styles.loadingRoot} pointerEvents="none">
+      <View style={styles.loadingInner}>
+        <View style={styles.loadingBadge}>
+          <ActivityIndicator size="large" color="#3B82F6" />
+        </View>
+        <View style={styles.loadingDots}>
+          <View style={[styles.dot, { opacity: 1 }]} />
+          <View style={[styles.dot, { opacity: 0.5 }]} />
+          <View style={[styles.dot, { opacity: 0.25 }]} />
+        </View>
+      </View>
+    </View>
+  );
+}
+
+function targetForStep(step: OnboardingStep): { group: string; route: string } {
   switch (step) {
     case 'sign-in':
-      return { group: 'auth', route: 'sign-in', routeFull: '/(auth)/sign-in' };
+      return { group: 'auth', route: '/(auth)/sign-in' };
+    case 'verify-email':
+      return { group: 'auth', route: '/(auth)/verify-email' };
     case 'kyb':
-      return { group: 'onboarding', route: 'bank-account', routeFull: '/(onboarding)/bank-account' };
+      return { group: 'onboarding', route: '/(onboarding)/kyb' };
+    case 'bank-account':
+      return { group: 'onboarding', route: '/(onboarding)/bank-account' };
     case 'live':
-      return { group: 'app', route: 'index', routeFull: '/(app)' };
+      return { group: 'app', route: '/(app)' };
   }
 }
+
+const styles = StyleSheet.create({
+  loadingRoot: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: '#0D0D0D',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  loadingInner: {
+    alignItems: 'center',
+    gap: 32,
+  },
+  loadingBadge: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: 'rgba(59, 130, 246, 0.12)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  loadingDots: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  dot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#3B82F6',
+  },
+});
