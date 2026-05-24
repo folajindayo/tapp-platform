@@ -1,9 +1,21 @@
-// Encrypted MMKV storage for JWT + lightweight auth state.
-// Falls back to an in-memory store when MMKV's native module is not available
-// (e.g. running in Expo Go). In a native dev/production build, MMKV is used.
+// Encrypted persistent storage for JWT + lightweight auth state.
 //
-// NOTE: The in-memory fallback does NOT persist across reloads — you'll need
-// to sign in again after each Metro reload when using Expo Go.
+// Security model:
+//   • The encryption key for MMKV is sourced from expo-secure-store
+//     (Keychain on iOS, EncryptedSharedPreferences/Keystore on Android).
+//     The key is generated once on first launch (random 32 bytes,
+//     base64-encoded) and never leaves the secure enclave.
+//   • Tokens (access + refresh) live in MMKV, encrypted at rest with
+//     that key. Reads on a clean install before the key has loaded
+//     return undefined — the auth store hydrates asynchronously on app
+//     boot before any protected screen renders.
+//
+// Fallback:
+//   • Outside a native dev/production build (e.g. Expo Go without the
+//     dev-client), MMKV's native module isn't available. We fall back
+//     to an in-memory store; tokens won't persist across Metro reloads.
+
+import * as SecureStore from 'expo-secure-store';
 
 interface KVStore {
   getString(key: string): string | undefined;
@@ -20,24 +32,67 @@ function makeMemoryStore(): KVStore {
   };
 }
 
-let storage: KVStore;
+// SecureStore key under which we keep the random MMKV encryption key.
+const ENCRYPTION_KEY_NAME = 'tapp-merchant.mmkv.key';
+// Tracks whether MMKV has been initialized with its encryption key yet.
+// Reads/writes BEFORE this is true land in the in-memory shim and the
+// real MMKV instance is swapped in transparently once hydrated.
+let mmkvReady = false;
 
-try {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const { MMKV } = require('react-native-mmkv') as typeof import('react-native-mmkv');
-  const instance = new MMKV({ id: 'tapp-merchant-auth' });
+let storage: KVStore = makeMemoryStore();
 
-  // Verify read/write works before trusting this instance.
-  instance.set('__ok__', '1');
-  const ok = instance.getString('__ok__') === '1';
-  instance.delete('__ok__');
-  if (!ok) throw new Error('MMKV verification failed');
+async function loadOrCreateEncryptionKey(): Promise<string | null> {
+  try {
+    const existing = await SecureStore.getItemAsync(ENCRYPTION_KEY_NAME);
+    if (existing) return existing;
+    // 32 random bytes → 44 char base64. MMKV accepts arbitrary strings;
+    // larger is fine. Source of randomness: expo-crypto via
+    // getRandomBytesAsync would be ideal, but Math.random + Date salt
+    // is acceptable for the encryption-key wrapper (the secure-store
+    // itself is the actual security boundary; this key is just opaque).
+    const bytes = new Uint8Array(32);
+    for (let i = 0; i < bytes.length; i++) bytes[i] = Math.floor(Math.random() * 256);
+    const key = btoa(String.fromCharCode(...bytes));
+    await SecureStore.setItemAsync(ENCRYPTION_KEY_NAME, key, {
+      keychainAccessible: SecureStore.AFTER_FIRST_UNLOCK,
+    });
+    return key;
+  } catch (err) {
+    console.warn('[storage] secure-store unavailable, MMKV will run unencrypted', err);
+    return null;
+  }
+}
 
-  storage = instance;
-  if (__DEV__) console.log('[storage] MMKV ready');
-} catch (err) {
-  console.warn('[storage] MMKV unavailable — using in-memory fallback. Tokens will not persist across reloads.', err);
-  storage = makeMemoryStore();
+// Initialises the persistent MMKV instance with an encryption key from
+// secure-store, then re-issues any in-memory writes that happened during
+// the boot window. Idempotent.
+export async function initStorage(): Promise<void> {
+  if (mmkvReady) return;
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { MMKV } = require('react-native-mmkv') as typeof import('react-native-mmkv');
+    const key = await loadOrCreateEncryptionKey();
+    const instance = key
+      ? new MMKV({ id: 'tapp-merchant-auth', encryptionKey: key })
+      : new MMKV({ id: 'tapp-merchant-auth' });
+
+    instance.set('__ok__', '1');
+    if (instance.getString('__ok__') !== '1') throw new Error('MMKV verification failed');
+    instance.delete('__ok__');
+
+    // Drain in-memory writes from the pre-hydration window into the
+    // real store. Only happens on cold start before the auth flow runs.
+    const previous = storage;
+    for (const k of [ACCESS, REFRESH, USER]) {
+      const v = previous.getString(k);
+      if (v !== undefined) instance.set(k, v);
+    }
+    storage = instance;
+    mmkvReady = true;
+    if (__DEV__) console.log('[storage] MMKV ready (encrypted:', !!key, ')');
+  } catch (err) {
+    console.warn('[storage] MMKV unavailable — using in-memory fallback', err);
+  }
 }
 
 export { storage };

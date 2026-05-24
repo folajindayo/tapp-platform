@@ -34,7 +34,7 @@ export default function ResetPasswordScreen() {
   });
 
   const mutation = useMutation<{ ok: true }, ApiError, FormValues>({
-    mutationFn: ({ token, password }) => authApi.resetPassword({ token, password }),
+    mutationFn: ({ token, password }) => authApi.resetPassword({ resetToken: token, password }),
     onSuccess: () => setDone(true),
     onError: () => {},
   });

@@ -47,7 +47,13 @@ export default function VerifyEmailScreen() {
   async function submit(token: string) {
     setSubmitting(true);
     try {
-      await authApi.confirmAccount({ token });
+      // Rails requires both fields — the (token, email) pair scopes the
+      // verification row uniquely so codes can't collide across users.
+      if (!email) {
+        Alert.alert('Email missing', 'Please go back and re-enter your email.');
+        return;
+      }
+      await authApi.confirmAccount({ token, email });
 
       if (isAuthenticated) {
         // Authenticated path: invalidate /me so the Guard sees the updated
@@ -74,7 +80,7 @@ export default function VerifyEmailScreen() {
     if (!email || cooldown > 0) return;
     setResending(true);
     try {
-      await authApi.resendToken({ email });
+      await authApi.resendToken({ email, scope: 'emailVerification' });
       setCooldown(60);
       Alert.alert('Sent', 'We sent a new code to your email.');
     } catch (err) {

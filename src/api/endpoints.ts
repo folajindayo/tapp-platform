@@ -60,6 +60,15 @@ export const authApi = {
     request<{ ok: true }>({ method: 'PATCH', url: '/v1/auth/reset-password', data: body }),
   changePassword: (body: ChangePasswordRequest) =>
     request<{ ok: true }>({ method: 'PATCH', url: '/v1/auth/change-password', data: body }),
+  // Server-side revocation. Pass the current refresh token (best-effort)
+  // so its family is killed. Always returns 200 so caller can fire-and-
+  // forget without leaking validity.
+  logout: (refreshToken?: string) =>
+    request<{ ok: true }>({
+      method: 'POST',
+      url: '/v1/auth/logout',
+      data: refreshToken ? { refreshToken } : {},
+    }),
 };
 
 // ---- Settings ----

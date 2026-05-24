@@ -38,6 +38,13 @@ const queryClient = new QueryClient({
 });
 
 export default function RootLayout() {
+  // Boot sequence: initialize the secure-store backed MMKV instance and
+  // hydrate the auth store before anything below renders. The Guard
+  // gates protected screens on isHydrated.
+  useEffect(() => {
+    void useAuthStore.getState().hydrate();
+  }, []);
+
   const [fontsLoaded, fontError] = useFonts({
     'BricolageGrotesque-Regular':  BricolageGrotesque_400Regular,
     'BricolageGrotesque-Medium':   BricolageGrotesque_500Medium,

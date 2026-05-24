@@ -31,7 +31,9 @@ const PUBLIC_PATHS = new Set([
 http.interceptors.request.use((config) => {
   const path = config.url ?? '';
   if (PUBLIC_PATHS.has(path)) {
-    config.headers.set('Client-Type', 'web');
+    // Public paths take no Authorization header. Rails' previous
+    // `OnlyWebMiddleware` gate has been retired; no Client-Type spoof
+    // needed.
     return config;
   }
 

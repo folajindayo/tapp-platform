@@ -27,13 +27,20 @@ export interface LoginRequest {
   password: string;
 }
 export interface RefreshRequest {
-  refresh_token: string;
+  refreshToken: string;
 }
+// Confirm an email-verification or password-reset code. Both `token` and
+// `email` are required — Rails uses the pair to invalidate the row and
+// flip the user's IsEmailVerified flag.
 export interface ConfirmAccountRequest {
   token: string;
+  email: string;
 }
+// Re-issue a verification or reset token. Rails enforces the `scope` enum
+// to disambiguate which token kind to mint.
 export interface ResendTokenRequest {
   email: string;
+  scope: 'emailVerification' | 'resetPassword';
 }
 
 // ---- Me ----
@@ -239,15 +246,17 @@ export interface SenderStatsResponse {
 }
 
 // ---- Auth — password management ----
+// Field names must match Rails' camelCase JSON tags exactly — Rails
+// rejects with 400 when the binding `required` field is missing.
 export interface ChangePasswordRequest {
-  old_password: string;
-  new_password: string;
+  oldPassword: string;
+  newPassword: string;
 }
 export interface ResetPasswordTokenRequest {
   email: string;
 }
 export interface ResetPasswordRequest {
-  token: string;
+  resetToken: string;
   password: string;
 }
 

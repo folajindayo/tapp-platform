@@ -63,7 +63,8 @@
       "./plugins/withIosNfc",
       "expo-asset",
       "./plugins/withAndroidAutofillHighlight",
-      "expo-font"
+      "expo-font",
+      "expo-secure-store"
     ],
     "experiments": {
       "typedRoutes": true

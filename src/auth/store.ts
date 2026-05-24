@@ -1,9 +1,10 @@
-// Auth state held in zustand, hydrated from MMKV on startup.
-// This is intentionally thin: persistence is the source of truth (MMKV);
-// the store mirrors it for React's render path.
+// Auth state held in zustand, hydrated from the secure-store-backed
+// MMKV instance on startup. Persistence is the source of truth; the
+// store mirrors it for React's render path.
 
 import { create } from 'zustand';
-import { clearAuth, getAccessToken, getUser, setTokens } from '@/api/storage';
+import { authApi } from '@/api/endpoints';
+import { clearAuth, getAccessToken, getRefreshToken, getUser, initStorage, setTokens } from '@/api/storage';
 
 interface AuthUser {
   id: string;
@@ -16,7 +17,10 @@ interface AuthState {
   user: AuthUser | null;
   setSession: (access: string, refresh: string, user?: AuthUser) => void;
   signOut: () => void;
-  rehydrate: () => void;
+  /** Hydrates the encrypted MMKV instance from secure-store, then mirrors
+   *  the persisted session into React state. Idempotent. Call once on
+   *  app boot, before any protected screen renders. */
+  hydrate: () => Promise<void>;
 }
 
 export const useAuthStore = create<AuthState>((set) => ({
@@ -29,18 +33,19 @@ export const useAuthStore = create<AuthState>((set) => ({
     set({ isAuthenticated: true, user: user ?? null });
   },
   signOut: () => {
+    // Fire-and-forget server revocation. We don't block on it — the
+    // client-side clear MUST happen even if the network call fails
+    // (e.g. offline). Worst case, the refresh sits on the server until
+    // its TTL elapses; it's useless without the access token.
+    const refresh = getRefreshToken();
+    void authApi.logout(refresh).catch(() => {});
     clearAuth();
     set({ isAuthenticated: false, user: null });
   },
-  rehydrate: () => {
+  hydrate: async () => {
+    await initStorage();
     const token = getAccessToken();
     const user = getUser();
-    // user may not be stored (API doesn't always return it); token alone is
-    // sufficient to consider the session active — /v1/me will fetch fresh state.
     set({ isAuthenticated: !!token, user: user ?? null, isHydrated: true });
   },
 }));
-
-// MMKV reads are synchronous — hydrate before the first React render so
-// queries never fire with a missing token on cold start.
-useAuthStore.getState().rehydrate();

@@ -30,7 +30,7 @@ export default function ChangePasswordScreen() {
 
   const mutation = useMutation<{ ok: true }, ApiError, FormValues>({
     mutationFn: ({ old_password, new_password }) =>
-      authApi.changePassword({ old_password, new_password }),
+      authApi.changePassword({ oldPassword: old_password, newPassword: new_password }),
     onSuccess: () => {
       Alert.alert('Password updated', 'Your password has been changed.', [
         { text: 'OK', onPress: () => router.back() },

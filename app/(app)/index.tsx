@@ -159,29 +159,14 @@ export default function DashboardScreen() {
       <View style={s.presetsRow}>
         {PRESETS.map((val) => {
           const valStr = val.toString();
-          const isSelected = amountStr === valStr;
           return (
             <TouchableOpacity
               key={val}
-              onPress={() => {
-                if (amountStr === valStr) {
-                  setAmountStr('');
-                } else {
-                  setAmountStr(valStr);
-                }
-              }}
+              onPress={() => setAmountStr(valStr)}
               activeOpacity={0.7}
-              style={[
-                s.presetPill,
-                isSelected && s.presetPillSelected,
-              ]}
+              style={s.presetPill}
             >
-              <RnText
-                style={[
-                  s.presetPillText,
-                  isSelected && s.presetPillTextSelected,
-                ]}
-              >
+              <RnText style={s.presetPillText}>
                 {formatNgn(val)}
               </RnText>
             </TouchableOpacity>
@@ -293,9 +278,6 @@ const s = StyleSheet.create({
     justifyContent: 'center',
     marginHorizontal: 4,
   },
-  presetPillSelected: {
-    backgroundColor: '#0065F5',
-  },
   presetPillPressed: {
     opacity: 0.7,
   },
@@ -303,10 +285,6 @@ const s = StyleSheet.create({
     fontFamily: 'BricolageGrotesque-Medium',
     fontSize: 14,
     color: PAL.textMuted,
-  },
-  presetPillTextSelected: {
-    color: '#FFFFFF',
-    fontFamily: 'BricolageGrotesque-SemiBold',
   },
   keypad: {
     paddingVertical: 12,
