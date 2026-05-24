@@ -281,28 +281,27 @@ const s = StyleSheet.create({
     marginBottom: 12,
   },
   presetPill: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 999,
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.15)',
+    paddingHorizontal: 14,
+    height: 36,
+    borderRadius: 12,
+    backgroundColor: PAL.surface,
+    alignItems: 'center',
+    justifyContent: 'center',
     marginHorizontal: 4,
   },
   presetPillSelected: {
-    backgroundColor: PAL.brandBg,
-    borderColor: PAL.brand,
+    backgroundColor: '#0065F5',
   },
   presetPillPressed: {
     opacity: 0.7,
   },
   presetPillText: {
     fontFamily: 'BricolageGrotesque-Medium',
-    fontSize: 13,
-    color: '#E5E5E5',
+    fontSize: 14,
+    color: PAL.textMuted,
   },
   presetPillTextSelected: {
-    color: PAL.brand,
+    color: '#FFFFFF',
     fontFamily: 'BricolageGrotesque-SemiBold',
   },
   keypad: {
