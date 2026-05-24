@@ -137,7 +137,7 @@ export default function BankAccountScreen() {
               </Text>
             </View>
             <Pressable
-              onPress={() => setPicker(true)}
+              onPress={() => { console.log('[DEBUG] Bank picker pressed!'); setPicker(true); }}
               style={({ pressed }) => [
                 s.control,
                 pressed && s.controlPressed,
@@ -181,7 +181,7 @@ export default function BankAccountScreen() {
                 placeholderTextColor={PAL.textSubtle}
                 keyboardType="number-pad"
                 maxLength={10}
-                onFocus={() => setAccountFocused(true)}
+                onFocus={() => { console.log('[DEBUG] Account input focused!'); setAccountFocused(true); }}
                 onBlur={() => setAccountFocused(false)}
                 style={s.input}
                 autoCorrect={false}

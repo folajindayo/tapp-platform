@@ -62,10 +62,15 @@ async function refreshAccessToken(): Promise<string | null> {
         return tokens.accessToken;
       })
       .catch(() => {
-        // Token is genuinely invalid — sign out fully (storage + Zustand store).
-        // eslint-disable-next-line @typescript-eslint/no-require-imports
-        const { useAuthStore } = require('@/auth/store') as typeof import('@/auth/store');
-        useAuthStore.getState().signOut();
+        // Refresh failed. Only sign out if the access token is truly gone
+        // (i.e. don't nuke a working session just because one endpoint
+        // returns 401 for non-expiry reasons — e.g. scope mismatch).
+        const current = getAccessToken();
+        if (!current) {
+          // eslint-disable-next-line @typescript-eslint/no-require-imports
+          const { useAuthStore } = require('@/auth/store') as typeof import('@/auth/store');
+          useAuthStore.getState().signOut();
+        }
         return null;
       })
       .finally(() => {
@@ -79,7 +84,24 @@ http.interceptors.response.use(
   (r) => r,
   async (error: AxiosError) => {
     const original = error.config as (InternalAxiosRequestConfig & { _retry?: boolean }) | undefined;
+
+    // Only attempt a refresh when the 401 is likely due to an expired
+    // access token (i.e. the token was present but the server rejected it).
+    // Skip the refresh dance entirely when:
+    //   • the request already retried once (_retry flag), OR
+    //   • the error body says "Invalid API key" — this means the endpoint
+    //     rejects the token for non-expiry reasons (scope, backend config).
     if (error.response?.status === 401 && original && !original._retry) {
+      const body = error.response.data as ApiEnvelope<unknown> | undefined;
+      const msg = body?.message ?? '';
+
+      // "Invalid API key or token" means the backend rejected the token
+      // for reasons other than expiry — don't try to refresh, just let the
+      // error propagate to the caller (react-query will handle it).
+      if (msg.includes('Invalid API key')) {
+        return Promise.reject(error);
+      }
+
       original._retry = true;
       const next = await refreshAccessToken();
       if (next) {

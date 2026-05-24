@@ -30,9 +30,9 @@ export function useOnboardingState(): OnboardingState {
     enabled: isAuthenticated && meQuery.isSuccess,
     staleTime: 30_000,
     retry: (_, error) => {
-      // 404 = no bank account yet; don't retry
+      // 404 = no bank account yet; 401 = endpoint auth mismatch — don't retry either.
       const code = (error as { code?: string })?.code;
-      return code !== 'HTTP_404';
+      return code !== 'HTTP_404' && code !== 'HTTP_401';
     },
   });
 
@@ -44,7 +44,9 @@ export function useOnboardingState(): OnboardingState {
 
   if (bankQuery.isLoading) return { step: 'kyb', loading: true };
 
-  // A saved bank account = fully onboarded → home
+  // A saved bank account = fully onboarded → home.
+  // If the query errored (404, 401 backend mismatch, etc.) treat it
+  // the same as "no bank account" so the user lands on onboarding.
   if (bankQuery.data) return { step: 'live', loading: false };
 
   return { step: 'kyb', loading: false };
