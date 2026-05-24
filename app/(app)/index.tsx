@@ -4,6 +4,7 @@ import {
   Pressable,
   StyleSheet,
   Text as RnText,
+  TouchableOpacity,
   View,
 } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
@@ -156,7 +157,7 @@ export default function DashboardScreen() {
           const valStr = val.toString();
           const isSelected = amountStr === valStr;
           return (
-            <Pressable
+            <TouchableOpacity
               key={val}
               onPress={() => {
                 if (amountStr === valStr) {
@@ -165,10 +166,10 @@ export default function DashboardScreen() {
                   setAmountStr(valStr);
                 }
               }}
-              style={({ pressed }) => [
+              activeOpacity={0.7}
+              style={[
                 s.presetPill,
                 isSelected && s.presetPillSelected,
-                pressed && s.presetPillPressed,
               ]}
             >
               <RnText
@@ -179,7 +180,7 @@ export default function DashboardScreen() {
               >
                 {formatNgn(val)}
               </RnText>
-            </Pressable>
+            </TouchableOpacity>
           );
         })}
       </View>
@@ -306,11 +307,11 @@ const s = StyleSheet.create({
   },
   keypad: {
     paddingVertical: 12,
-    marginBottom: 20,
+    marginBottom: 12,
     alignItems: 'center',
   },
   actions: {
     paddingHorizontal: 20,
-    paddingBottom: 24,
+    paddingBottom: 16,
   },
 });
