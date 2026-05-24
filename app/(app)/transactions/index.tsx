@@ -16,6 +16,11 @@ const FILTERS: Array<{ label: string; value?: OrderStatus }> = [
   { label: 'Refunded', value: 'refunded' },
 ];
 
+interface MonthlyGroup {
+  monthYear: string;
+  orders: PaymentOrderSummary[];
+}
+
 export default function TransactionsScreen() {
   const [filter, setFilter] = useState<OrderStatus | undefined>();
 
@@ -36,9 +41,36 @@ export default function TransactionsScreen() {
     [query.data],
   );
 
+  // Group transactions by month
+  const monthlyGroups = useMemo<MonthlyGroup[]>(() => {
+    const groups: Record<string, PaymentOrderSummary[]> = {};
+
+    for (const order of flat) {
+      const date = new Date(order.createdAt);
+      if (Number.isNaN(date.getTime())) continue;
+
+      const monthYear = date.toLocaleDateString('en-US', {
+        month: 'long',
+        year: 'numeric',
+      });
+
+      if (!groups[monthYear]) {
+        groups[monthYear] = [];
+      }
+      groups[monthYear].push(order);
+    }
+
+    return Object.entries(groups).map(([monthYear, orders]) => ({
+      monthYear,
+      orders,
+    }));
+  }, [flat]);
+
   return (
     <Screen scrollable={false}>
+      {/* Fixed header and filter pill bar */}
       <Header title="Transactions" back={false} />
+      
       <View className="flex-row gap-2 mb-4">
         {FILTERS.map((f) => {
           const active = (filter ?? undefined) === f.value;
@@ -56,14 +88,30 @@ export default function TransactionsScreen() {
         })}
       </View>
 
+      {/* Scrolling transaction page */}
       <FlatList
-        data={flat}
-        keyExtractor={(item) => item.id}
-        renderItem={({ item, index }) => (
-          <TransactionRow order={item} isLast={index === flat.length - 1} />
+        data={monthlyGroups}
+        keyExtractor={(item) => item.monthYear}
+        renderItem={({ item }) => (
+          <View className="mb-6">
+            {/* Month Header label */}
+            <Text className="text-xs font-semibold text-muted-text uppercase tracking-wider mb-2 px-1">
+              {item.monthYear}
+            </Text>
+            
+            {/* Rounded group card container */}
+            <View className="bg-surface border border-line-divider rounded-3xl overflow-hidden">
+              {item.orders.map((order, index) => (
+                <TransactionRow 
+                  key={order.id} 
+                  order={order} 
+                  isLast={index === item.orders.length - 1} 
+                />
+              ))}
+            </View>
+          </View>
         )}
-        className="bg-surface border border-line-divider rounded-3xl overflow-hidden"
-        contentContainerStyle={{ flexGrow: 1 }}
+        contentContainerStyle={{ paddingBottom: 40 }}
         onEndReachedThreshold={0.5}
         onEndReached={() => {
           if (query.hasNextPage && !query.isFetchingNextPage) {
