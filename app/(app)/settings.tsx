@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Alert, Linking, Pressable, View } from 'react-native';
+import { Alert, Linking, Pressable, ScrollView, View } from 'react-native';
 import { router } from 'expo-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { ChevronRight, LogOut } from 'lucide-react-native';
@@ -70,97 +70,103 @@ export default function SettingsScreen() {
   const kycColor = kycStatus === 'success' ? colors.success : colors.textMuted;
 
   return (
-    <Screen>
+    <Screen scrollable={false}>
       <Header title="Account" back={false} />
 
-      <Section title="Profile">
-        <Row icon={Icons.IconEmail}     label="Email"    value={user?.email ?? '—'} />
-        <Row
-          icon={Icons.IconKycStatus}
-          label="KYC"
-          value={kycStatus === 'success' ? `✓ ${kycLabel}` : kycLabel}
-          valueColor={kycColor}
-          last
-        />
-      </Section>
+      <ScrollView
+        className="flex-1"
+        contentContainerStyle={{ paddingBottom: 40 }}
+        showsVerticalScrollIndicator={false}
+      >
+        <Section title="Profile">
+          <Row icon={Icons.IconEmail}     label="Email"    value={user?.email ?? '—'} />
+          <Row
+            icon={Icons.IconKycStatus}
+            label="KYC"
+            value={kycStatus === 'success' ? `✓ ${kycLabel}` : kycLabel}
+            valueColor={kycColor}
+            last
+          />
+        </Section>
 
-      <Section title="Payouts">
-        <Row
-          icon={Icons.IconBank}
-          label="Bank account"
-          value={
-            bankQuery.data
-              ? `${bankQuery.data.account_name} · ${maskAccountNumber(bankQuery.data.account_number)}`
-              : 'Not set'
-          }
-          chevron
-          last
-          onPress={() => router.push('/(onboarding)/bank-account')}
-        />
-      </Section>
+        <Section title="Payouts">
+          <Row
+            icon={Icons.IconBank}
+            label="Bank account"
+            value={
+              bankQuery.data
+                ? `${bankQuery.data.account_name} · ${maskAccountNumber(bankQuery.data.account_number)}`
+                : 'Not set'
+            }
+            chevron
+            last
+            onPress={() => router.push('/(onboarding)/bank-account')}
+          />
+        </Section>
 
-      <Section title="Security">
-        <Row
-          icon={Icons.IconInfo}
-          label="Change password"
-          value=""
-          chevron
-          last
-          onPress={() => router.push('/(app)/change-password')}
-        />
-      </Section>
+        <Section title="Security">
+          <Row
+            icon={Icons.IconInfo}
+            label="Change password"
+            value=""
+            chevron
+            last
+            onPress={() => router.push('/(app)/change-password')}
+          />
+        </Section>
 
-      <Section title="Support">
-        <Row
-          icon={Icons.IconHelp}
-          label="Help centre"
-          value=""
-          chevron
-          onPress={() => openExternal(SUPPORT_URLS.help)}
-        />
-        <Row
-          icon={Icons.IconTerms}
-          label="Terms of service"
-          value=""
-          chevron
-          onPress={() => openExternal(SUPPORT_URLS.terms)}
-        />
-        <Row
-          icon={Icons.IconPrivacy}
-          label="Privacy policy"
-          value=""
-          chevron
-          last
-          onPress={() => openExternal(SUPPORT_URLS.privacy)}
-        />
-      </Section>
+        <Section title="Support">
+          <Row
+            icon={Icons.IconHelp}
+            label="Help centre"
+            value=""
+            chevron
+            onPress={() => openExternal(SUPPORT_URLS.help)}
+          />
+          <Row
+            icon={Icons.IconTerms}
+            label="Terms of service"
+            value=""
+            chevron
+            onPress={() => openExternal(SUPPORT_URLS.terms)}
+          />
+          <Row
+            icon={Icons.IconPrivacy}
+            label="Privacy policy"
+            value=""
+            chevron
+            last
+            onPress={() => openExternal(SUPPORT_URLS.privacy)}
+          />
+        </Section>
 
-      <Section title="About">
-        <Row icon={Icons.IconInfo} label="Version" value="0.1.0" last />
-      </Section>
+        <Section title="About">
+          <Row icon={Icons.IconInfo} label="Version" value="0.1.0" last />
+        </Section>
 
-      {/* ── Sign out ─────────────────────────────────────── */}
-      <View className="mt-2 mb-8">
-        <Pressable
-          className="flex-row items-center justify-center gap-2.5 h-[52px] rounded-xl border active:bg-surface-subtle"
-          style={{ borderColor: colors.border }}
-          onPress={confirmSignOut}
-          disabled={signingOut}
-          accessibilityRole="button"
-          accessibilityLabel="Sign out"
-        >
-          <LogOut size={16} color={colors.danger} strokeWidth={1.8} />
-          <Text
-            style={{
-              fontSize: 15,
-              fontFamily: 'BricolageGrotesque-SemiBold',
-              color: colors.danger,
-            }}
+        {/* ── Sign out ─────────────────────────────────────── */}
+        <View className="mt-2 mb-8">
+          <Pressable
+            className="flex-row items-center justify-center gap-2.5 h-[52px] rounded-xl border active:bg-surface-subtle"
+            style={{ borderColor: colors.border }}
+            onPress={confirmSignOut}
+            disabled={signingOut}
+            accessibilityRole="button"
+            accessibilityLabel="Sign out"
           >
-            {signingOut ? 'Signing out…' : 'Sign out'}
-          </Text>
-        </Pressable>
-      </View>
+            <LogOut size={16} color={colors.danger} strokeWidth={1.8} />
+            <Text
+              style={{
+                fontSize: 15,
+                fontFamily: 'BricolageGrotesque-SemiBold',
+                color: colors.danger,
+              }}
+            >
+              {signingOut ? 'Signing out…' : 'Sign out'}
+            </Text>
+          </Pressable>
+        </View>
+      </ScrollView>
     </Screen>
   );
 }
@@ -218,7 +224,7 @@ function Row({
     >
       {/* Left: icon + label */}
       <View className="flex-row items-center gap-3 flex-1">
-        {icon ? <Icon xml={icon} size={18} /> : null}
+        {icon ? <Icon xml={icon} size={18} color={colors.text} /> : null}
         <Text
           style={{
             fontSize: 15,
