@@ -306,11 +306,11 @@ const s = StyleSheet.create({
   },
   keypad: {
     paddingVertical: 12,
-    marginBottom: 16,
+    marginBottom: 20,
     alignItems: 'center',
   },
   actions: {
     paddingHorizontal: 20,
-    paddingBottom: 12,
+    paddingBottom: 24,
   },
 });

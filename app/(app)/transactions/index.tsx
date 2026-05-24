@@ -78,9 +78,13 @@ export default function TransactionsScreen() {
             <Pressable
               key={f.label}
               onPress={() => setFilter(f.value)}
-              className={`px-3.5 h-9 rounded-xl items-center justify-center ${active ? 'bg-brand-blue' : 'bg-surface-subtle'}`}
+              className={`px-4 h-9 rounded-full border items-center justify-center ${
+                active 
+                  ? 'bg-blue-500/15 border-blue-500' 
+                  : 'bg-white/5 border-white/10'
+              }`}
             >
-              <Text className={`text-sm ${active ? 'text-white font-semibold' : 'text-ink-700'}`}>
+              <Text className={`text-sm ${active ? 'text-blue-500 font-semibold' : 'text-neutral-300'}`}>
                 {f.label}
               </Text>
             </Pressable>
