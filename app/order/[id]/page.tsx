@@ -203,7 +203,7 @@ export default function OrderPage({ params }: { params: Promise<{ id: string }> 
               <span className="text-sm text-gray-500 dark:text-white/50">USDC</span>
             </motion.p>
             <p className="text-sm text-gray-500 dark:text-white/50">
-              to {o.merchant_name} · ≈{" "}
+              to {toTitleCase(o.merchant_name)} · ≈{" "}
               {formatNgnFromUsdc(o.amount_subunit, o.ngn_rate)}
             </p>
             {digest ? (
@@ -275,20 +275,27 @@ export default function OrderPage({ params }: { params: Promise<{ id: string }> 
           <PiArrowLeftBold /> Cancel
         </Link>
 
-        <div className="flex items-start justify-between gap-3">
-          <div className="grid gap-1">
-            <p className="text-xs font-medium uppercase tracking-wider text-gray-400 dark:text-white/30">
-              You&apos;re paying
+        {/* Header — small label on top, then the merchant name and the
+            countdown side-by-side so they read as one unit (the timer
+            modifies the merchant, not the label). Pill is shrink-0 so a
+            long name truncates instead of squishing the timer. NUBAN
+            names come back ALL CAPS — title-case for readability. */}
+        <div className="grid gap-1">
+          <p className="text-xs font-medium uppercase tracking-wider text-gray-400 dark:text-white/30">
+            You&apos;re paying
+          </p>
+          <div className="flex items-center justify-between gap-4">
+            <p className="flex min-w-0 max-w-[60%] items-center gap-2 text-lg font-medium">
+              <PiStorefrontFill className="shrink-0 text-gray-400 dark:text-white/40" />
+              <span className="truncate">{toTitleCase(o.merchant_name)}</span>
             </p>
-            <p className="flex items-center gap-2 text-lg font-medium">
-              <PiStorefrontFill className="text-gray-400 dark:text-white/40" />
-              {o.merchant_name}
-            </p>
+            <div className="shrink-0">
+              <CountdownPill
+                expiresAt={o.expires_at}
+                onExpire={() => setPhase("expired")}
+              />
+            </div>
           </div>
-          <CountdownPill
-            expiresAt={o.expires_at}
-            onExpire={() => setPhase("expired")}
-          />
         </div>
 
         <div className="grid gap-2 rounded-3xl border border-gray-200 p-5 text-center dark:border-white/10">
@@ -306,7 +313,7 @@ export default function OrderPage({ params }: { params: Promise<{ id: string }> 
 
         <ReceiptCard
           rows={[
-            { label: "Merchant",  value: o.merchant_name },
+            { label: "Merchant",  value: toTitleCase(o.merchant_name) },
             ...(o.reference ? [{ label: "Reference", value: <span className="font-mono text-xs">{o.reference}</span> }] : []),
             { label: "Network",   value: "Sui" },
             { label: "Token",     value: "USDC" },
@@ -387,4 +394,14 @@ export default function OrderPage({ params }: { params: Promise<{ id: string }> 
       </AnimatedComponent>
     </Screen>
   );
+}
+
+// Bank account names from the institution lookup come back ALL CAPS
+// (Nigerian NUBAN convention). Title-case for display.
+// Handles hyphens and apostrophes naturally — "MARY-JANE O'CONNOR"
+// becomes "Mary-Jane O'connor". Edge cases like "MC DONALD" stay as-is.
+function toTitleCase(s: string): string {
+  return s
+    .toLowerCase()
+    .replace(/\b\w/g, (c) => c.toUpperCase());
 }
