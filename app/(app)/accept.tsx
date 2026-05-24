@@ -118,18 +118,18 @@ export default function AcceptPaymentScreen() {
           {/* QR — visible affordance for phone payment */}
           <View style={s.qrSlot}>
             {checkoutUrl ? (
-              <View style={s.qrSurface}>
+              <View style={[s.qrSurface, { borderColor: isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.1)' }]}>
                 <QRCode
                   value={checkoutUrl}
                   size={196}
                   ecl="M"
-                  color="#121212"
+                  color={isDark ? '#FFFFFF' : '#121212'}
                   backgroundColor="transparent"
                 />
               </View>
             ) : (
-              <View style={[s.qrSurface, s.qrPlaceholder]}>
-                <ActivityIndicator color="#121212" />
+              <View style={[s.qrSurface, s.qrPlaceholder, { borderColor: isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.1)' }]}>
+                <ActivityIndicator color={isDark ? '#FFFFFF' : '#121212'} />
               </View>
             )}
             <Text style={s.affordanceLabel}>Scan with phone</Text>
@@ -254,16 +254,17 @@ const s = StyleSheet.create({
     gap: 8,
   },
   qrSurface: {
-    backgroundColor: '#F9FAFB',
     padding: 16,
-    borderRadius: 24,
+    borderRadius: 16,
+    borderWidth: 1,
   },
   qrPlaceholder: {
     width: 228,
     height: 228,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#F9FAFB',
+    borderRadius: 16,
+    borderWidth: 1,
   },
   affordanceLabel: {
     marginTop: 6,
