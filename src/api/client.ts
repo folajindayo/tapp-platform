@@ -54,7 +54,7 @@ async function refreshAccessToken(): Promise<string | null> {
   if (!refresh) return null;
   if (!refreshInFlight) {
     refreshInFlight = axios
-      .post<ApiEnvelope<AuthTokens>>(`${API_BASE_URL}/v1/auth/refresh`, { refresh_token: refresh })
+      .post<ApiEnvelope<AuthTokens>>(`${API_BASE_URL}/v1/auth/refresh`, { refreshToken: refresh })
       .then((res) => {
         const tokens = res.data.data;
         // user is not in the refresh response; keep whatever is stored
