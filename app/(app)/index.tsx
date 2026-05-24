@@ -3,6 +3,8 @@ import {
   ActivityIndicator,
   Pressable,
   StyleSheet,
+  Text as RnText,
+  TouchableOpacity,
   View,
 } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
@@ -110,7 +112,7 @@ export default function DashboardScreen() {
   }, [amountStr]);
 
   return (
-    <SafeAreaView edges={['top', 'bottom']} style={s.root}>
+    <SafeAreaView edges={['top']} style={s.root}>
       {/* Header: centered Today pill + right-aligned connectivity dot.
           No greeting — POS screens stay focused on the transaction. */}
       <View style={s.header}>
@@ -155,7 +157,7 @@ export default function DashboardScreen() {
           const valStr = val.toString();
           const isSelected = amountStr === valStr;
           return (
-            <Pressable
+            <TouchableOpacity
               key={val}
               onPress={() => {
                 if (amountStr === valStr) {
@@ -164,21 +166,21 @@ export default function DashboardScreen() {
                   setAmountStr(valStr);
                 }
               }}
-              style={({ pressed }) => [
+              activeOpacity={0.7}
+              style={[
                 s.presetPill,
                 isSelected && s.presetPillSelected,
-                pressed && s.presetPillPressed,
               ]}
             >
-              <Text
+              <RnText
                 style={[
                   s.presetPillText,
                   isSelected && s.presetPillTextSelected,
                 ]}
               >
                 {formatNgn(val)}
-              </Text>
-            </Pressable>
+              </RnText>
+            </TouchableOpacity>
           );
         })}
       </View>
@@ -275,37 +277,36 @@ const s = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    gap: 8,
     paddingHorizontal: 20,
     marginBottom: 12,
   },
   presetPill: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
+    paddingHorizontal: 14,
+    height: 36,
     borderRadius: 999,
-    backgroundColor: '#262629',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.12)',
+    backgroundColor: PAL.surface,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginHorizontal: 4,
   },
   presetPillSelected: {
-    backgroundColor: PAL.brandBg,
-    borderColor: PAL.brand,
+    backgroundColor: '#0065F5',
   },
   presetPillPressed: {
     opacity: 0.7,
   },
   presetPillText: {
     fontFamily: 'BricolageGrotesque-Medium',
-    fontSize: 13,
-    color: '#E5E5E5',
+    fontSize: 14,
+    color: PAL.textMuted,
   },
   presetPillTextSelected: {
-    color: PAL.brand,
+    color: '#FFFFFF',
     fontFamily: 'BricolageGrotesque-SemiBold',
   },
   keypad: {
     paddingVertical: 12,
-    marginBottom: 32,
+    marginBottom: 12,
     alignItems: 'center',
   },
   actions: {
