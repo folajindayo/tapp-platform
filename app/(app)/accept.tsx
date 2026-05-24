@@ -14,7 +14,7 @@
 // follow-up.
 
 import { useMemo } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, View, useColorScheme } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import QRCode from 'react-native-qrcode-svg';
@@ -50,6 +50,8 @@ export default function AcceptPaymentScreen() {
   const { amount, memo } = useLocalSearchParams<{ amount?: string; memo?: string }>();
   const amountStr = typeof amount === 'string' ? amount : '0';
   const memoStr = typeof memo === 'string' ? memo : undefined;
+  const colorScheme = useColorScheme();
+  const isDark = colorScheme === 'dark';
 
   // Reuse the existing broadcast hook — it creates the order via Rails
   // and subscribes to settlement events. The NFC HCE side of the hook is
@@ -117,7 +119,13 @@ export default function AcceptPaymentScreen() {
           <View style={s.qrSlot}>
             {checkoutUrl ? (
               <View style={s.qrSurface}>
-                <QRCode value={checkoutUrl} size={196} ecl="M" />
+                <QRCode
+                  value={checkoutUrl}
+                  size={196}
+                  ecl="M"
+                  color={isDark ? '#FFFFFF' : '#121212'}
+                  backgroundColor="transparent"
+                />
               </View>
             ) : (
               <View style={[s.qrSurface, s.qrPlaceholder]}>
@@ -237,10 +245,6 @@ const s = StyleSheet.create({
   // Affordance card
   card: {
     flex: 1,
-    borderRadius: 28,
-    borderWidth: 1,
-    borderColor: PAL.cardBorder,
-    backgroundColor: PAL.cardBg,
     padding: 20,
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -250,7 +254,6 @@ const s = StyleSheet.create({
     gap: 8,
   },
   qrSurface: {
-    backgroundColor: PAL.qrCard,
     padding: 16,
     borderRadius: 20,
   },
