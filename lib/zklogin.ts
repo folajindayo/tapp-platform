@@ -1,130 +1,157 @@
-// zkLogin scaffolding for the Tapp PWA.
+// zkLogin scaffolding for the Tapp PWA — Shinami-backed.
 //
-// The cardholder signs Sui PTBs (create_cap, top_up, set_revoked)
-// without ever holding a private key — Google is the credential,
-// zkLogin proves "the Google JWT for this account corresponds to a
-// Sui address derived from the JWT + a user-scoped salt".
+// One provider for both testnet and mainnet. Calls go through our
+// own /api/shinami/* backend proxies (Shinami doesn't support CORS,
+// and the access key has signing rights that must stay server-side).
 //
-// Mysten's reference pipeline:
-//   1. Generate an ephemeral Ed25519 keypair, persist in IndexedDB
-//   2. Compute zkLogin `nonce` = poseidon(extPubkey, max_epoch, randomness)
-//   3. Drive Google OAuth with `nonce` in the OIDC nonce param
-//   4. On callback: parse JWT, fetch a salt for this `sub` from a
-//      salt service (Mysten provides one for testnet/devnet)
-//   5. Derive Sui address = jwtToAddress(jwt, salt)
-//   6. For each PTB: call a prover service to produce a zkLogin proof
-//      bound to (ephemeral pubkey, max_epoch, JWT, salt). Sign with
-//      the ephemeral key, attach the proof as `getZkLoginSignature(...)`
+// Layering:
 //
-// This file implements steps 1-5 + the PTB-build half of step 6.
-// The prover call lives behind `proveZkLogin()` — it hits Mysten's
-// hosted testnet prover when `NEXT_PUBLIC_SUI_NETWORK=testnet`, and
-// returns a placeholder error otherwise so the caller surfaces a
-// clear "prover not configured" message instead of a silent failure.
+//   * /api/shinami/*  — proxies, hold SHINAMI_API_KEY, do Zod input
+//                       validation, auth via Rails JWT, rate-limit,
+//                       cache wallet lookups, log structured events.
+//   * lib/shinami.ts  — client; talks to the proxies; retries on
+//                       retryable errors with full-jitter backoff.
+//   * lib/zklogin.ts  — this file; orchestrates the full flow
+//                       (ephemeral kp + Shinami wallet + Rails
+//                       sponsor + Shinami proof + Sui submit).
+//
+// Gas sponsorship still flows through Rails' /v1/gas-station/sponsor
+// — Rails owns the aggregator wallet and order-context auth. Could
+// migrate to Shinami's gas station later; out of scope here.
 
 import { Ed25519Keypair } from "@mysten/sui/keypairs/ed25519";
-import {
-  SuiJsonRpcClient as SuiClient,
-  getJsonRpcFullnodeUrl as getFullnodeUrl,
-} from "@mysten/sui/jsonRpc";
 import { Transaction } from "@mysten/sui/transactions";
 import {
   generateNonce,
   generateRandomness,
   getExtendedEphemeralPublicKey,
-  jwtToAddress,
-  getZkLoginSignature,
   genAddressSeed,
+  getZkLoginSignature,
   type ZkLoginSignatureInputs,
 } from "@mysten/sui/zklogin";
 import { decodeJwt } from "jose";
+import { suiReadClient } from "./sui-client";
+import {
+  shinamiCreateProof,
+  shinamiGetOrCreateWallet,
+  saltToBigInt,
+  ShinamiClientError,
+} from "./shinami";
 
 const STORAGE_KEY = "tapp.zklogin.v1";
-const SALT_SERVICE_URL =
-  process.env.NEXT_PUBLIC_ZKLOGIN_SALT_URL ??
-  "/api/salt";
-const PROVER_URL =
-  process.env.NEXT_PUBLIC_ZKLOGIN_PROVER_URL ??
-  "https://prover-dev.mystenlabs.com/v1";
-const NETWORK = (process.env.NEXT_PUBLIC_SUI_NETWORK ?? "testnet") as
-  | "testnet"
-  | "mainnet"
-  | "devnet";
+
+// Thrown when the session can't be used to authorize a payment and the
+// only recovery is signing out + back in. Covers:
+//
+//   1. Rails JWT (gas-station sponsor) rejects with 401 / expired.
+//   2. Shinami flags the JWT as expired / nonce-mismatched.
+//   3. Sui rejects the zkLogin signature with "Groth16 proof verify
+//      failed" — session's salt/maxEpoch/ephemeral key drifted, or
+//      maxEpoch passed.
+export class SessionExpiredError extends Error {
+  constructor(message = "Your session has expired. Please sign in again.") {
+    super(message);
+    this.name = "SessionExpiredError";
+  }
+}
+
+function isZkLoginVerifyError(err: unknown): boolean {
+  if (!(err instanceof Error)) return false;
+  return /Groth16 proof verify failed|Invalid user signature|zkLogin|signature is not valid/i.test(
+    err.message,
+  );
+}
 
 export interface ZkLoginSession {
-  ephemeralPrivateKey: string; // base64
-  ephemeralPublicKey: string;  // base64
-  extendedPubKey: string;
-  randomness: string;
-  maxEpoch: number;
+  ephemeralPrivateKey: string;     // bech32 suiprivkey1…
+  ephemeralPublicKey: string;      // Sui pubkey string (flag + bytes, base64)
+  randomness: string;              // BigInt string used as JWT nonce input
+  maxEpoch: number;                // proof expiry — typically currentEpoch + 2
   nonce: string;
+  /** Sub-wallet id; lets one Google account have multiple wallets per app. */
+  subWallet: number;
   /** Set once the Google JWT comes back. */
   jwt?: string;
-  /** Server-fetched user salt for this `sub`. */
+  /** Salt normalized to base-10 BigInt string (Shinami's Base64 → BigInt). */
   salt?: string;
-  /** Derived Sui address. */
+  /** Derived Sui address — must match the addressSeed in proofs. */
   suiAddress?: string;
 }
 
-export function suiClient(): SuiClient {
-  // SuiJsonRpcClient (v2) needs both `network` and `url` — network
-  // for type-system bookkeeping, url for the actual endpoint.
-  return new SuiClient({ network: NETWORK, url: getFullnodeUrl(NETWORK) });
+export function suiClient() {
+  return suiReadClient();
 }
 
 // -----------------------------------------------------------------------------
-// Session bootstrap (call before redirecting to Google OAuth)
+// Session bootstrap
 // -----------------------------------------------------------------------------
 
 /**
  * Initialize a fresh zkLogin session: ephemeral keypair, randomness,
- * max_epoch, nonce. Persist in localStorage so the OAuth callback can
- * pick the session back up.
+ * maxEpoch (currentEpoch + 2 → ~24-48h validity), nonce. Persist for
+ * the OAuth callback to pick up. `subWallet` lets the same Google
+ * account address-derive to N independent wallets per app (default 0).
  */
-export async function startZkLoginSession(): Promise<ZkLoginSession> {
-  const client = suiClient();
-  const { epoch } = await client.getLatestSuiSystemState();
-  const maxEpoch = Number(epoch) + 2; // 2-epoch validity (~24h)
-
+export async function startZkLoginSession(opts: { subWallet?: number } = {}): Promise<ZkLoginSession> {
   const kp = new Ed25519Keypair();
+  const ephemeralPublicKey = kp.getPublicKey().toSuiPublicKey();
+
+  const { epoch } = await suiReadClient().getLatestSuiSystemState();
+  const maxEpoch = Number(epoch) + 2;
   const randomness = generateRandomness();
-  const extPubKey = getExtendedEphemeralPublicKey(kp.getPublicKey());
   const nonce = generateNonce(kp.getPublicKey(), maxEpoch, randomness);
 
   const session: ZkLoginSession = {
     ephemeralPrivateKey: kp.getSecretKey(),
-    ephemeralPublicKey: bytesToB64(kp.getPublicKey().toRawBytes()),
-    extendedPubKey: extPubKey,
+    ephemeralPublicKey,
     randomness,
     maxEpoch,
     nonce,
+    subWallet: opts.subWallet ?? 0,
   };
   persistSession(session);
   return session;
 }
 
 /**
- * Complete the session given the JWT Google handed back. Fetches the
- * user's salt and derives their Sui address. Idempotent — calling
- * with the same JWT twice returns the same session.
+ * Complete the session given the JWT Google handed back. Looks up the
+ * Shinami-managed salt + derived Sui address. Idempotent — same JWT
+ * always returns the same address (per subWallet).
+ *
+ * Requires the caller's Rails JWT (`bearerToken`) so the proxy can
+ * authorize the request and rate-limit per user.
  */
-export async function completeZkLoginSession(jwt: string): Promise<ZkLoginSession> {
+export async function completeZkLoginSession(
+  jwt: string,
+  bearerToken: string,
+): Promise<ZkLoginSession> {
   const session = readSession();
   if (!session) throw new Error("No zkLogin session in progress");
 
-  // Verify Google bound our nonce to this JWT — defends against the
-  // PWA being handed a JWT from a different OAuth round.
-  const claims = decodeJwt(jwt);
-  if (claims.nonce !== session.nonce) {
-    throw new Error("zkLogin nonce mismatch — restart sign-in");
+  let wallet;
+  try {
+    wallet = await shinamiGetOrCreateWallet({
+      jwt,
+      bearerToken,
+      subWallet: session.subWallet,
+    });
+  } catch (err) {
+    if (err instanceof ShinamiClientError && err.payload.sessionExpired) {
+      throw new SessionExpiredError(err.payload.userMessage);
+    }
+    throw err;
   }
 
-  const salt = await fetchSalt(jwt);
-  // legacyAddress=false → use the new (post-mainnet) zkLogin address
-  // derivation. Same default as `@mysten/zklogin`'s docs.
-  const suiAddress = jwtToAddress(jwt, salt, false);
+  const suiAddress = wallet.address.startsWith("0x")
+    ? wallet.address
+    : "0x" + wallet.address;
 
-  const updated: ZkLoginSession = { ...session, jwt, salt, suiAddress };
+  const updated: ZkLoginSession = {
+    ...session,
+    jwt,
+    salt: wallet.salt,
+    suiAddress,
+  };
   persistSession(updated);
   return updated;
 }
@@ -136,9 +163,9 @@ export async function completeZkLoginSession(jwt: string): Promise<ZkLoginSessio
 /**
  * Build, sign with zkLogin, and submit a Sui transaction.
  *
- * `buildTx` populates a `Transaction` (the caller's MoveCall, etc.).
- * We add gas + signer + submit; the zkLogin proof comes from
- * `proveZkLogin()`.
+ * `buildTx` populates a `Transaction` (caller's MoveCall, splits,
+ * transfers, etc.). We add gas + signer + submit; the zkLogin proof
+ * comes from Shinami.
  */
 export async function executeZkLoginTx(
   buildTx: (tx: Transaction) => void | Promise<void>,
@@ -148,6 +175,15 @@ export async function executeZkLoginTx(
     throw new Error("zkLogin session not ready");
   }
 
+  // The Rails JWT lives in the auth-layer's storage. We need it both
+  // for /api/gas-station/sponsor and as the bearer for /api/shinami/*.
+  const railsToken = readRailsToken();
+  if (!railsToken) {
+    throw new SessionExpiredError(
+      "Please sign in again to authorize this transaction.",
+    );
+  }
+
   const tx = new Transaction();
   tx.setSender(session.suiAddress);
   await buildTx(tx);
@@ -155,37 +191,26 @@ export async function executeZkLoginTx(
   const client = suiClient();
   const ephemeralKp = restoreKeypair(session);
 
-  // Build the transaction kind first.
   const kindBytes = await tx.build({ client, onlyTransactionKind: true });
   const kindB64 = Buffer.from(kindBytes).toString("base64");
 
-  // Get Rails JWT token for authentication of backend endpoint.
-  let railsToken = "";
-  if (typeof window !== "undefined") {
-    try {
-      const rawRails = window.localStorage.getItem("tapp.session.v1");
-      if (rawRails) {
-        const parsedRails = JSON.parse(rawRails);
-        if (parsedRails && parsedRails.jwt) {
-          railsToken = parsedRails.jwt;
-        }
-      }
-    } catch (e) {
-      console.warn("Failed to read Rails session from localStorage", e);
-    }
-  }
-
-  // Call the gas-station sponsor endpoint.
+  // Rails-side gas sponsorship.
   const sponsorRes = await fetch("/api/gas-station/sponsor", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "Authorization": `Bearer ${railsToken || session.jwt}`,
+      Authorization: `Bearer ${railsToken}`,
     },
     body: JSON.stringify({ txBytes: kindB64, sender: session.suiAddress }),
   });
   if (!sponsorRes.ok) {
     const errorText = await sponsorRes.text();
+    if (
+      sponsorRes.status === 401 ||
+      /invalid or expired token|token is expired/i.test(errorText)
+    ) {
+      throw new SessionExpiredError();
+    }
     throw new Error(`Gas sponsorship failed: ${errorText}`);
   }
   const { sponsoredTxBytes, sponsorSignature } = (await sponsorRes.json()) as {
@@ -193,97 +218,73 @@ export async function executeZkLoginTx(
     sponsorSignature: string;
   };
 
-  const finalTxBytesBytes = Uint8Array.from(Buffer.from(sponsoredTxBytes, "base64"));
-  const { signature: ephemeralSig } = await ephemeralKp.signTransaction(finalTxBytesBytes);
+  const finalTxBytes = Uint8Array.from(Buffer.from(sponsoredTxBytes, "base64"));
+  const { signature: ephemeralSig } = await ephemeralKp.signTransaction(finalTxBytes);
 
-  const proofInputs = await proveZkLogin({
-    jwt: session.jwt,
-    extendedEphemeralPublicKey: session.extendedPubKey,
-    maxEpoch: session.maxEpoch,
-    jwtRandomness: session.randomness,
-    salt: session.salt,
-    keyClaimName: "sub",
-  });
+  // Shinami doesn't return `addressSeed` — compute locally from the
+  // salt the wallet API gave us + JWT claims.
+  let zkProof;
+  try {
+    zkProof = await shinamiCreateProof({
+      jwt: session.jwt,
+      maxEpoch: session.maxEpoch,
+      extendedEphemeralPublicKey: getExtendedEphemeralPublicKey(
+        ephemeralKp.getPublicKey(),
+      ),
+      jwtRandomness: session.randomness,
+      salt: session.salt,
+      bearerToken: railsToken,
+    });
+  } catch (err) {
+    if (err instanceof ShinamiClientError && err.payload.sessionExpired) {
+      throw new SessionExpiredError(err.payload.userMessage);
+    }
+    throw err;
+  }
 
   const claims = decodeJwt(session.jwt);
   if (!claims.sub || !claims.aud) {
-    throw new Error("Invalid JWT in session: missing sub or aud claim");
+    throw new Error("Invalid JWT: missing sub or aud claim");
   }
   const aud = Array.isArray(claims.aud) ? claims.aud[0] : claims.aud;
   const addressSeed = genAddressSeed(
-    BigInt(session.salt),
+    saltToBigInt(session.salt),
     "sub",
     claims.sub,
     aud,
   ).toString();
 
+  const proof: Pick<
+    ZkLoginSignatureInputs,
+    "proofPoints" | "issBase64Details" | "headerBase64" | "addressSeed"
+  > = { ...zkProof, addressSeed };
+
   const zkLoginSignature = getZkLoginSignature({
-    inputs: {
-      ...proofInputs,
-      addressSeed,
-    },
+    inputs: proof,
     maxEpoch: session.maxEpoch,
     userSignature: ephemeralSig,
   });
 
-  const result = await client.executeTransactionBlock({
-    transactionBlock: finalTxBytesBytes,
-    signature: [zkLoginSignature, sponsorSignature],
-    options: { showEffects: true },
-  });
+  let result;
+  try {
+    result = await client.executeTransactionBlock({
+      transactionBlock: finalTxBytes,
+      signature: [zkLoginSignature, sponsorSignature],
+      options: { showEffects: true },
+    });
+  } catch (err) {
+    if (isZkLoginVerifyError(err)) {
+      throw new SessionExpiredError(
+        "Your sign-in needs to be refreshed. Please sign in again to continue.",
+      );
+    }
+    throw err;
+  }
   return { digest: result.digest, effects: result.effects };
 }
 
 // -----------------------------------------------------------------------------
-// Prover (Mysten testnet hosted, or self-hosted via env)
-// -----------------------------------------------------------------------------
-
-interface ProverRequest {
-  jwt: string;
-  extendedEphemeralPublicKey: string;
-  maxEpoch: number;
-  jwtRandomness: string;
-  salt: string;
-  keyClaimName: string;
-}
-
-async function proveZkLogin(req: ProverRequest): Promise<ZkLoginSignatureInputs> {
-  const res = await fetch(PROVER_URL, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(req),
-  });
-  if (!res.ok) {
-    throw new Error(
-      `zkLogin prover failed (${res.status}). Check NEXT_PUBLIC_ZKLOGIN_PROVER_URL — ` +
-        `Mysten's testnet prover is rate-limited; self-host for production.`,
-    );
-  }
-  return (await res.json()) as ZkLoginSignatureInputs;
-}
-
-// -----------------------------------------------------------------------------
-// Salt service
-// -----------------------------------------------------------------------------
-
-async function fetchSalt(jwt: string): Promise<string> {
-  const res = await fetch(SALT_SERVICE_URL, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ token: jwt }),
-  });
-  if (!res.ok) {
-    throw new Error(
-      `zkLogin salt service failed (${res.status}). For production, run a self-hosted ` +
-        `salt service per Mysten's reference at github.com/MystenLabs/zklogin-prover.`,
-    );
-  }
-  const { salt } = (await res.json()) as { salt: string };
-  return salt;
-}
-
-// -----------------------------------------------------------------------------
-// Storage helpers (browser-only — no SSR access)
+// Storage helpers (browser-only)
 // -----------------------------------------------------------------------------
 
 function persistSession(s: ZkLoginSession): void {
@@ -302,15 +303,25 @@ export function clearSession(): void {
   window.localStorage.removeItem(STORAGE_KEY);
 }
 
+function readRailsToken(): string | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem("tapp.session.v1");
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as { jwt?: string };
+    return parsed.jwt ?? null;
+  } catch {
+    return null;
+  }
+}
+
 function restoreKeypair(s: ZkLoginSession): Ed25519Keypair {
   const keyStr = s.ephemeralPrivateKey;
 
-  // Current format: bech32 "suiprivkey1…" (~71 chars) — pass straight through.
   if (keyStr.startsWith("suiprivkey")) {
     return Ed25519Keypair.fromSecretKey(keyStr);
   }
 
-  // Legacy formats stored as base64.
   let decoded: Uint8Array;
   try {
     decoded = b64ToBytes(keyStr);
@@ -320,36 +331,23 @@ function restoreKeypair(s: ZkLoginSession): Ed25519Keypair {
     );
   }
 
-  // Legacy format A: the base64 payload is the UTF-8 bytes of a bech32 string
-  // (old code did `btoa(String.fromCharCode(...bech32Bytes))`).
   try {
     const text = new TextDecoder("utf-8", { fatal: true }).decode(decoded);
     if (text.startsWith("suiprivkey")) {
       return Ed25519Keypair.fromSecretKey(text);
     }
   } catch {
-    // Not valid UTF-8 — fall through to raw-byte handling.
+    /* fall through */
   }
 
-  // Legacy format B: raw 32-byte Ed25519 seed.
-  if (decoded.length === 32) {
-    return Ed25519Keypair.fromSecretKey(decoded);
-  }
+  if (decoded.length === 32) return Ed25519Keypair.fromSecretKey(decoded);
+  if (decoded.length === 64) return Ed25519Keypair.fromSecretKey(decoded.slice(0, 32));
 
-  // Legacy format C: raw 64-byte "full" keypair (seed + pubkey).
-  if (decoded.length === 64) {
-    return Ed25519Keypair.fromSecretKey(decoded.slice(0, 32));
-  }
-
-  // Anything else is unrecoverable.
   throw new Error(
     "Ephemeral key format is unrecognised — sign out and back in to create a fresh zkLogin session.",
   );
 }
 
-function bytesToB64(b: Uint8Array): string {
-  return typeof btoa !== "undefined" ? btoa(String.fromCharCode(...b)) : Buffer.from(b).toString("base64");
-}
 function b64ToBytes(s: string): Uint8Array {
   if (typeof atob !== "undefined") {
     const bin = atob(s);

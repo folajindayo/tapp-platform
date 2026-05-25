@@ -119,9 +119,14 @@ interface RailsEnvelope<T> {
  * `Session.zkLoginReady`.
  */
 export async function completeAuth(idToken: string): Promise<Session> {
+  // Rails sign-in first — we need its JWT to authorize the Shinami
+  // wallet/proof proxies in the next step. Without this ordering,
+  // completeZkLoginSession would have no bearer token to send.
+  const railsSession = await signInWithGoogleCredential(idToken);
+
   let zkAddress: string | null = null;
   try {
-    const zk = await completeZkLoginSession(idToken);
+    const zk = await completeZkLoginSession(idToken, railsSession.jwt);
     zkAddress = zk.suiAddress ?? null;
   } catch (err) {
     if (typeof console !== "undefined") {
@@ -132,7 +137,19 @@ export async function completeAuth(idToken: string): Promise<Session> {
       );
     }
   }
-  return signInWithGoogleCredential(idToken, zkAddress);
+
+  if (!zkAddress) return railsSession;
+
+  // Re-persist the session with the proper zkLogin-derived address.
+  const upgraded: Session = {
+    ...railsSession,
+    suiAddress: zkAddress,
+    zkLoginReady: true,
+  };
+  if (typeof window !== "undefined") {
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(upgraded));
+  }
+  return upgraded;
 }
 
 /**

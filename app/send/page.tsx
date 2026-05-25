@@ -119,29 +119,27 @@ export default function SendPage() {
         const { suiReadClient } = await import("@/lib/sui-client");
 
         const result = await executeZkLoginTx(async (tx: InstanceType<typeof Transaction>) => {
-          if (asset === "SUI") {
-            // Split from the gas coin (always available); transfer the split.
-            const [out] = tx.splitCoins(tx.gas, [tx.pure.u64(BigInt(amountSubunit))]);
-            tx.transferObjects([out], tx.pure.address(recipient));
-          } else {
-            // USDC: pick coin objects owned by the sender, merge if many,
-            // split the requested amount off, transfer.
-            const client = suiReadClient();
-            const coins = await client.getCoins({
-              owner:    session.suiAddress,
-              coinType: USDC_COIN_TYPE,
-            });
-            if (coins.data.length === 0) {
-              throw new Error("No USDC coin objects found in this wallet.");
-            }
-            const inputs = coins.data.map((c) => tx.object(c.coinObjectId));
-            const primary = inputs[0];
-            if (inputs.length > 1) {
-              tx.mergeCoins(primary, inputs.slice(1));
-            }
-            const [out] = tx.splitCoins(primary, [tx.pure.u64(BigInt(amountSubunit))]);
-            tx.transferObjects([out], tx.pure.address(recipient));
+          // Pick coin objects owned by the sender, merge if many, split the
+          // requested amount off, transfer. We deliberately do NOT split from
+          // `tx.gas` for native SUI sends: under sponsored transactions the
+          // gas coin is the sponsor's, so splitting from it would charge the
+          // sponsor for the value transfer, not just the fees.
+          const client = suiReadClient();
+          const coinType = asset === "SUI" ? "0x2::sui::SUI" : USDC_COIN_TYPE;
+          const coins = await client.getCoins({
+            owner: session.suiAddress,
+            coinType,
+          });
+          if (coins.data.length === 0) {
+            throw new Error(`No ${asset} coin objects found in this wallet.`);
           }
+          const inputs = coins.data.map((c) => tx.object(c.coinObjectId));
+          const primary = inputs[0];
+          if (inputs.length > 1) {
+            tx.mergeCoins(primary, inputs.slice(1));
+          }
+          const [out] = tx.splitCoins(primary, [tx.pure.u64(BigInt(amountSubunit))]);
+          tx.transferObjects([out], tx.pure.address(recipient));
         });
 
         setPhase("submitting");

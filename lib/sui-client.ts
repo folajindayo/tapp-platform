@@ -7,39 +7,121 @@
  * the Rails API.
  *
  * Coin types are env-driven so we can switch networks without
- * recompiling:
+ * recompiling. Required:
  *
  *   NEXT_PUBLIC_SUI_NETWORK       = mainnet | testnet | devnet (default testnet)
- *   NEXT_PUBLIC_USDC_COIN_TYPE    = full type tag, e.g.
- *                                   "0xdba34672e30cb065b1f93e3ab55318768fd6fef66c15942c9f7cb846e2f900e7::usdc::USDC"
- *                                   (Wormhole USDC on mainnet)
+ *   NEXT_PUBLIC_USDC_COIN_TYPE    = full type tag for the USDC coin on
+ *                                   the current network (no default —
+ *                                   testnet and mainnet packages differ)
  *   NEXT_PUBLIC_WALLET_MOCK       = "0" to disable the mock and hit Sui
  */
 
 import {
   SuiJsonRpcClient as SuiClient,
+  JsonRpcHTTPTransport,
   getJsonRpcFullnodeUrl as getFullnodeUrl,
 } from "@mysten/sui/jsonRpc";
+import {
+  SHINAMI_NODE_KEY,
+  SHINAMI_NODE_URL,
+  shinamiNodeEnabled,
+} from "./shinami";
 
 const NETWORK = (process.env.NEXT_PUBLIC_SUI_NETWORK ?? "testnet") as
   | "testnet"
   | "mainnet"
   | "devnet";
 
-export const SUI_COIN_TYPE  = "0x2::sui::SUI";
-export const USDC_COIN_TYPE =
-  process.env.NEXT_PUBLIC_USDC_COIN_TYPE ??
-  // Default to Wormhole USDC on mainnet — overridable per-network.
-  "0xdba34672e30cb065b1f93e3ab55318768fd6fef66c15942c9f7cb846e2f900e7::usdc::USDC";
+export const SUI_COIN_TYPE = "0x2::sui::SUI";
+
+// USDC is network-specific (testnet/mainnet have different packages).
+// Fail loud at module-init if not configured rather than silently
+// querying for an undefined coin type at runtime.
+const usdcType = process.env.NEXT_PUBLIC_USDC_COIN_TYPE;
+if (!usdcType) {
+  throw new Error(
+    "NEXT_PUBLIC_USDC_COIN_TYPE is not set. Pick the testnet or mainnet block in .env.local.",
+  );
+}
+export const USDC_COIN_TYPE = usdcType;
 
 const SUI_DECIMALS  = 9;
 const USDC_DECIMALS = 6;
 
+// Errors that should trigger fallback to the public RPC. We deliberately
+// don't fall back on tx-level errors (e.g. "insufficient gas", "object
+// not found at version") — those are deterministic and would just fail
+// the same way on the fallback. Transport-level failures are what we
+// want to route around.
+function isRetryableRpcError(err: unknown): boolean {
+  if (!(err instanceof Error)) return false;
+  return /429|too many requests|rate.?limit|5\d{2}\b|fetch failed|network|timeout|ECONNRESET|ETIMEDOUT/i.test(
+    err.message,
+  );
+}
+
+/**
+ * Wraps a primary SuiClient so any method call that throws a retryable
+ * transport error transparently retries on the fallback client. Used to
+ * route around Shinami rate limits / outages onto the public fullnode
+ * without changing call sites.
+ */
+function withRpcFallback(primary: SuiClient, fallback: SuiClient): SuiClient {
+  return new Proxy(primary, {
+    get(target, prop, receiver) {
+      const value = Reflect.get(target, prop, receiver);
+      if (typeof value !== "function") return value;
+      return async (...args: unknown[]) => {
+        try {
+          return await (value as (...a: unknown[]) => Promise<unknown>).apply(
+            target,
+            args,
+          );
+        } catch (err) {
+          if (!isRetryableRpcError(err)) throw err;
+          if (typeof console !== "undefined") {
+            console.warn(
+              `[sui-client] primary RPC failed on ${String(prop)} — falling back`,
+              err,
+            );
+          }
+          const fb = Reflect.get(fallback, prop, fallback) as (
+            ...a: unknown[]
+          ) => Promise<unknown>;
+          return await fb.apply(fallback, args);
+        }
+      };
+    },
+  });
+}
+
 let _client: SuiClient | null = null;
 export function suiReadClient(): SuiClient {
-  if (!_client) {
-    _client = new SuiClient({ network: NETWORK, url: getFullnodeUrl(NETWORK) });
+  if (_client) return _client;
+
+  const publicClient = new SuiClient({
+    network: NETWORK,
+    url: getFullnodeUrl(NETWORK),
+  });
+
+  // Only opt into Shinami's Node Service as the primary RPC when a
+  // dedicated, frontend-safe Node-only key is configured. This is
+  // distinct from SHINAMI_API_KEY (server-only, has wallet+prover
+  // rights). Shipping a wallet-capable key in the browser bundle would
+  // let anyone with devtools create wallets / sign for users.
+  if (!shinamiNodeEnabled()) {
+    _client = publicClient;
+    return _client;
   }
+
+  const shinamiClient = new SuiClient({
+    network: NETWORK,
+    transport: new JsonRpcHTTPTransport({
+      url: SHINAMI_NODE_URL,
+      rpc: { headers: { "X-API-Key": SHINAMI_NODE_KEY } },
+    }),
+  });
+  _client = withRpcFallback(shinamiClient, publicClient);
   return _client;
 }
 

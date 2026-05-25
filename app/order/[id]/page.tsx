@@ -20,7 +20,7 @@ import {
   slideInOut,
 } from "@/components/ui/AnimatedComponents";
 import { motion } from "framer-motion";
-import { useSession } from "@/lib/auth";
+import { signOut, useSession } from "@/lib/auth";
 import {
   useOrder,
   useWallet,
@@ -30,6 +30,7 @@ import {
   orderStreamURL,
 } from "@/lib/wallet";
 import { useHaptic } from "@/lib/motion";
+import { SessionExpiredError } from "@/lib/zklogin";
 
 // Lifecycle: review → (optional step-up) → signing → submitting
 //   → submitted   (chain tx confirmed; awaiting Rails indexer)
@@ -91,6 +92,15 @@ export default function OrderPage({ params }: { params: Promise<{ id: string }> 
       setPhase("submitted");
       haptic.success();
     } catch (err) {
+      // Expired-JWT → sign out + back to /sign-in with this order as
+      // the post-login redirect. Avoids surfacing raw Rails JSON to
+      // the user and lets them resume the same payment after auth.
+      if (err instanceof SessionExpiredError || (err instanceof Error && /session has expired/i.test(err.message))) {
+        haptic.error();
+        signOut();
+        router.replace(`/sign-in?next=/order/${encodeURIComponent(id)}`);
+        return;
+      }
       const msg = err instanceof Error ? err.message : "Payment failed";
       setError(msg);
       setPhase("error");
