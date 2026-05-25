@@ -109,7 +109,7 @@ class TappHceService : HostApduService() {
   companion object {
     private const val TAG = "TappHceService"
     private const val MAX_NDEF_LEN = 0x7FFF
-    private const val DEFAULT_PAYLOAD = "https://checkout.zoracle.com"
+    private const val DEFAULT_PAYLOAD = "https://checkout.zoracle.xyz"
 
     private val SW_OK = byteArrayOf(0x90.toByte(), 0x00)
     private val SW_FAILURE = byteArrayOf(0x6A.toByte(), 0x82.toByte())

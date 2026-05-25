@@ -1,14 +1,36 @@
 import { useEffect, useRef, useState } from 'react';
-import { Alert, TextInput, View, useColorScheme } from 'react-native';
-import { useQueryClient } from '@tanstack/react-query';
+import {
+  Alert,
+  Keyboard,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  TextInput,
+  View,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
-import Animated, { FadeInDown } from 'react-native-reanimated';
+import { useQueryClient } from '@tanstack/react-query';
+import { ChevronLeft } from 'lucide-react-native';
 import { authApi } from '@/api/endpoints';
 import { useAuthStore } from '@/auth/store';
-import { Button, Screen, Text } from '@/ui';
-import { StepHeader } from '@/components/StepHeader';
+import { Button, Icon, Icons, Text } from '@/ui';
 
 const CODE_LEN = 6;
+
+const PAL = {
+  bg:         '#0D0D0D',
+  badgeBg:    'rgba(255, 255, 255, 0.08)',
+  badgeIcon:  'rgba(255, 255, 255, 0.65)',
+  text:       '#FFFFFF',
+  textMuted:  'rgba(255, 255, 255, 0.55)',
+  textSubtle: 'rgba(255, 255, 255, 0.35)',
+  inputBg:    'rgba(255, 255, 255, 0.06)',
+  inputText:  '#FFFFFF',
+  button:     '#3B82F6',
+  buttonText: '#FFFFFF',
+  required:   '#F43F5E',
+} as const;
 
 export default function VerifyEmailScreen() {
   const { email: paramEmail } = useLocalSearchParams<{ email?: string }>();
@@ -26,8 +48,6 @@ export default function VerifyEmailScreen() {
   const [resending, setResending] = useState(false);
   const [cooldown, setCooldown] = useState(0);
   const inputRef = useRef<TextInput>(null);
-  const colorScheme = useColorScheme();
-  const isDark = colorScheme === 'dark';
 
   useEffect(() => {
     inputRef.current?.focus();
@@ -40,11 +60,15 @@ export default function VerifyEmailScreen() {
   }, [cooldown]);
 
   useEffect(() => {
-    if (code.length === CODE_LEN) void submit(code);
+    if (code.length === CODE_LEN) {
+      Keyboard.dismiss();
+      void submit(code);
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [code]);
 
   async function submit(token: string) {
+    if (submitting) return;
     setSubmitting(true);
     try {
       // Rails requires both fields — the (token, email) pair scopes the
@@ -77,7 +101,7 @@ export default function VerifyEmailScreen() {
   }
 
   async function resend() {
-    if (!email || cooldown > 0) return;
+    if (!email || cooldown > 0 || resending) return;
     setResending(true);
     try {
       await authApi.resendToken({ email, scope: 'emailVerification' });
@@ -91,6 +115,7 @@ export default function VerifyEmailScreen() {
   }
 
   const handleBack = () => {
+    Keyboard.dismiss();
     if (router.canGoBack()) {
       router.back();
     } else {
@@ -99,30 +124,28 @@ export default function VerifyEmailScreen() {
   };
 
   return (
-    <Screen scrollable={false} className="bg-surface-bg dark:bg-neutral-950 px-4">
-      <View className="absolute top-0 left-0 right-0 bottom-0 overflow-hidden" pointerEvents="none">
-        <View className="absolute -top-20 -right-20 w-[300px] h-[300px] rounded-full bg-brand-blue/5 dark:bg-brand-blue/10 opacity-70" />
-        <View className="absolute -bottom-20 -left-20 w-[320px] h-[320px] rounded-full bg-brand-blue/5 dark:bg-brand-blue/10 opacity-45" />
-      </View>
-
-      <StepHeader
-        step={2}
-        totalSteps={4}
-        title="Check your email"
-        subtitle={`We sent a 6-digit code to ${email || 'your email'}.`}
-        isFirstStep={true}
-        onBack={handleBack}
-      />
-
-      <Animated.View
-        entering={FadeInDown.duration(450).delay(100)}
-        className="bg-white dark:bg-neutral-900 border border-gray-200 dark:border-white/10 rounded-[32px] p-6 gap-6 w-full mt-4 flex-1 justify-between"
+    <SafeAreaView edges={['top']} style={s.root}>
+      <ScrollView
+        style={s.flex}
+        contentContainerStyle={s.scroll}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
       >
-        <View className="flex-1 justify-center items-center">
-          <Text className="text-sm text-center text-muted-text mb-6">
-            Enter the 6-digit verification code below
-          </Text>
+        <Pressable hitSlop={10} onPress={handleBack} style={s.backRow}>
+          <ChevronLeft size={20} color={PAL.textMuted} />
+          <Text style={s.backText}>Back</Text>
+        </Pressable>
 
+        <View style={s.badge}>
+          <Icon xml={Icons.IconEmail} size={32} color={PAL.badgeIcon} />
+        </View>
+
+        <Text style={s.title}>Check your email</Text>
+        <Text style={s.subtitle}>
+          We sent a 6-digit code to <Text style={s.emailHighlight}>{email || 'your email'}</Text>.
+        </Text>
+
+        <View style={s.otpContainer}>
           <TextInput
             ref={inputRef}
             value={code}
@@ -130,36 +153,155 @@ export default function VerifyEmailScreen() {
             keyboardType="number-pad"
             maxLength={CODE_LEN}
             autoFocus
-            style={{
-              fontSize: 36,
-              letterSpacing: 12,
-              textAlign: 'center',
-              minWidth: 240,
-              color: isDark ? '#FFFFFF' : '#121212',
-              fontVariant: ['tabular-nums'],
-              fontWeight: '700',
-            }}
-            placeholder="------"
-            placeholderTextColor={isDark ? '#444444' : '#BCC1CA'}
+            caretHidden
+            selectionColor="transparent"
+            style={s.hiddenInput}
+            textContentType="oneTimeCode"
+            autoComplete="one-time-code"
           />
+          {Array.from({ length: CODE_LEN }).map((_, idx) => {
+            const char = code[idx] || '';
+            const isFocused = code.length === idx;
+            const isFilled = code.length > idx;
+            return (
+              <View
+                pointerEvents="none"
+                key={idx}
+                style={[
+                  s.otpBox,
+                  isFocused && s.otpBoxFocused,
+                  isFilled && s.otpBoxFilled,
+                ]}
+              >
+                <Text style={s.otpText}>{char}</Text>
+              </View>
+            );
+          })}
         </View>
 
-        <View className="gap-4 w-full">
-          {submitting ? (
-            <Text className="text-center text-brand-blue font-semibold animate-pulse">Verifying…</Text>
-          ) : (
-            <View className="h-[20px]" />
-          )}
+        <View style={{ flex: 1, minHeight: 40 }} />
 
+        <View style={s.buttonWrap}>
           <Button
-            label={cooldown > 0 ? `Resend in ${cooldown}s` : 'Resend code'}
-            variant="ghost"
-            onPress={resend}
-            loading={resending}
-            disabled={cooldown > 0 || !email}
+            label="Verify"
+            onPress={() => submit(code)}
+            loading={submitting}
+            disabled={code.length < CODE_LEN || submitting}
+            className="rounded-[16px]"
           />
         </View>
-      </Animated.View>
-    </Screen>
+
+        <Pressable
+          hitSlop={8}
+          onPress={resend}
+          disabled={cooldown > 0 || resending}
+          style={s.resendRow}
+        >
+          <Text style={[s.resendText, cooldown > 0 ? { color: PAL.textSubtle } : null]}>
+            {cooldown > 0 ? `Resend code in ${cooldown}s` : 'Resend code'}
+          </Text>
+        </Pressable>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
+
+const s = StyleSheet.create({
+  flex: { flex: 1 },
+  root: {
+    flex: 1,
+    backgroundColor: PAL.bg,
+  },
+  scroll: {
+    flexGrow: 1,
+    paddingHorizontal: 20,
+    paddingTop: 8,
+    paddingBottom: 24,
+  },
+  backRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+    height: 36,
+    alignSelf: 'flex-start',
+    marginBottom: 8,
+  },
+  backText: {
+    fontFamily: 'BricolageGrotesque-Medium',
+    fontSize: 15,
+    color: PAL.textMuted,
+  },
+  badge: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: PAL.badgeBg,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 24,
+  },
+  title: {
+    fontFamily: 'BricolageGrotesque-Bold',
+    fontSize: 28,
+    lineHeight: 34,
+    color: PAL.text,
+    letterSpacing: -0.5,
+    marginBottom: 8,
+  },
+  subtitle: {
+    fontFamily: 'BricolageGrotesque-Regular',
+    fontSize: 15,
+    lineHeight: 20,
+    color: PAL.textMuted,
+    marginBottom: 24,
+  },
+  emailHighlight: {
+    fontFamily: 'BricolageGrotesque-Medium',
+    color: PAL.text,
+  },
+  otpContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    width: '100%',
+    height: 48,
+    position: 'relative',
+    marginBottom: 24,
+  },
+  hiddenInput: {
+    ...StyleSheet.absoluteFillObject,
+    opacity: 0.01,
+    color: 'transparent',
+    backgroundColor: 'transparent',
+  },
+  otpBox: {
+    width: 44,
+    height: 48,
+    borderBottomWidth: 2,
+    borderBottomColor: PAL.textSubtle,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  otpBoxFocused: {
+    borderBottomColor: PAL.button,
+  },
+  otpBoxFilled: {
+    borderBottomColor: PAL.text,
+  },
+  otpText: {
+    fontFamily: 'BricolageGrotesque-Bold',
+    fontSize: 22,
+    color: PAL.text,
+  },
+  buttonWrap: {
+    width: '100%',
+  },
+  resendRow: {
+    alignSelf: 'center',
+    marginTop: 20,
+  },
+  resendText: {
+    fontFamily: 'BricolageGrotesque-Medium',
+    fontSize: 14,
+    color: PAL.textMuted,
+  },
+});

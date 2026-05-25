@@ -18,7 +18,7 @@ import { Eye, EyeOff } from 'lucide-react-native';
 import { authApi } from '@/api/endpoints';
 import type { ApiError } from '@/api/types';
 import { useAuthStore } from '@/auth/store';
-import { Button, Screen, Text } from '@/ui';
+import { Button, Icon, Icons, Screen, Text } from '@/ui';
 
 const schema = z.object({
   firstName: z.string().min(1, 'Required'),
@@ -45,6 +45,8 @@ const PAL = {
   textSubtle:  'rgba(255, 255, 255, 0.45)',
   required:    '#F43F5E',
   brand:       '#3B82F6',
+  badgeBg:     'rgba(255, 255, 255, 0.08)',
+  badgeIcon:   'rgba(255, 255, 255, 0.65)',
 } as const;
 
 export default function SignUpScreen() {
@@ -64,10 +66,9 @@ export default function SignUpScreen() {
       if (tokens?.accessToken) {
         setSession(tokens.accessToken, tokens.refreshToken);
       } else {
-        // Tokens absent — route to verify-email with email so the user can
-        // verify without needing to be authenticated.
+        // Tokens absent — route to password screen to let them sign in.
         router.replace({
-          pathname: '/(auth)/verify-email',
+          pathname: '/(auth)/password',
           params: { email: values.email },
         });
       }
@@ -93,12 +94,16 @@ export default function SignUpScreen() {
           showsVerticalScrollIndicator={false}
           contentContainerStyle={s.scroll}
         >
+          <View style={s.badge}>
+            <Icon xml={Icons.IconEmail} size={32} color={PAL.badgeIcon} />
+          </View>
+
           <View style={s.headerBlock}>
             <Text style={s.title}>Create account</Text>
             <Text style={s.subtitle}>Receive crypto, get NGN in your bank.</Text>
           </View>
 
-          <View style={s.card}>
+          <View style={s.formFields}>
             <View style={s.row}>
               <View style={s.rowCell}>
                 <Controller
@@ -176,6 +181,8 @@ export default function SignUpScreen() {
             loading={mutation.isPending}
             disabled={!formState.isValid || mutation.isPending}
           />
+
+          <View style={{ flex: 1, minHeight: 40 }} />
 
           <View style={s.signinRow}>
             <Text style={s.signinHint}>Already have an account? </Text>
@@ -274,7 +281,7 @@ const s = StyleSheet.create({
   flex: { flex: 1 },
   scroll: {
     flexGrow: 1,
-    justifyContent: 'center',
+    // justifyContent: 'center',
     gap: 24,
     paddingVertical: 24,
   },
@@ -306,6 +313,18 @@ const s = StyleSheet.create({
     flexDirection: 'row',
     gap: 12,
   },
+  formFields: {
+    gap: 16,
+  },
+  badge: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: PAL.badgeBg,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 2,
+  },
   rowCell: {
     flex: 1,
   },
@@ -324,8 +343,6 @@ const s = StyleSheet.create({
     height: 52,
     paddingHorizontal: 14,
     borderRadius: 12,
-    borderWidth: 1,
-    borderColor: PAL.fieldBorder,
     backgroundColor: PAL.fieldBg,
     flexDirection: 'row',
     alignItems: 'center',

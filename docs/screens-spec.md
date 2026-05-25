@@ -272,8 +272,6 @@ Platform-conditional rendering. The amount + countdown + cancel chrome is identi
 
 On Android, a "Show QR instead" link in the footer toggles to the QR variant for the rare case where the device reports `nfc.hce` missing or the user disabled NFC.
 
-
-
 ```
 ┌──────────────────────────────────────────────────────┐
 │  ←                                          1:47     │
@@ -454,7 +452,7 @@ Explorer link points to a Sui explorer for the settlement digest. "Copy" copies 
 - **Insufficient liquidity (`NO_LP_LIQUIDITY` from tap endpoint):** modal "We can't process this amount right now. Try smaller, or try again later."
 - **HCE unavailable / NFC off (Android phone-to-phone):** broadcast screen replaces the NFC ring with a "Turn on NFC" prompt + system-settings deep link, AND a "Show QR instead" affordance to switch to the QR variant.
 - **NFC off (Tap Card, both platforms):** reader screen shows a "Turn on NFC" prompt; on Android deep-links to settings, on iOS prompts the user to enable from Control Center.
-- **Tap Card error states:** screen-level error per code — `CARD_NOT_LINKED` ("Customer needs to register this card at zoracle.com/link"), `CARD_INSUFFICIENT_BALANCE` ("Card balance is too low for this amount"), `CARD_DEBIT_AUTHORITY_EXPIRED` ("Customer needs to re-link this card"). Each shows a "Try a different payment method" CTA that bounces back to the method picker.
+- **Tap Card error states:** screen-level error per code — `CARD_NOT_LINKED` ("Customer needs to register this card at zoracle.xyz/link"), `CARD_INSUFFICIENT_BALANCE` ("Card balance is too low for this amount"), `CARD_DEBIT_AUTHORITY_EXPIRED` ("Customer needs to re-link this card"). Each shows a "Try a different payment method" CTA that bounces back to the method picker.
 
 ## Accessibility
 

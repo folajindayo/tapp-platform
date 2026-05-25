@@ -21,73 +21,98 @@ On `401` the app attempts a refresh via `POST /v1/auth/refresh`. If that also 40
 ## Reused endpoints (already in Rails)
 
 ### `POST /v1/auth/register`
+
 Creates a `SenderProfile`.
 
 Request:
+
 ```json
 { "email": "merchant@example.com", "password": "...", "scope": "sender" }
 ```
+
 Response `201`:
+
 ```json
-{ "access_token": "...", "refresh_token": "...", "user": { "id": "...", "email": "..." } }
+{
+  "access_token": "...",
+  "refresh_token": "...",
+  "user": { "id": "...", "email": "..." }
+}
 ```
 
 ### `POST /v1/auth/login`
+
 Returns JWT pair.
 
 ### `POST /v1/auth/refresh`
+
 Refresh token → new access token.
 
 ### `POST /v1/auth/confirm-account`
+
 Email verification via OTP.
 
 ### `POST /v1/auth/resend-token`
+
 Resend verification token.
 
 ### `POST /v1/kyc`
+
 Initiates Smile Identity KYB. Body needs an EIP-191-style wallet signature today; the merchant app currently has no Sui wallet integration, so we use the merchant's authenticated session as the signing identity instead (see Phase 1 backend tweak below — `WalletAddress` becomes optional when `JWTMiddleware` already identified the sender). Returns hosted KYC URL.
 
 Request:
+
 ```json
 {
-  "wallet_address": "<sender_profile_id>",     // optional, falls back to JWT
-  "signature": "...",                          // optional in the merchant flow
+  "wallet_address": "<sender_profile_id>", // optional, falls back to JWT
+  "signature": "...", // optional in the merchant flow
   "nonce": "...",
   "id_types": [{ "country": "NG", "id_type": "BVN" }]
 }
 ```
+
 Response `200`:
+
 ```json
 { "url": "https://links.usesmileid.com/...", "expires_at": "..." }
 ```
 
 ### `GET /v1/kyc/:wallet_address`
+
 Polls KYB status. Returns `{ status: "pending" | "success" | "failed" }`.
 
 ### `POST /v1/verify-account`
+
 Pre-save bank account name resolve.
 
 Request:
+
 ```json
 { "institution": "044", "account_identifier": "0123456789", "currency": "NGN" }
 ```
+
 Response `200`:
+
 ```json
 { "account_name": "JANE DOE" }
 ```
 
 ### `GET /v1/currencies`
+
 List of enabled fiat currencies. Used to populate currency selectors.
 
 ### `GET /v1/institutions/:currency_code`
+
 Banks + mobile-money providers for a given currency. Used in the bank-account onboarding screen.
 
 ### `GET /v1/sender/orders`
+
 Paginated list of the authenticated sender's `PaymentOrder` rows. Used for dashboard history.
 
 Query: `?status=settled&limit=20&cursor=...`
 
 Response `200`:
+
 ```json
 {
   "data": [
@@ -107,12 +132,15 @@ Response `200`:
 ```
 
 ### `GET /v1/sender/orders/:id`
+
 Single order detail. Polled by the broadcast screen as a fallback if the WebSocket isn't connected.
 
 ### `POST /v1/sender/orders/:id/cancel`
+
 Cancels a pending order. Called when the merchant backs out of broadcast or `expires_at` passes.
 
 ### `GET /v1/sender/stats`
+
 Aggregate stats (today's settled, total volume, count). Used on dashboard.
 
 ---
@@ -126,6 +154,7 @@ All three live under `/v1/sender/me/` (segment chosen so existing `/v1/sender/or
 Save or replace the merchant's bank account. One-to-one with `SenderProfile`; subsequent calls upsert.
 
 Request:
+
 ```json
 {
   "currency": "NGN",
@@ -138,6 +167,7 @@ Request:
 The handler MUST internally call the existing `VerifyAccount` path to confirm the resolved name matches `account_name`. Mismatch returns `400 BANK_ACCOUNT_VERIFICATION_FAILED`.
 
 Response `200`:
+
 ```json
 {
   "id": "mba_xyz",
@@ -150,6 +180,7 @@ Response `200`:
 ```
 
 Errors:
+
 - `400 BANK_ACCOUNT_VERIFICATION_FAILED` — name mismatch
 - `400 INVALID_BANK_CODE` — institution not in Institution table
 - `400 UNSUPPORTED_CURRENCY`
@@ -163,6 +194,7 @@ Returns the saved account or `404 NOT_FOUND` if not yet set.
 The headline endpoint. Creates a `PaymentOrder` with recipient auto-populated from the saved `MerchantBankAccount`, returns the order ID + checkout URL the HCE service broadcasts.
 
 Request:
+
 ```json
 {
   "amount": "5000.00",
@@ -171,16 +203,18 @@ Request:
 ```
 
 Notes:
+
 - `currency` comes from the saved bank account, not the request.
 - `rate` is computed server-side from the current spot median + ceiling (existing `services/ceiling_rate.go`).
 - `valid_until` defaults to `orderConf.OrderRequestValidity` (120s) but the app should treat the returned `expires_at` as authoritative.
 
 Response `201`:
+
 ```json
 {
   "order_id": "ord_abc",
   "reference": "ord_abc",
-  "checkout_url": "https://checkout.zoracle.com/order/ord_abc",
+  "checkout_url": "https://checkout.zoracle.xyz/order/ord_abc",
   "amount": "5000.00",
   "currency": "NGN",
   "rate_quoted": "1530.50",
@@ -191,6 +225,7 @@ Response `201`:
 ```
 
 Errors:
+
 - `400 BANK_ACCOUNT_REQUIRED` — merchant hasn't completed bank onboarding
 - `400 KYC_REQUIRED` — KYB not yet `success`
 - `503 RATE_UNAVAILABLE` — spot median oracle unhealthy
@@ -201,6 +236,7 @@ Errors:
 Synchronous Tap Card payment. The merchant scanned a customer's NTAG215 card; backend resolves the card UID to its linked Sui zkLogin balance, debits via a pre-authorized Move capability, and settles in one round-trip.
 
 Request:
+
 ```json
 {
   "amount": "5000.00",
@@ -214,6 +250,7 @@ Request:
 - `rate` is computed server-side at the spot median (same path as `/tap`).
 
 Response `200` (settled in the round-trip):
+
 ```json
 {
   "order_id": "ord_abc",
@@ -231,6 +268,7 @@ Response `200` (settled in the round-trip):
 If the round-trip can't complete synchronously (e.g. the Move debit succeeds but BaaS payout is queued), the response returns `status: "processing"` with the `order_id` and the merchant app falls back to the WebSocket / polling path used by phone-to-phone.
 
 Errors:
+
 - `400 BANK_ACCOUNT_REQUIRED` / `400 KYC_REQUIRED` — same as `/tap`
 - `404 CARD_NOT_LINKED` — the UID has no linked Sui address (card was never registered or was unlinked)
 - `400 CARD_INSUFFICIENT_BALANCE` — linked balance < required coin amount
@@ -244,6 +282,7 @@ Note: the **card-linking flow** (user logs in via zkLogin on checkout web, taps 
 Server-Sent Events stream of payment status updates scoped to the authenticated `SenderProfile`. Purely server→client push (we never need to talk back on the same channel), so SSE is a better fit than WebSocket — plain HTTP, automatic reconnect via the `Last-Event-ID` header, `curl`-debuggable.
 
 Headers:
+
 ```
 Accept: text/event-stream
 Authorization: Bearer <access_token>
@@ -296,18 +335,18 @@ All errors follow the existing Rails shape:
 
 App handles known codes:
 
-| Code | App reaction |
-|---|---|
-| `UNAUTHENTICATED` | clear JWT, navigate to `(auth)/sign-in` |
-| `KYC_REQUIRED` | navigate to `(onboarding)/kyb` |
-| `BANK_ACCOUNT_REQUIRED` | navigate to `(onboarding)/bank-account` |
-| `BANK_ACCOUNT_VERIFICATION_FAILED` | inline form error, suggest re-entering account number |
-| `RATE_UNAVAILABLE` | toast "Rates unavailable — try again in a moment" |
-| `NO_LP_LIQUIDITY` | toast "No liquidity for this amount — try smaller" |
-| `CARD_NOT_LINKED` | screen-level error "This card isn't registered yet. The customer needs to link it at zoracle.com/link." |
-| `CARD_INSUFFICIENT_BALANCE` | screen-level error "Card balance is too low for this amount." |
-| `CARD_DEBIT_AUTHORITY_EXPIRED` | screen-level error "The card's authorization expired. Customer needs to re-link." |
-| any other | toast with `message`, log to Sentry |
+| Code                               | App reaction                                                                                            |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| `UNAUTHENTICATED`                  | clear JWT, navigate to `(auth)/sign-in`                                                                 |
+| `KYC_REQUIRED`                     | navigate to `(onboarding)/kyb`                                                                          |
+| `BANK_ACCOUNT_REQUIRED`            | navigate to `(onboarding)/bank-account`                                                                 |
+| `BANK_ACCOUNT_VERIFICATION_FAILED` | inline form error, suggest re-entering account number                                                   |
+| `RATE_UNAVAILABLE`                 | toast "Rates unavailable — try again in a moment"                                                       |
+| `NO_LP_LIQUIDITY`                  | toast "No liquidity for this amount — try smaller"                                                      |
+| `CARD_NOT_LINKED`                  | screen-level error "This card isn't registered yet. The customer needs to link it at zoracle.xyz/link." |
+| `CARD_INSUFFICIENT_BALANCE`        | screen-level error "Card balance is too low for this amount."                                           |
+| `CARD_DEBIT_AUTHORITY_EXPIRED`     | screen-level error "The card's authorization expired. Customer needs to re-link."                       |
+| any other                          | toast with `message`, log to Sentry                                                                     |
 
 ---
 

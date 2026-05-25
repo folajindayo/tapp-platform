@@ -17,11 +17,11 @@ Three repos make up the Zoracle stack. Treat this README as the
 merchant-app entry point only — the broader product context lives in
 the architecture spec below.
 
-| Repo | Role |
-| --- | --- |
-| [`usezoracle/rails-sui`](https://github.com/usezoracle/rails-sui) | Go backend + Sui Move contracts. Settles payments, manages cards, hosts the SSE stream this app subscribes to. |
-| **`usezoracle/tapp-merchant`** *(this repo)* | The merchant Expo app. Takes payments. |
-| [`usezoracle/tapp`](https://github.com/usezoracle/tapp) | Cardholder PWA. Where customers link/manage their Tapp Cards and where payers complete phone-to-phone zkLogin checkout. |
+| Repo                                                              | Role                                                                                                                    |
+| ----------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| [`usezoracle/rails-sui`](https://github.com/usezoracle/rails-sui) | Go backend + Sui Move contracts. Settles payments, manages cards, hosts the SSE stream this app subscribes to.          |
+| **`usezoracle/tapp-merchant`** _(this repo)_                      | The merchant Expo app. Takes payments.                                                                                  |
+| [`usezoracle/tapp`](https://github.com/usezoracle/tapp)           | Cardholder PWA. Where customers link/manage their Tapp Cards and where payers complete phone-to-phone zkLogin checkout. |
 
 ---
 
@@ -47,16 +47,16 @@ the architecture spec below.
 
 ### ⚠️ Stubbed / not yet wired
 
-| What | Why | Where to start |
-| --- | --- | --- |
-| **Tap Card debit** | The backend `POST /v1/sender/me/tap-card` returns `501 card_unrecognized` — full path needs the `tapp_card` Move contract + linked-card DB rows on Rails + HMAC PIN math here. | `docs/tap-card-pin-flow.md` (this repo) + `docs/tapp-card-spec.md` (Rails repo). |
-| **PIN pad screen** (`tap-card-pin.tsx`) | Three-tier auth was specced (no PIN <₦2k, PIN ₦2k–₦15k, step-up >₦15k) but not built. | `docs/tap-card-pin-flow.md` → "Screens" section. |
-| **Step-up QR screen** (`tap-card-step-up.tsx`) | Same — depends on the Rails step-up endpoint. | Same doc → "Step-up QR display". |
-| **HMAC PIN math on-device** | `@noble/hashes` isn't installed yet. Compute `HMAC(HMAC(K, PIN), server_nonce)` from the card's read `K`. | Same doc → "PIN math on-device (TypeScript)". |
-| **NFC write-back with PWD_AUTH** | Per-tap token rotation needs writing the new ciphertext back to the card sector with `NTAG215 PWD_AUTH`. Reader is wired; writer is not. | `docs/nfc-reader-spec.md` + `useTapCard.ts`. |
-| **In-the-moment rescue UX** | "Please tap once more to finalize" copy for the torn-write recovery edge case. | `docs/tap-card-pin-flow.md` → "Failure modes". |
-| **App icons** | `app.json` points to `./assets/icon.png` and `./assets/splash.png` but only the brand fonts live in `assets/`. Expo uses defaults; needs the real 1024×1024 brand icon. | Borrow from `usezoracle/tapp` which already has `app/icon.png` at 1028×1028 from `users-app/assets/icons/zercard-app-icon.png`. |
-| **Settings page row actions** | Several rows render a chevron but don't navigate. | `app/(app)/settings.tsx`. |
+| What                                           | Why                                                                                                                                                                            | Where to start                                                                                                                  |
+| ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------- |
+| **Tap Card debit**                             | The backend `POST /v1/sender/me/tap-card` returns `501 card_unrecognized` — full path needs the `tapp_card` Move contract + linked-card DB rows on Rails + HMAC PIN math here. | `docs/tap-card-pin-flow.md` (this repo) + `docs/tapp-card-spec.md` (Rails repo).                                                |
+| **PIN pad screen** (`tap-card-pin.tsx`)        | Three-tier auth was specced (no PIN <₦2k, PIN ₦2k–₦15k, step-up >₦15k) but not built.                                                                                          | `docs/tap-card-pin-flow.md` → "Screens" section.                                                                                |
+| **Step-up QR screen** (`tap-card-step-up.tsx`) | Same — depends on the Rails step-up endpoint.                                                                                                                                  | Same doc → "Step-up QR display".                                                                                                |
+| **HMAC PIN math on-device**                    | `@noble/hashes` isn't installed yet. Compute `HMAC(HMAC(K, PIN), server_nonce)` from the card's read `K`.                                                                      | Same doc → "PIN math on-device (TypeScript)".                                                                                   |
+| **NFC write-back with PWD_AUTH**               | Per-tap token rotation needs writing the new ciphertext back to the card sector with `NTAG215 PWD_AUTH`. Reader is wired; writer is not.                                       | `docs/nfc-reader-spec.md` + `useTapCard.ts`.                                                                                    |
+| **In-the-moment rescue UX**                    | "Please tap once more to finalize" copy for the torn-write recovery edge case.                                                                                                 | `docs/tap-card-pin-flow.md` → "Failure modes".                                                                                  |
+| **App icons**                                  | `app.json` points to `./assets/icon.png` and `./assets/splash.png` but only the brand fonts live in `assets/`. Expo uses defaults; needs the real 1024×1024 brand icon.        | Borrow from `usezoracle/tapp` which already has `app/icon.png` at 1028×1028 from `users-app/assets/icons/zercard-app-icon.png`. |
+| **Settings page row actions**                  | Several rows render a chevron but don't navigate.                                                                                                                              | `app/(app)/settings.tsx`.                                                                                                       |
 
 ### 🚫 Out of scope here
 
@@ -120,7 +120,7 @@ EXPO_PUBLIC_API_BASE_URL=http://192.168.X.Y:8000
 
 # Payer-side checkout web. The merchant phone embeds this URL in
 # NDEF/QR — payer's phone opens it via the OS handler.
-EXPO_PUBLIC_CHECKOUT_BASE_URL=https://checkout.zoracle.com
+EXPO_PUBLIC_CHECKOUT_BASE_URL=https://checkout.zoracle.xyz
 EOF
 ```
 
@@ -138,6 +138,7 @@ npm run prebuild
 ```
 
 This runs `expo prebuild --clean`, which:
+
 - Generates `android/` and `ios/` directories
 - Runs `plugins/withNfcHce/index.js` — copies the Kotlin
   `HostApduService` + `apduservice.xml` AID filter into
@@ -206,34 +207,34 @@ state changes (sign-in → verify-email → kyb → bank-account → live).
 
 ### Hot paths
 
-| Hook | Purpose |
-| --- | --- |
-| `src/hooks/useTapBroadcast.ts` | Orchestrates phone-to-phone: POST `/tap`, start HCE (Android) or render QR (iOS), subscribe SSE, transition on `payment.deposited` / `.settled` / `.refunded`. |
-| `src/hooks/useTapCard.ts` | Opens NFC reader session, captures UID, POSTs to `/tap-card`. Currently expects 501 from the backend — picks up the rest of the protocol when the spec is built out. |
-| `src/api/sse.ts` | Subscribe to `GET /v1/sender/me/payments/stream` with `Authorization: Bearer`. |
-| `src/auth/store.ts` | zustand auth store with MMKV-backed persistence (encrypted). |
-| `src/auth/useOnboardingState.ts` | Resolves the current `OnboardingStep` from server queries — drives the root-layout redirects. |
+| Hook                             | Purpose                                                                                                                                                              |
+| -------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/hooks/useTapBroadcast.ts`   | Orchestrates phone-to-phone: POST `/tap`, start HCE (Android) or render QR (iOS), subscribe SSE, transition on `payment.deposited` / `.settled` / `.refunded`.       |
+| `src/hooks/useTapCard.ts`        | Opens NFC reader session, captures UID, POSTs to `/tap-card`. Currently expects 501 from the backend — picks up the rest of the protocol when the spec is built out. |
+| `src/api/sse.ts`                 | Subscribe to `GET /v1/sender/me/payments/stream` with `Authorization: Bearer`.                                                                                       |
+| `src/auth/store.ts`              | zustand auth store with MMKV-backed persistence (encrypted).                                                                                                         |
+| `src/auth/useOnboardingState.ts` | Resolves the current `OnboardingStep` from server queries — drives the root-layout redirects.                                                                        |
 
 ### Native modules
 
-| File | Role |
-| --- | --- |
+| File                                           | Role                                                                                                                                                 |
+| ---------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `plugins/withNfcHce/android/TappHceService.kt` | Android `HostApduService` emulating an NDEF Type 4 Tag. Responds to SELECT AID (`D2760000850101`) + READ_BINARY APDUs with the encoded checkout URL. |
-| `plugins/withNfcHce/android/NfcHceModule.kt` | React Native bridge: `isHceSupported()`, `start(url, ttlMs)`, `stop()`. |
-| `plugins/withNfcHce/android/NfcHcePackage.kt` | Registers the module with RN's PackageList. |
-| `plugins/withNfcHce/android/apduservice.xml` | AID filter resource referenced by the manifest `<service>` entry. |
-| `plugins/withNfcHce/index.js` | Expo config plugin that copies the above into the prebuild output and patches the manifest + `MainApplication.kt`. |
-| `plugins/withIosNfc/index.js` | Sets the iOS NFC reader-session entitlement + `NFCReaderUsageDescription` + ISO-7816 select-identifiers (NDEF AID + NTAG application AID). |
-| `src/hce/NfcHce.ts` | TypeScript facade. iOS = no-op (Apple doesn't allow third-party HCE). |
+| `plugins/withNfcHce/android/NfcHceModule.kt`   | React Native bridge: `isHceSupported()`, `start(url, ttlMs)`, `stop()`.                                                                              |
+| `plugins/withNfcHce/android/NfcHcePackage.kt`  | Registers the module with RN's PackageList.                                                                                                          |
+| `plugins/withNfcHce/android/apduservice.xml`   | AID filter resource referenced by the manifest `<service>` entry.                                                                                    |
+| `plugins/withNfcHce/index.js`                  | Expo config plugin that copies the above into the prebuild output and patches the manifest + `MainApplication.kt`.                                   |
+| `plugins/withIosNfc/index.js`                  | Sets the iOS NFC reader-session entitlement + `NFCReaderUsageDescription` + ISO-7816 select-identifiers (NDEF AID + NTAG application AID).           |
+| `src/hce/NfcHce.ts`                            | TypeScript facade. iOS = no-op (Apple doesn't allow third-party HCE).                                                                                |
 
 ---
 
 ## Env vars
 
-| Var | Where used | Required? |
-| --- | --- | --- |
-| `EXPO_PUBLIC_API_BASE_URL` | `src/api/config.ts` — base URL for the Rails backend. | Yes (use LAN IP for device dev). |
-| `EXPO_PUBLIC_CHECKOUT_BASE_URL` | `src/api/config.ts` — embedded in NDEF / QR for payers. | Yes (defaults to `https://checkout.zoracle.com`). |
+| Var                             | Where used                                              | Required?                                         |
+| ------------------------------- | ------------------------------------------------------- | ------------------------------------------------- |
+| `EXPO_PUBLIC_API_BASE_URL`      | `src/api/config.ts` — base URL for the Rails backend.   | Yes (use LAN IP for device dev).                  |
+| `EXPO_PUBLIC_CHECKOUT_BASE_URL` | `src/api/config.ts` — embedded in NDEF / QR for payers. | Yes (defaults to `https://checkout.zoracle.xyz`). |
 
 Production builds: set `expo.extra.apiBaseUrl` and
 `expo.extra.checkoutBaseUrl` in `app.json` instead — those bake into
@@ -246,16 +247,16 @@ the JS bundle.
 The spec set in `docs/` is the source of truth for product behavior.
 Keep these synced with code as you ship.
 
-| File | Covers |
-| --- | --- |
-| `docs/tapp-merchant-architecture.md` | Cross-platform overview, sequence diagrams (phone-to-phone + Tap Card), method matrix. |
-| `docs/merchant-backend-api.md` | All Rails endpoints the app calls, request/response shapes, SSE event shape. |
-| `docs/nfc-hce-spec.md` | Android-only HCE (NDEF Type 4 Tag, AID `D2760000850101`). |
-| `docs/nfc-reader-spec.md` | Cross-platform Tap Card NTAG215 reader. |
-| `docs/qr-fallback-spec.md` | iOS QR phone-to-phone fallback. |
-| `docs/onboarding-spec.md` | 4-step linear onboarding flow. |
-| `docs/screens-spec.md` | expo-router tree, ASCII wireframes, error states. |
-| `docs/tap-card-pin-flow.md` | **Tap Card three-tier auth UX** — the next chunk of work. Read this before touching `useTapCard.ts`. |
+| File                                 | Covers                                                                                               |
+| ------------------------------------ | ---------------------------------------------------------------------------------------------------- |
+| `docs/tapp-merchant-architecture.md` | Cross-platform overview, sequence diagrams (phone-to-phone + Tap Card), method matrix.               |
+| `docs/merchant-backend-api.md`       | All Rails endpoints the app calls, request/response shapes, SSE event shape.                         |
+| `docs/nfc-hce-spec.md`               | Android-only HCE (NDEF Type 4 Tag, AID `D2760000850101`).                                            |
+| `docs/nfc-reader-spec.md`            | Cross-platform Tap Card NTAG215 reader.                                                              |
+| `docs/qr-fallback-spec.md`           | iOS QR phone-to-phone fallback.                                                                      |
+| `docs/onboarding-spec.md`            | 4-step linear onboarding flow.                                                                       |
+| `docs/screens-spec.md`               | expo-router tree, ASCII wireframes, error states.                                                    |
+| `docs/tap-card-pin-flow.md`          | **Tap Card three-tier auth UX** — the next chunk of work. Read this before touching `useTapCard.ts`. |
 
 Companion docs in the other repos:
 

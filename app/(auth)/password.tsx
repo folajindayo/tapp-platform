@@ -8,7 +8,7 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { router, useLocalSearchParams } from 'expo-router';
+import { Link, router, useLocalSearchParams } from 'expo-router';
 import { useMutation } from '@tanstack/react-query';
 import { ChevronLeft, Eye, EyeOff } from 'lucide-react-native';
 import { authApi } from '@/api/endpoints';
@@ -27,6 +27,7 @@ const PAL = {
   required:   '#F43F5E',
   success:    '#22C55E',
   successBg:  'rgba(34, 197, 94, 0.10)',
+  brand:      '#3B82F6',
 } as const;
 
 export default function PasswordScreen() {
@@ -54,11 +55,11 @@ export default function PasswordScreen() {
         return;
       }
 
-      if (msg.includes('not verified') || msg.includes('verify')) {
-        // Account exists but email not verified — route to verify-email.
-        router.push({ pathname: '/(auth)/verify-email', params: { email } });
-        return;
-      }
+      // if (msg.includes('not verified') || msg.includes('verify')) {
+      //   // Account exists but email not verified — route to verify-email.
+      //   router.push({ pathname: '/(auth)/verify-email', params: { email } });
+      //   return;
+      // }
 
       setError(err?.message ?? 'Could not sign in. Try again.');
     },
@@ -138,6 +139,17 @@ export default function PasswordScreen() {
         >
           <Text style={s.forgotText}>Forgot password?</Text>
         </Pressable>
+
+        <View style={{ flex: 1, minHeight: 40 }} />
+
+        <View style={s.signupRow}>
+          <Text style={s.signupHint}>Don't have an account? </Text>
+          <Link href={{ pathname: '/(auth)/sign-up', params: { email } }} asChild>
+            <Pressable hitSlop={6}>
+              <Text style={s.signupLink}>Sign up</Text>
+            </Pressable>
+          </Link>
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
@@ -150,6 +162,7 @@ const s = StyleSheet.create({
     backgroundColor: PAL.bg,
   },
   scroll: {
+    flexGrow: 1,
     paddingHorizontal: 20,
     paddingTop: 8,
     paddingBottom: 24,
@@ -242,5 +255,21 @@ const s = StyleSheet.create({
     fontFamily: 'BricolageGrotesque-Medium',
     fontSize: 14,
     color: PAL.textMuted,
+  },
+  signupRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'baseline',
+    marginTop: 20,
+  },
+  signupHint: {
+    fontFamily: 'BricolageGrotesque-Regular',
+    fontSize: 14,
+    color: PAL.textMuted,
+  },
+  signupLink: {
+    fontFamily: 'BricolageGrotesque-SemiBold',
+    fontSize: 14,
+    color: PAL.brand,
   },
 });

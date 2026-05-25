@@ -1,4 +1,4 @@
-import Constants from 'expo-constants';
+import Constants from "expo-constants";
 
 const extra = (Constants.expoConfig?.extra ?? {}) as {
   apiBaseUrl?: string;
@@ -6,9 +6,11 @@ const extra = (Constants.expoConfig?.extra ?? {}) as {
 };
 
 export const API_BASE_URL =
-  process.env.EXPO_PUBLIC_API_BASE_URL ?? extra.apiBaseUrl ?? 'http://localhost:8000';
+  process.env.EXPO_PUBLIC_API_BASE_URL ??
+  extra.apiBaseUrl ??
+  "http://localhost:8000";
 
 export const CHECKOUT_BASE_URL =
   process.env.EXPO_PUBLIC_CHECKOUT_BASE_URL ??
   extra.checkoutBaseUrl ??
-  'https://checkout.zoracle.com';
+  "https://checkout.zoracle.xyz";

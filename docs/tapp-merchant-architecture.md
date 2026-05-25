@@ -19,10 +19,10 @@ This repo contains **only** the merchant-side app. Three sibling concerns:
 
 ## Platform / method matrix
 
-|              | **Phone-to-phone**                          | **Tap Card (NTAG215)**             |
-|--------------|---------------------------------------------|------------------------------------|
-| **Android**  | NFC HCE (active NDEF broadcast)             | NfcAdapter reader mode             |
-| **iOS**      | QR code display (no HCE allowed)            | CoreNFC reader session             |
+|             | **Phone-to-phone**               | **Tap Card (NTAG215)** |
+| ----------- | -------------------------------- | ---------------------- |
+| **Android** | NFC HCE (active NDEF broadcast)  | NfcAdapter reader mode |
+| **iOS**     | QR code display (no HCE allowed) | CoreNFC reader session |
 
 Per-platform notes:
 
@@ -32,7 +32,7 @@ Per-platform notes:
 
 ## Payment payload
 
-- **Phone-to-phone (both HCE and QR variants):** a Zoracle checkout URL `https://checkout.zoracle.com/order/<order_id>` carrying the new order's ID. The payer's device opens it in a browser, where checkout web handles zkLogin signing + PTB submission. URL is intentionally the only payload — adding app links, custom MIME, or richer encoding kills cross-device tap/scan reliability.
+- **Phone-to-phone (both HCE and QR variants):** a Zoracle checkout URL `https://checkout.zoracle.xyz/order/<order_id>` carrying the new order's ID. The payer's device opens it in a browser, where checkout web handles zkLogin signing + PTB submission. URL is intentionally the only payload — adding app links, custom MIME, or richer encoding kills cross-device tap/scan reliability.
 - **Tap Card:** the merchant app reads the card's UID (7 bytes for NTAG215). The app POSTs `{ order_id, card_uid, amount }` to the backend, which looks up the card's linked Sui zkLogin balance and performs the deduction. No payer interaction at the time of payment.
 
 ## Stack
@@ -96,7 +96,7 @@ Per-platform notes:
 └────────────────┘  └──────────────┘  └──────────────────┘
 
 Payer-side flows (out of scope this repo):
-  Phone-to-phone: payer device (NDEF/QR) → checkout.zoracle.com → zkLogin → Sui PTB
+  Phone-to-phone: payer device (NDEF/QR) → checkout.zoracle.xyz → zkLogin → Sui PTB
   Tap Card:       no payer interaction at tx time; card was linked once via checkout web
 ```
 
