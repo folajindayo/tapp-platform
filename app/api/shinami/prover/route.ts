@@ -169,11 +169,16 @@ export async function POST(req: Request): Promise<Response> {
     return errorJson(e, e.httpStatus, ctx.reqId);
   }
 
+  // Shinami wraps the proof in a `zkProof` envelope; the client
+  // (lib/shinami.ts ShinamiProofResult) consumes the un-wrapped
+  // shape, so we strip the envelope here at the proxy boundary.
   const json = (await upstream.json()) as {
     result?: {
-      proofPoints: { a: string[]; b: string[][]; c: string[] };
-      issBase64Details: { value: string; indexMod4: number };
-      headerBase64: string;
+      zkProof: {
+        proofPoints: { a: string[]; b: string[][]; c: string[] };
+        issBase64Details: { value: string; indexMod4: number };
+        headerBase64: string;
+      };
     };
     error?: { code: number; message: string };
   };
@@ -192,7 +197,7 @@ export async function POST(req: Request): Promise<Response> {
     return errorJson(e, status, ctx.reqId);
   }
 
-  if (!json.result) {
+  if (!json.result?.zkProof) {
     logger.error("shinami.prover.upstream_no_result", ctx);
     return errorJson(
       mapShinamiError({ httpStatus: 502, context: "prover" }),
@@ -203,7 +208,7 @@ export async function POST(req: Request): Promise<Response> {
 
   logger.info("shinami.prover.ok", ctx, { durationMs: Date.now() - t0 });
 
-  const res = NextResponse.json(json.result);
+  const res = NextResponse.json(json.result.zkProof);
   res.headers.set("x-request-id", ctx.reqId);
   return res;
 }

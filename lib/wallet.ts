@@ -20,7 +20,45 @@ import {
 } from "./sui-client";
 
 export const WALLET_MOCK = process.env.NEXT_PUBLIC_WALLET_MOCK !== "0";
-const MOCK_NGN_RATE = 1500;
+
+// Last-resort fallbacks ONLY for when /api/rates is unreachable
+// (offline dev box, both Paycrest + LiFi down at once). Production
+// rates come from /api/rates which fans out to Paycrest (NGN/USDC)
+// and LiFi (SUI/USDC). Keep these intentionally crude so a stale
+// hero is obvious rather than authoritative.
+const FALLBACK_NGN_RATE = 0;
+const FALLBACK_SUI_USDC_RATE = 0;
+
+interface LiveRates {
+  ngn_per_usdc: number;
+  usdc_per_sui: number;
+}
+
+async function fetchLiveRates(): Promise<LiveRates> {
+  const res = await fetch("/api/rates", {
+    headers: { Accept: "application/json" },
+  });
+  if (!res.ok) {
+    throw new Error(`/api/rates http ${res.status}`);
+  }
+  const j = (await res.json()) as {
+    ngn_per_usdc: number;
+    usdc_per_sui: number;
+  };
+  return { ngn_per_usdc: j.ngn_per_usdc, usdc_per_sui: j.usdc_per_sui };
+}
+
+async function safeFetchLiveRates(): Promise<LiveRates> {
+  try {
+    return await fetchLiveRates();
+  } catch (err) {
+    console.warn("[wallet] /api/rates fetch failed, using fallbacks:", err);
+    return {
+      ngn_per_usdc: FALLBACK_NGN_RATE,
+      usdc_per_sui: FALLBACK_SUI_USDC_RATE,
+    };
+  }
+}
 
 const API_BASE =
   process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
@@ -30,10 +68,29 @@ export interface WalletState {
   usdc_subunit: number;        // 10⁶ subunits per 1 USDC
   sui_mist:    number;         // 10⁹ MIST per 1 SUI (native)
   ngn_rate: number;            // NGN per USDC
+  sui_usdc_rate: number;       // USDC per 1 SUI — folds SUI into the headline balance
   has_linked_card: boolean;
   card_needs_resync: boolean;
   card_id: string | null;
   card: CardSnapshot | null;
+}
+
+/**
+ * Fold a native-SUI balance into a USDC-denominated subunit total —
+ * used by the wallet hero so users see a single "Balance" number that
+ * reflects everything they hold, not just USDC.
+ *
+ * Inputs are integer subunits; result is integer USDC subunits.
+ */
+export function combinedUsdcSubunit(
+  usdcSubunit: number,
+  suiMist: number,
+  suiUsdcRate: number,
+): number {
+  if (!suiMist || !suiUsdcRate) return usdcSubunit;
+  // (mist / 1e9) * rate  → USDC float; * 1e6 → USDC subunit
+  const suiAsUsdcSubunit = Math.round((suiMist / 1_000_000_000) * suiUsdcRate * 1_000_000);
+  return usdcSubunit + suiAsUsdcSubunit;
 }
 
 /** Snapshot of the linked card's on-chain spending cap + today's spend. */
@@ -125,14 +182,22 @@ function mockHasLinkedCard(): boolean {
   return true;
 }
 
-function mockWalletState(seed: string, suiAddress?: string): WalletState {
+async function mockWalletState(
+  seed: string,
+  suiAddress?: string,
+): Promise<WalletState> {
   const h = hashCode(seed);
   const hasCard = mockHasLinkedCard();
+  // Even in mock mode, fetch real rates — the mock-ness is just the
+  // balances. Real rates here keep the hero accurate while the
+  // backend / on-chain hookup is being built.
+  const rates = await safeFetchLiveRates();
   return {
     sui_address:        suiAddress || suiAddressFor(seed),
     usdc_subunit:       72_500_000 + (h % 100_000_000),
     sui_mist:           (h % 5) * 1_000_000_000, // 0..4 SUI mock
-    ngn_rate:           MOCK_NGN_RATE,
+    ngn_rate:           rates.ngn_per_usdc,
+    sui_usdc_rate:      rates.usdc_per_sui,
     has_linked_card:    hasCard,
     card_needs_resync:  false,
     card_id:            hasCard ? "card_" + seed.slice(0, 8) : null,
@@ -149,15 +214,17 @@ function mockWalletState(seed: string, suiAddress?: string): WalletState {
 }
 
 async function onchainWalletState(suiAddress: string): Promise<WalletState> {
-  const [usdc, sui] = await Promise.all([
+  const [usdc, sui, rates] = await Promise.all([
     fetchUsdcSubunit(suiAddress),
     fetchSuiMist(suiAddress),
+    safeFetchLiveRates(),
   ]);
   return {
     sui_address:       suiAddress,
     usdc_subunit:      usdc,
     sui_mist:          sui,
-    ngn_rate:          MOCK_NGN_RATE,  // TODO: live FX from a backend cache
+    ngn_rate:          rates.ngn_per_usdc,
+    sui_usdc_rate:     rates.usdc_per_sui,
     // Card linkage isn't on-chain in v1 — Rails owns that mapping. For
     // direct-RPC mode we default to "no card linked" until the wallet
     // page is wired to ALSO read /v1/cards/me alongside.
@@ -229,7 +296,7 @@ function mockActivity(seed: string, n = 20): ActivityEvent[] {
   return out;
 }
 
-function mockOrder(id: string): OrderDetails {
+async function mockOrder(id: string): Promise<OrderDetails> {
   const h = hashCode(id);
   const merchant = MOCK_MERCHANTS[h % MOCK_MERCHANTS.length];
   // Default 2-minute expiry from "now" (mock orders never actually expire on
@@ -237,11 +304,12 @@ function mockOrder(id: string): OrderDetails {
   const expires_at = Date.now() + 2 * 60_000;
   // Amount tied to merchant for repeatability.
   const usdc = ((h % 4500) / 100 + 1.25).toFixed(2);
+  const rates = await safeFetchLiveRates();
   return {
     id,
     merchant_name:     merchant,
     amount_subunit:    Math.round(parseFloat(usdc) * 1_000_000),
-    ngn_rate:          MOCK_NGN_RATE,
+    ngn_rate:          rates.ngn_per_usdc,
     reference:         `Order #${(h % 100_000).toString().padStart(5, "0")}`,
     expires_at,
     step_up_required:  (h % 7) === 0,
@@ -288,7 +356,17 @@ export const walletApi = {
   ): Promise<WalletState> => {
     if (WALLET_MOCK) return mockWalletState(seed, suiAddress);
     if (suiAddress) return onchainWalletState(suiAddress);
-    return realGet<WalletState>("/v1/wallet/me", jwt);
+    // Backend may not yet emit the rate fields — fall back to the
+    // live /api/rates source if either is missing, so the wallet
+    // hero math always has something to chew on.
+    const w = await realGet<WalletState>("/v1/wallet/me", jwt);
+    if (w.ngn_rate != null && w.sui_usdc_rate != null) return w;
+    const rates = await safeFetchLiveRates();
+    return {
+      ...w,
+      ngn_rate: w.ngn_rate ?? rates.ngn_per_usdc,
+      sui_usdc_rate: w.sui_usdc_rate ?? rates.usdc_per_sui,
+    };
   },
   history: async (
     jwt: string,
@@ -314,7 +392,7 @@ export const walletApi = {
     return realGet<ActivityEvent>(`/v1/wallet/tx/${digest}`, jwt);
   },
   order: async (jwt: string, id: string): Promise<OrderDetails> => {
-    if (WALLET_MOCK) return mockOrder(id);
+    if (WALLET_MOCK) return await mockOrder(id);
     return realGet<OrderDetails>(`/v1/orders/${id}`, jwt);
   },
   /**

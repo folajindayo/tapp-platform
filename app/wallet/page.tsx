@@ -91,6 +91,8 @@ export default function WalletPage() {
             <div className="rounded-3xl border border-gray-200 p-5 dark:border-white/10">
               <BalanceHero
                 usdcSubunit={wallet.data.usdc_subunit}
+                suiMist={wallet.data.sui_mist}
+                suiUsdcRate={wallet.data.sui_usdc_rate}
                 ngnRate={wallet.data.ngn_rate}
               />
             </div>

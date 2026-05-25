@@ -167,9 +167,38 @@ export async function completeZkLoginSession(
  * transfers, etc.). We add gas + signer + submit; the zkLogin proof
  * comes from Shinami.
  */
+export interface ExecuteZkLoginOptions {
+  /**
+   * When true, skip the Rails gas-station sponsorship and pay gas
+   * from the user's own SUI balance. Requires the wallet to hold
+   * enough SUI to cover the transaction gas (~0.01 SUI is plenty).
+   *
+   * Use this as a fallback when the sponsor service is unhappy, or
+   * for power users who'd rather not depend on our hot wallet.
+   */
+  selfSponsor?: boolean;
+}
+
 export async function executeZkLoginTx(
   buildTx: (tx: Transaction) => void | Promise<void>,
+  opts: ExecuteZkLoginOptions = {},
 ): Promise<{ digest: string; effects?: unknown }> {
+  // Tag each major step so a bare "Cannot read properties of undefined"
+  // from a minified SDK frame still tells us which leg crashed. Remove
+  // this scaffolding once the withdraw-error investigation is closed.
+  const tag = async <T>(step: string, fn: () => Promise<T> | T): Promise<T> => {
+    try {
+      return await fn();
+    } catch (err) {
+      // Re-throw with a step prefix but preserve `cause` so the
+      // original stack survives for DevTools.
+      const msg = err instanceof Error ? err.message : String(err);
+      const wrapped = new Error(`[zkLogin step:${step}] ${msg}`, { cause: err });
+      if (err instanceof Error && err.stack) wrapped.stack = err.stack;
+      throw wrapped;
+    }
+  };
+
   const session = readSession();
   if (!session?.jwt || !session.salt || !session.suiAddress) {
     throw new Error("zkLogin session not ready");
@@ -184,102 +213,181 @@ export async function executeZkLoginTx(
     );
   }
 
-  const tx = new Transaction();
-  tx.setSender(session.suiAddress);
-  await buildTx(tx);
+  const tx = await tag("init-tx", async () => {
+    const t = new Transaction();
+    t.setSender(session.suiAddress!);
+    await buildTx(t);
+    return t;
+  });
 
   const client = suiClient();
-  const ephemeralKp = restoreKeypair(session);
+  const ephemeralKp = await tag("restore-keypair", () => restoreKeypair(session));
 
-  const kindBytes = await tx.build({ client, onlyTransactionKind: true });
-  const kindB64 = Buffer.from(kindBytes).toString("base64");
+  // Two paths:
+  //
+  // - Sponsored (default): kind-only build → POST to Rails → Rails
+  //   wraps it with its own gas coin + sponsor signature → we sign
+  //   the wrapped bytes with the ephemeral key + zkLogin proof, and
+  //   submit with BOTH signatures.
+  //
+  // - Self-sponsor: full build (the SDK auto-picks a gas coin from
+  //   the user's own SUI), sign once with ephemeral+zkLogin, submit
+  //   with just that signature.
+  let finalTxBytes: Uint8Array;
+  let sponsorSignature: string | null = null;
 
-  // Rails-side gas sponsorship.
-  const sponsorRes = await fetch("/api/gas-station/sponsor", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${railsToken}`,
-    },
-    body: JSON.stringify({ txBytes: kindB64, sender: session.suiAddress }),
-  });
-  if (!sponsorRes.ok) {
-    const errorText = await sponsorRes.text();
-    if (
-      sponsorRes.status === 401 ||
-      /invalid or expired token|token is expired/i.test(errorText)
-    ) {
-      throw new SessionExpiredError();
-    }
-    throw new Error(`Gas sponsorship failed: ${errorText}`);
+  if (opts.selfSponsor) {
+    finalTxBytes = await tag("tx-build-full", () => tx.build({ client }));
+  } else {
+    const kindBytes = await tag("tx-build-kind", () =>
+      tx.build({ client, onlyTransactionKind: true }),
+    );
+    const kindB64 = Buffer.from(kindBytes).toString("base64");
+    const sponsored = await tag("sponsor-fetch", async () => {
+      const sponsorRes = await fetch("/api/gas-station/sponsor", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${railsToken}`,
+        },
+        body: JSON.stringify({ txBytes: kindB64, sender: session.suiAddress }),
+      });
+      if (!sponsorRes.ok) {
+        const errorText = await sponsorRes.text();
+        if (
+          sponsorRes.status === 401 ||
+          /invalid or expired token|token is expired/i.test(errorText)
+        ) {
+          throw new SessionExpiredError();
+        }
+        throw new Error(`Gas sponsorship failed: ${errorText}`);
+      }
+      return (await sponsorRes.json()) as {
+        sponsoredTxBytes: string;
+        sponsorSignature: string;
+      };
+    });
+    finalTxBytes = Uint8Array.from(Buffer.from(sponsored.sponsoredTxBytes, "base64"));
+    sponsorSignature = sponsored.sponsorSignature;
   }
-  const { sponsoredTxBytes, sponsorSignature } = (await sponsorRes.json()) as {
-    sponsoredTxBytes: string;
-    sponsorSignature: string;
-  };
 
-  const finalTxBytes = Uint8Array.from(Buffer.from(sponsoredTxBytes, "base64"));
-  const { signature: ephemeralSig } = await ephemeralKp.signTransaction(finalTxBytes);
+  const { signature: ephemeralSig } = await tag("sign-ephemeral", () =>
+    ephemeralKp.signTransaction(finalTxBytes),
+  );
 
   // Shinami doesn't return `addressSeed` — compute locally from the
   // salt the wallet API gave us + JWT claims.
-  let zkProof;
-  try {
-    zkProof = await shinamiCreateProof({
-      jwt: session.jwt,
-      maxEpoch: session.maxEpoch,
-      extendedEphemeralPublicKey: getExtendedEphemeralPublicKey(
-        ephemeralKp.getPublicKey(),
-      ),
-      jwtRandomness: session.randomness,
-      salt: session.salt,
-      bearerToken: railsToken,
-    });
-  } catch (err) {
-    if (err instanceof ShinamiClientError && err.payload.sessionExpired) {
-      throw new SessionExpiredError(err.payload.userMessage);
+  const zkProof = await tag("shinami-prove", async () => {
+    try {
+      return await shinamiCreateProof({
+        jwt: session.jwt!,
+        maxEpoch: session.maxEpoch,
+        extendedEphemeralPublicKey: getExtendedEphemeralPublicKey(
+          ephemeralKp.getPublicKey(),
+        ),
+        jwtRandomness: session.randomness,
+        salt: session.salt!,
+        bearerToken: railsToken,
+      });
+    } catch (err) {
+      if (err instanceof ShinamiClientError && err.payload.sessionExpired) {
+        throw new SessionExpiredError(err.payload.userMessage);
+      }
+      throw err;
     }
-    throw err;
-  }
-
-  const claims = decodeJwt(session.jwt);
-  if (!claims.sub || !claims.aud) {
-    throw new Error("Invalid JWT: missing sub or aud claim");
-  }
-  const aud = Array.isArray(claims.aud) ? claims.aud[0] : claims.aud;
-  const addressSeed = genAddressSeed(
-    saltToBigInt(session.salt),
-    "sub",
-    claims.sub,
-    aud,
-  ).toString();
-
-  const proof: Pick<
-    ZkLoginSignatureInputs,
-    "proofPoints" | "issBase64Details" | "headerBase64" | "addressSeed"
-  > = { ...zkProof, addressSeed };
-
-  const zkLoginSignature = getZkLoginSignature({
-    inputs: proof,
-    maxEpoch: session.maxEpoch,
-    userSignature: ephemeralSig,
   });
 
-  let result;
-  try {
-    result = await client.executeTransactionBlock({
-      transactionBlock: finalTxBytes,
-      signature: [zkLoginSignature, sponsorSignature],
-      options: { showEffects: true },
+  const zkLoginSignature = await tag("compose-zklogin-sig", () => {
+    const claims = decodeJwt(session.jwt!);
+    if (!claims.sub || !claims.aud) {
+      throw new Error("Invalid JWT: missing sub or aud claim");
+    }
+    const aud = Array.isArray(claims.aud) ? claims.aud[0] : claims.aud;
+    const addressSeed = genAddressSeed(
+      saltToBigInt(session.salt!),
+      "sub",
+      claims.sub,
+      aud,
+    ).toString();
+
+    // Validate the Shinami-supplied proof shape up-front so a missing
+    // sub-field surfaces as a meaningful error rather than a BCS
+    // "reading 'a' of undefined" three frames deep. Mirror the
+    // ZkLoginSignatureInputs schema the SDK serializes.
+    const pp = (zkProof as { proofPoints?: { a?: unknown; b?: unknown; c?: unknown } })
+      .proofPoints;
+    const iss = (zkProof as { issBase64Details?: { value?: unknown; indexMod4?: unknown } })
+      .issBase64Details;
+    const hdr = (zkProof as { headerBase64?: unknown }).headerBase64;
+    // Dump the structural keys (NOT the values — proof points are
+    // secret-ish and shouldn't be logged in full).
+    console.log("[zkLogin] proof shape", {
+      topLevel: Object.keys(zkProof ?? {}),
+      hasProofPoints: !!pp,
+      proofPointsKeys: pp ? Object.keys(pp) : null,
+      proofPointsA: Array.isArray(pp?.a) ? `array[${pp.a.length}]` : typeof pp?.a,
+      proofPointsB: Array.isArray(pp?.b)
+        ? `array[${pp.b.length}] of ${Array.isArray((pp.b as unknown[])[0]) ? `array[${((pp.b as unknown[])[0] as unknown[])?.length}]` : typeof (pp.b as unknown[])[0]}`
+        : typeof pp?.b,
+      proofPointsC: Array.isArray(pp?.c) ? `array[${pp.c.length}]` : typeof pp?.c,
+      hasIss: !!iss,
+      issKeys: iss ? Object.keys(iss) : null,
+      hasHeader: typeof hdr === "string",
+      addressSeedLen: addressSeed.length,
     });
-  } catch (err) {
-    if (isZkLoginVerifyError(err)) {
-      throw new SessionExpiredError(
-        "Your sign-in needs to be refreshed. Please sign in again to continue.",
+
+    const missing: string[] = [];
+    if (!pp) missing.push("proofPoints");
+    else {
+      if (!Array.isArray(pp.a)) missing.push("proofPoints.a");
+      if (!Array.isArray(pp.b)) missing.push("proofPoints.b");
+      if (!Array.isArray(pp.c)) missing.push("proofPoints.c");
+    }
+    if (!iss) missing.push("issBase64Details");
+    else {
+      if (typeof iss.value !== "string") missing.push("issBase64Details.value");
+      if (typeof iss.indexMod4 !== "number") missing.push("issBase64Details.indexMod4");
+    }
+    if (typeof hdr !== "string") missing.push("headerBase64");
+    if (missing.length > 0) {
+      throw new Error(
+        `Shinami proof is missing required fields: ${missing.join(", ")}. ` +
+          `Got top-level keys: [${Object.keys(zkProof ?? {}).join(", ")}].`,
       );
     }
-    throw err;
-  }
+
+    const proof: Pick<
+      ZkLoginSignatureInputs,
+      "proofPoints" | "issBase64Details" | "headerBase64" | "addressSeed"
+    > = { ...zkProof, addressSeed };
+
+    return getZkLoginSignature({
+      inputs: proof,
+      maxEpoch: session.maxEpoch,
+      userSignature: ephemeralSig,
+    });
+  });
+
+  const result = await tag("submit", async () => {
+    try {
+      return await client.executeTransactionBlock({
+        transactionBlock: finalTxBytes,
+        // Sponsored: needs both the user (zkLogin) and the sponsor.
+        // Self-sponsor: only the user signs — Sui rejects extra sigs.
+        signature: sponsorSignature
+          ? [zkLoginSignature, sponsorSignature]
+          : zkLoginSignature,
+        options: { showEffects: true },
+      });
+    } catch (err) {
+      if (isZkLoginVerifyError(err)) {
+        throw new SessionExpiredError(
+          "Your sign-in needs to be refreshed. Please sign in again to continue.",
+        );
+      }
+      throw err;
+    }
+  });
   return { digest: result.digest, effects: result.effects };
 }
 
