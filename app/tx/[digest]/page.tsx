@@ -10,6 +10,7 @@ import {
   PiXCircleFill,
   PiArrowDownLeftBold,
   PiArrowUpRightBold,
+  PiArrowSquareOutBold,
 } from "react-icons/pi";
 import { Screen } from "@/components/ui/Screen";
 import { Button } from "@/components/ui/Button";
@@ -30,13 +31,22 @@ import {
 } from "@/lib/wallet";
 
 const kindLabel: Record<string, string> = {
-  pay:     "Merchant payment",
+  pay: "Merchant payment",
   deposit: "Deposit received",
-  topup:   "Card top up",
-  refund:  "Refund received",
+  topup: "Card top up",
+  refund: "Refund received",
 };
 
-export default function TxPage({ params }: { params: Promise<{ digest: string }> }) {
+function shorten(str: string): string {
+  if (str.length <= 16) return str;
+  return `${str.slice(0, 8)}…${str.slice(-6)}`;
+}
+
+export default function TxPage({
+  params,
+}: {
+  params: Promise<{ digest: string }>;
+}) {
   const { digest } = use(params);
   const router = useRouter();
   const { hydrated, session } = useSession();
@@ -99,7 +109,7 @@ export default function TxPage({ params }: { params: Promise<{ digest: string }>
     <Screen>
       <AnimatedComponent
         variant={slideInOut}
-        className="grid gap-6 py-10 text-sm text-neutral-900 dark:text-white"
+        className="grid gap-4 py-4 text-sm text-neutral-900 dark:text-white"
       >
         <Link
           href="/history"
@@ -108,17 +118,21 @@ export default function TxPage({ params }: { params: Promise<{ digest: string }>
           <PiArrowLeftBold /> Back to activity
         </Link>
 
-        <div className="grid place-items-center gap-3 text-center">
-          <span className={`grid size-16 place-items-center rounded-full text-2xl ${heroBg}`}>
+        <div className="grid place-items-center gap-2 text-center">
+          <span
+            className={`grid size-14 place-items-center rounded-full text-2xl ${heroBg}`}
+          >
             <HeroIcon />
           </span>
           <p className="font-medium tabular-nums text-neutral-900 dark:text-white">
-            <span className="text-3xl">
+            <span className="text-2xl">
               {formatUsdcSigned(t.amount_subunit)}
             </span>{" "}
-            <span className="text-base text-gray-500 dark:text-white/50">USDC</span>
+            <span className="text-sm text-gray-500 dark:text-white/50">
+              USDC
+            </span>
           </p>
-          <p className="text-sm text-gray-500 dark:text-white/50">
+          <p className="text-xs text-gray-500 dark:text-white/50">
             ≈ {formatNgnFromUsdc(t.amount_subunit, wallet.data.ngn_rate)} ·{" "}
             {kindLabel[t.kind] ?? t.kind}
           </p>
@@ -154,34 +168,34 @@ export default function TxPage({ params }: { params: Promise<{ digest: string }>
                   {
                     label: "Reference",
                     value: (
-                      <span className="font-mono text-xs">{t.reference}</span>
+                      <span className="font-mono text-xs">
+                        {shorten(t.reference)}
+                      </span>
                     ),
                   },
                 ]
               : []),
-            {
-              label: "Amount",
-              value: (
-                <span className="tabular-nums">{formatUsdc(Math.abs(t.amount_subunit))} USDC</span>
-              ),
-            },
-            {
-              label: "Equivalent",
-              value: (
-                <span className="tabular-nums">
-                  {formatNgnFromUsdc(t.amount_subunit, wallet.data.ngn_rate)}
-                </span>
-              ),
-            },
+
             { label: "Network", value: "Sui" },
             {
-              label: "When",
-              value: `${formatTimeAgo(t.at)} · ${new Date(t.at).toLocaleString()}`,
+              label: "Date",
+              value: new Date(t.at).toLocaleString(undefined, {
+                dateStyle: "medium",
+                timeStyle: "short",
+              }),
             },
             {
               label: "Digest",
               value: (
-                <span className="break-all font-mono text-xs">{t.digest}</span>
+                <a
+                  href={`https://suiscan.xyz/${process.env.NEXT_PUBLIC_SUI_NETWORK ?? "testnet"}/tx/${t.digest}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 font-mono text-xs text-blue-600 hover:underline dark:text-blue-400"
+                >
+                  {shorten(t.digest)}
+                  <PiArrowSquareOutBold className="text-[10px]" />
+                </a>
               ),
             },
           ]}

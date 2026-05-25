@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { PiXBold, PiCameraSlashFill } from "react-icons/pi";
 
 interface QRScannerProps {
@@ -19,6 +20,11 @@ export function QRScanner({ onResult, onClose }: QRScannerProps) {
     "qrscanner-" + Math.random().toString(36).slice(2, 9),
   );
   const [error, setError] = useState<string | null>(null);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     let stopped = false;
@@ -74,7 +80,9 @@ export function QRScanner({ onResult, onClose }: QRScannerProps) {
     };
   }, [onResult]);
 
-  return (
+  if (!mounted) return null;
+
+  return createPortal(
     <div className="fixed inset-0 z-[160] flex flex-col bg-neutral-900 text-white">
       <div className="flex items-center justify-between p-4">
         <span className="text-sm font-medium">Aim at the merchant&apos;s QR</span>
@@ -107,9 +115,10 @@ export function QRScanner({ onResult, onClose }: QRScannerProps) {
         )}
       </div>
 
-      <p className="border-t border-white/10 px-4 py-3 text-center text-xs text-white/50">
+      <p className="border-t border-white/10 px-4 pt-3 pb-[max(env(safe-area-inset-bottom),0.75rem)] text-center text-xs text-white/50">
         We never see your camera feed — scanning runs entirely on your device.
       </p>
-    </div>
+    </div>,
+    document.body,
   );
 }
