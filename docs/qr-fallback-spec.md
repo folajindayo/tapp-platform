@@ -11,7 +11,7 @@ Functionally equivalent to the Android HCE flow from the payer's POV — same UR
 
 ## Payload
 
-Identical to the HCE payload: `https://checkout.zoracle.com/order/<order_id>`, returned by `POST /v1/sender/me/tap`.
+Identical to the HCE payload: `https://checkout.zoracle.xyz/order/<order_id>`, returned by `POST /v1/sender/me/tap`.
 
 Encoded as a QR code, error-correction level **Q (25%)** — enough resilience for tilted scans, slight glare. Not L (7%) which is fragile.
 
@@ -93,15 +93,15 @@ Modern smartphones all auto-detect QR codes in their default camera apps from iO
 
 ## Compared to HCE (Android merchant)
 
-| Aspect                        | HCE (Android)            | QR (iOS / Android fallback) |
-|-------------------------------|--------------------------|------------------------------|
-| Payer interaction             | Tap device on device     | Open camera, frame QR        |
-| Time to action (typical)      | ~1s                      | ~3–5s                        |
-| Cross-device reliability      | Very high (NFC peer)     | High (depends on lighting)   |
-| Requires payer's app          | No                       | No                           |
-| Requires merchant unlocked    | Yes (screen on)          | Yes (app foreground)         |
-| Works in direct sunlight      | Yes                      | Degraded; still usable       |
-| Distance                      | Contact / ~1cm           | ~15–40cm typical             |
+| Aspect                     | HCE (Android)        | QR (iOS / Android fallback) |
+| -------------------------- | -------------------- | --------------------------- |
+| Payer interaction          | Tap device on device | Open camera, frame QR       |
+| Time to action (typical)   | ~1s                  | ~3–5s                       |
+| Cross-device reliability   | Very high (NFC peer) | High (depends on lighting)  |
+| Requires payer's app       | No                   | No                          |
+| Requires merchant unlocked | Yes (screen on)      | Yes (app foreground)        |
+| Works in direct sunlight   | Yes                  | Degraded; still usable      |
+| Distance                   | Contact / ~1cm       | ~15–40cm typical            |
 
 The HCE flow is faster for in-person quick-tap; QR is universally compatible.
 

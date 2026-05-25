@@ -33,7 +33,7 @@ export function useOnboardingState(): OnboardingState {
   const bankQuery = useQuery({
     queryKey: ['merchant', 'bank-account'],
     queryFn: merchantApi.getBankAccount,
-    enabled: isAuthenticated && !!me && me.is_email_verified,
+    enabled: isAuthenticated && !!me,
     staleTime: 30_000,
     retry: (_, error) => {
       const code = (error as { code?: string })?.code;
@@ -47,7 +47,7 @@ export function useOnboardingState(): OnboardingState {
   const user = meQuery.data;
   if (!user) return { step: 'sign-in', loading: false };
 
-  if (!user.is_email_verified) return { step: 'verify-email', loading: false };
+  // if (!user.is_email_verified) return { step: 'verify-email', loading: false };
 
   if (bankQuery.isLoading) return { step: kycDone ? 'bank-account' : 'kyb', loading: true };
 

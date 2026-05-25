@@ -13,7 +13,7 @@
 // reader (Tap card) is visual-only; wire to expo-nfc-manager in a
 // follow-up.
 
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, View, useColorScheme } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -26,7 +26,6 @@ import Animated, {
   withTiming,
   cancelAnimation,
 } from 'react-native-reanimated';
-import { useEffect } from 'react';
 import { ChevronLeft } from 'lucide-react-native';
 import { useTapBroadcast } from '@/hooks/useTapBroadcast';
 import { Text } from '@/ui';
@@ -52,6 +51,7 @@ export default function AcceptPaymentScreen() {
   const memoStr = typeof memo === 'string' ? memo : undefined;
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
+  const [activeTab, setActiveTab] = useState<'nfc' | 'scan'>('nfc');
 
   // Reuse the existing broadcast hook — it creates the order via Rails
   // and subscribes to settlement events. The NFC HCE side of the hook is
@@ -113,52 +113,66 @@ export default function AcceptPaymentScreen() {
           <View style={s.headerRight} />
         </View>
 
-        {/* Main card — both affordances stacked */}
+        {/* Main card — tabbed affordance */}
         <View style={s.card}>
-          {/* QR — visible affordance for phone payment */}
-          <View style={s.qrSlot}>
-            {checkoutUrl ? (
-              <View style={[s.qrSurface, { borderColor: isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.1)' }]}>
-                <QRCodeStyled
-                  data={checkoutUrl}
-                  size={196}
-                  color={isDark ? '#FFFFFF' : '#121212'}
-                  style={{ backgroundColor: 'transparent' }}
-                  pieceCornerType="rounded"
-                  pieceBorderRadius={4}
-                  isPiecesGlued={true}
-                  outerEyesOptions={{
-                    borderRadius: 12,
-                    color: isDark ? '#FFFFFF' : '#121212',
-                  }}
-                  innerEyesOptions={{
-                    borderRadius: 6,
-                    color: isDark ? '#FFFFFF' : '#121212',
-                  }}
-                />
-              </View>
-            ) : (
-              <View style={[s.qrSurface, s.qrPlaceholder, { borderColor: isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.1)' }]}>
-                <ActivityIndicator color={isDark ? '#FFFFFF' : '#121212'} />
-              </View>
-            )}
-            <Text style={s.affordanceLabel}>Scan with phone</Text>
-            <Text style={s.affordanceHint}>Customer opens camera and scans</Text>
+          {/* Segmented Control / Tab Bar */}
+          <View style={s.tabContainer}>
+            <Pressable
+              onPress={() => setActiveTab('nfc')}
+              style={[s.tabButton, activeTab === 'nfc' && s.tabButtonActive]}
+            >
+              <Text style={[s.tabLabel, activeTab === 'nfc' && s.tabLabelActive]}>NFC Tap</Text>
+            </Pressable>
+            <Pressable
+              onPress={() => setActiveTab('scan')}
+              style={[s.tabButton, activeTab === 'scan' && s.tabButtonActive]}
+            >
+              <Text style={[s.tabLabel, activeTab === 'scan' && s.tabLabelActive]}>QR Scan</Text>
+            </Pressable>
           </View>
 
-          {/* OR divider */}
-          <View style={s.divider}>
-            <View style={s.dividerLine} />
-            <Text style={s.dividerText}>OR</Text>
-            <View style={s.dividerLine} />
-          </View>
+          {activeTab === 'nfc' ? (
+            /* NFC slot */
+            <View style={s.nfcSlot}>
+              <NfcPulse />
+              <Text style={s.affordanceLabel}>Tap card here</Text>
+              <Text style={s.affordanceHint}>Customer holds Tapp card to the back</Text>
+            </View>
+          ) : (
+            /* QR — visible affordance for phone payment */
+            <View style={s.qrSlot}>
+              {checkoutUrl ? (
+                <View style={[s.qrSurface, { borderColor: isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.1)' }]}>
+                  <QRCodeStyled
+                    data={checkoutUrl}
+                    size={220}
+                    color={isDark ? '#FFFFFF' : '#121212'}
+                    style={{ backgroundColor: 'transparent' }}
+                    pieceCornerType="rounded"
+                    pieceBorderRadius={4}
+                    isPiecesGlued={true}
+                    outerEyesOptions={{
+                      borderRadius: 12,
+                      color: isDark ? '#FFFFFF' : '#121212',
+                    }}
+                    innerEyesOptions={{
+                      borderRadius: 6,
+                      color: isDark ? '#FFFFFF' : '#121212',
+                    }}
+                  />
+                </View>
+              ) : (
+                <View style={[s.qrSurface, s.qrPlaceholder, { borderColor: isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.1)' }]}>
+                  <ActivityIndicator color={isDark ? '#FFFFFF' : '#121212'} />
+                </View>
+              )}
+              <Text style={s.affordanceLabel}>Scan with phone</Text>
+              <Text style={s.affordanceHint}>Customer opens camera and scans</Text>
+            </View>
+          )}
 
-          {/* NFC zone — invisible affordance for card tap */}
-          <View style={s.nfcSlot}>
-            <NfcPulse />
-            <Text style={s.affordanceLabel}>Tap card here</Text>
-            <Text style={s.affordanceHint}>Customer holds Tapp card to the back</Text>
-          </View>
+          {/* Bottom spacer to balance card content vertically */}
+          <View style={{ height: 20 }} />
         </View>
 
         {/* Status footer */}
@@ -271,15 +285,15 @@ const s = StyleSheet.create({
     borderWidth: 1,
   },
   qrPlaceholder: {
-    width: 228,
-    height: 228,
+    width: 252,
+    height: 252,
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: 16,
     borderWidth: 1,
   },
   affordanceLabel: {
-    marginTop: 6,
+    marginTop: 12,
     fontFamily: 'BricolageGrotesque-SemiBold',
     fontSize: 15,
     color: PAL.text,
@@ -289,25 +303,33 @@ const s = StyleSheet.create({
     fontSize: 12,
     color: PAL.textMuted,
   },
-
-  // OR divider
-  divider: {
+  tabContainer: {
     flexDirection: 'row',
-    alignItems: 'center',
-    alignSelf: 'stretch',
-    gap: 10,
-    paddingVertical: 4,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderRadius: 20,
+    padding: 4,
+    width: '100%',
+    maxWidth: 300,
+    marginBottom: 24,
   },
-  dividerLine: {
+  tabButton: {
     flex: 1,
-    height: StyleSheet.hairlineWidth,
-    backgroundColor: PAL.divider,
+    height: 36,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  dividerText: {
+  tabButtonActive: {
+    backgroundColor: 'rgba(255, 255, 255, 0.12)',
+  },
+  tabLabel: {
     fontFamily: 'BricolageGrotesque-Medium',
-    fontSize: 11,
-    color: PAL.textSubtle,
-    letterSpacing: 1.2,
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.45)',
+  },
+  tabLabelActive: {
+    fontFamily: 'BricolageGrotesque-SemiBold',
+    color: '#FFFFFF',
   },
 
   // NFC slot

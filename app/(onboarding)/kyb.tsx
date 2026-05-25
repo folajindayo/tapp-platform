@@ -62,7 +62,7 @@ export default function KybScreen() {
     if (router.canGoBack()) {
       router.back();
     } else {
-      router.replace('/(auth)/verify-email');
+      router.replace('/(auth)/sign-in');
     }
   };
 

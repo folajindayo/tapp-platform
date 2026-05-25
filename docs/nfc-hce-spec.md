@@ -113,7 +113,7 @@ A single `byte[]` slot on `TappHceService` companion holds the current NDEF payl
 
 ## NDEF encoding
 
-For `https://checkout.zoracle.com/order/ord_abc`:
+For `https://checkout.zoracle.xyz/order/ord_abc`:
 
 ```
 NDEF Message:
@@ -122,7 +122,7 @@ NDEF Message:
     type length:    1
     payload length: <varies>
     type:           "U"
-    payload:        [0x04] + "checkout.zoracle.com/order/ord_abc"
+    payload:        [0x04] + "checkout.zoracle.xyz/order/ord_abc"
                     (URI prefix byte 0x04 = "https://")
 ```
 

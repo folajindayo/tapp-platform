@@ -59,7 +59,7 @@ export default function TransactionDetailScreen() {
     <Screen>
       <Header title="Payment detail" />
       <View className="items-center mt-2 mb-6">
-        <Text className="text-5xl font-bold text-ink" style={{ fontVariant: ['tabular-nums'] }}>
+        <Text className="!text-5xl font-bold text-ink" style={{ fontVariant: ['tabular-nums'] }}>
           {formatNgn(order.amount)}
         </Text>
         <Text className="text-muted-text mt-2">{subline}</Text>

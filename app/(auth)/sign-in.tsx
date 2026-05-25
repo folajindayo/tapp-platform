@@ -10,13 +10,14 @@
 import { useState } from 'react';
 import {
   Keyboard,
+  Pressable,
   ScrollView,
   StyleSheet,
   TextInput,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
+import { Link, router } from 'expo-router';
 import { Button, Icon, Icons, Text } from '@/ui';
 
 const PAL = {
@@ -65,7 +66,7 @@ export default function SignInEmailScreen() {
         </View>
 
         <Text style={s.title}>Continue with Email</Text>
-        <Text style={s.subtitle}>Sign in or sign up with your email.</Text>
+        <Text style={s.subtitle}>Sign in with your email.</Text>
 
         <TextInput
           value={email}
@@ -91,6 +92,17 @@ export default function SignInEmailScreen() {
             className="rounded-[16px]"
           />
         </View>
+
+        <View style={{ flex: 1, minHeight: 40 }} />
+
+        <View style={s.signupRow}>
+          <Text style={s.signupHint}>Don't have an account? </Text>
+          <Link href="/(auth)/sign-up" asChild>
+            <Pressable hitSlop={6}>
+              <Text style={s.signupLink}>Sign up</Text>
+            </Pressable>
+          </Link>
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
@@ -103,6 +115,7 @@ const s = StyleSheet.create({
     backgroundColor: PAL.bg,
   },
   scroll: {
+    flexGrow: 1,
     paddingHorizontal: 20,
     paddingTop: 24,
     paddingBottom: 24,
@@ -143,5 +156,21 @@ const s = StyleSheet.create({
   },
   buttonWrap: {
     width: '100%',
+  },
+  signupRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'baseline',
+    marginTop: 20,
+  },
+  signupHint: {
+    fontFamily: 'BricolageGrotesque-Regular',
+    fontSize: 14,
+    color: PAL.textMuted,
+  },
+  signupLink: {
+    fontFamily: 'BricolageGrotesque-SemiBold',
+    fontSize: 14,
+    color: PAL.button,
   },
 });

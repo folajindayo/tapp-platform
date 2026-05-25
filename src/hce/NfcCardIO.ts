@@ -27,8 +27,8 @@
 // protocol details. The actual NfcManager calls live behind
 // `react-native-nfc-manager`'s transceive API.
 
-import NfcManager, { NfcTech, Ndef } from 'react-native-nfc-manager';
-import { hexToBytes } from '@/hooks/pinHmac';
+import NfcManager, { NfcTech, Ndef } from "react-native-nfc-manager";
+import { hexToBytes } from "@/hooks/pinHmac";
 
 // NDEF external-record TNF code per the NFC Forum NDEF spec.
 const TNF_EXTERNAL_TYPE = 0x04;
@@ -50,7 +50,7 @@ async function pwdAuth(passwordHex: string): Promise<Uint8Array> {
   const resp = await NfcManager.transceive([0x1b, ...pwd]);
   const pack = Uint8Array.from(resp);
   if (pack.length < 2) {
-    throw new Error('PWD_AUTH returned no PACK — wrong password?');
+    throw new Error("PWD_AUTH returned no PACK — wrong password?");
   }
   return pack;
 }
@@ -80,7 +80,9 @@ async function readSecretPages(): Promise<Uint8Array> {
  * K is read inside the same session that does the debit + write-back
  * (see `useTapCard.ts`) to avoid prompting the user to tap twice.
  */
-export async function readSecretWithAuth(passwordHex: string): Promise<Uint8Array> {
+export async function readSecretWithAuth(
+  passwordHex: string,
+): Promise<Uint8Array> {
   try {
     await NfcManager.requestTechnology(NfcTech.NfcA);
     await pwdAuth(passwordHex);
@@ -104,16 +106,16 @@ export async function readCurrentTokenNdef(): Promise<Uint8Array> {
   // starting at page 4, so the parser handles the framing for us.
   const tag = await NfcManager.getTag();
   if (!tag?.ndefMessage?.length) {
-    throw new Error('Card has no NDEF message — needs re-linking');
+    throw new Error("Card has no NDEF message — needs re-linking");
   }
   const first = tag.ndefMessage[0];
-  if (!first?.payload) throw new Error('Empty NDEF payload');
+  if (!first?.payload) throw new Error("Empty NDEF payload");
   return Uint8Array.from(first.payload);
 }
 
 /**
  * Write the new rotation token back to the card. Wraps as an NDEF
- * external record ("zoracle.com:tapp-card") so the page layout stays
+ * external record ("zoracle.xyz:tapp-card") so the page layout stays
  * stable across rotations.
  *
  * Assumes the caller already authenticated via PWD_AUTH in the same
@@ -123,12 +125,12 @@ export async function writeRotation(newTokenHex: string): Promise<void> {
   const payload = hexToBytes(newTokenHex);
   const record = Ndef.record(
     TNF_EXTERNAL_TYPE,
-    'zoracle.com:tapp-card',
+    "zoracle.xyz:tapp-card",
     [],
     Array.from(payload),
   );
   const bytes = Ndef.encodeMessage([record]);
-  if (!bytes) throw new Error('NDEF encode failed');
+  if (!bytes) throw new Error("NDEF encode failed");
   await NfcManager.ndefHandler.writeNdefMessage(bytes);
 }
 

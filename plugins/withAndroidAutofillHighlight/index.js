@@ -14,7 +14,7 @@ const { withDangerousMod } = require('expo/config-plugins');
 const fs = require('fs');
 const path = require('path');
 
-const ITEM = '<item name="android:autofillHighlightColor">@android:color/transparent</item>';
+const ITEM = '<item name="android:autofilledHighlight">@android:color/transparent</item>';
 
 module.exports = function withAndroidAutofillHighlight(config) {
   return withDangerousMod(config, [
@@ -29,7 +29,7 @@ module.exports = function withAndroidAutofillHighlight(config) {
 
       let xml = fs.readFileSync(stylesPath, 'utf8');
 
-      if (xml.includes('autofillHighlightColor')) return config;
+      if (xml.includes('autofilledHighlight')) return config;
 
       // Inject into the first <style> block (AppTheme).
       xml = xml.replace(

@@ -17,11 +17,11 @@ After the NFC read, the app calls `GET /v1/sender/me/tap-card/nonce`
 with `{ amount, card_uid_hash }`. The server returns a single-use
 `server_nonce` and the **tier** the amount falls into:
 
-| Amount band (NGN, default)   | `tier`     | UI                         |
-| ---------------------------- | ---------- | -------------------------- |
-| `< ₦2,000`                   | `none`     | No prompt; submit immediately |
-| `₦2,000 – ₦15,000`           | `pin`      | PIN pad screen             |
-| `> ₦15,000`                  | `step_up`  | QR screen → PWA biometric  |
+| Amount band (NGN, default) | `tier`    | UI                            |
+| -------------------------- | --------- | ----------------------------- |
+| `< ₦2,000`                 | `none`    | No prompt; submit immediately |
+| `₦2,000 – ₦15,000`         | `pin`     | PIN pad screen                |
+| `> ₦15,000`                | `step_up` | QR screen → PWA biometric     |
 
 Thresholds are per-card (cardholder can lower in their PWA), with
 hard daily-cap backstop. Defaults are the v1 cut listed in the Rails
@@ -83,6 +83,7 @@ Merchant           Tapp App                       Rails             Sui
 ```
 
 Rejection paths:
+
 - `403 token_invalid_resync_required` → "Card needs to resync. Ask
   cardholder to open Zoracle on their phone." (terminal, no retry).
   Friendly copy explaining what happened.
@@ -94,7 +95,7 @@ Rejection paths:
 - `402 daily_limit_exceeded` → "Daily limit reached. Try phone-to-phone
   instead." Terminal.
 
-**In-the-moment write rescue:** if `writeNdefMessage` fails *after* a
+**In-the-moment write rescue:** if `writeNdefMessage` fails _after_ a
 successful debit (200 returned), show "Please tap once more to
 finalize." If the card is still nearby, the second tap retries the
 write under the same order. After ~10 seconds with no recovery tap,
@@ -137,6 +138,7 @@ when the NFC reader returns a successful read.
 ```
 
 Implementation notes:
+
 - Auto-submit on the 4th digit (no "Confirm" button — speed first).
 - Android: set `FLAG_SECURE` on the activity for the duration of this
   screen so the keypad doesn't show up in recent-apps screenshots or
@@ -172,6 +174,7 @@ QR + copy:
 ```
 
 Implementation:
+
 - QR payload = the `step_up_token` URL the backend returned (PWA
   knows how to open it).
 - Poll `GET /v1/sender/me/tap-card/step-up?token={step_up_token}`
@@ -192,16 +195,21 @@ HMAC response, ships it, and zeroes everything.
 `src/hooks/useTapCard.ts` adds:
 
 ```ts
-import { hmac } from '@noble/hashes/hmac';
-import { sha256 } from '@noble/hashes/sha256';
-import { utf8ToBytes, hexToBytes, bytesToHex, concatBytes } from '@noble/hashes/utils';
+import { hmac } from "@noble/hashes/hmac";
+import { sha256 } from "@noble/hashes/sha256";
+import {
+  utf8ToBytes,
+  hexToBytes,
+  bytesToHex,
+  concatBytes,
+} from "@noble/hashes/utils";
 
-const LINKING_ANCHOR = utf8ToBytes('linking-anchor-v1');
+const LINKING_ANCHOR = utf8ToBytes("linking-anchor-v1");
 
 function computePinResponse(
-  K: Uint8Array,            // read from card (32 bytes)
-  pin: string,              // typed by cardholder
-  serverNonce: Uint8Array,  // from GET /tap-card/nonce
+  K: Uint8Array, // read from card (32 bytes)
+  pin: string, // typed by cardholder
+  serverNonce: Uint8Array, // from GET /tap-card/nonce
 ): Uint8Array {
   const kPrime = hmac(sha256, K, utf8ToBytes(pin));
   const anchor = hmac(sha256, kPrime, LINKING_ANCHOR);
@@ -228,16 +236,16 @@ in the field (the reader session was kept open through the PIN
 prompt — see `useTapCard.ts` lifecycle).
 
 ```ts
-import NfcManager, { NfcTech, Ndef } from 'react-native-nfc-manager';
+import NfcManager, { NfcTech, Ndef } from "react-native-nfc-manager";
 
 async function writeRotation(newTokenCt: Uint8Array, cardPassword: Uint8Array) {
   await NfcManager.requestTechnology(NfcTech.Ndef);
   // NTAG215 PWD_AUTH — auth before write so the password-locked
   // sector is writable. card_password is short-lived (server reissues
   // per-tap, single-use).
-  await NfcManager.transceive([0x1B, ...cardPassword]);
+  await NfcManager.transceive([0x1b, ...cardPassword]);
   const message = Ndef.encodeMessage([
-    Ndef.externalRecord('zoracle.com:tapp-card', newTokenCt),
+    Ndef.externalRecord("zoracle.xyz:tapp-card", newTokenCt),
   ]);
   await NfcManager.ndefHandler.writeNdefMessage(message);
 }
@@ -249,6 +257,7 @@ set during PWA linking. The `card_password` value comes back in the
 so a captured per-tap password can't be reused for a future write.
 
 Failure modes:
+
 - **Card moved out of field mid-write** → show "Please tap once more
   to finalize." If retap within ~10s, retry the write under the same
   `order_id` (same token, same password). After timeout, POST
@@ -264,6 +273,7 @@ Failure modes:
 
 Each Tap Card transaction logs (Sentry breadcrumbs, not
 PII-bearing):
+
 - `tap_card.read_ok` / `tap_card.read_fail`
 - `tap_card.pin_attempts` (count, never the digits)
 - `tap_card.step_up_required` / `tap_card.step_up_granted`
@@ -277,15 +287,15 @@ Used to drive the target metric: **< 6 seconds** from card tap to
 
 ## Files this spec adds / changes
 
-| File | Change |
-| --- | --- |
-| `app/(app)/tap-card.tsx` | After NFC read, call `GET /tap-card/nonce` and branch on `tier`. |
-| `app/(app)/tap-card-pin.tsx` | **NEW.** PIN pad + on-device HMAC compute + submit. |
-| `app/(app)/tap-card-step-up.tsx` | **NEW.** QR + poll + re-submit. |
-| `src/hooks/useTapCard.ts` | Adds tier branching, K/PIN handling (wipe-on-use), HMAC math, write-back with PWD_AUTH, in-the-moment rescue, step-up retry loop. |
-| `src/api/endpoints.ts` | `tapCardApi.nonce()`, updated `tapCardApi.debit()` shape, new `tapCardApi.stepUpPoll()`, `tapCardApi.tokenAck()`. |
-| `src/api/types.ts` | `TapCardNonceResponse` (with `tier`), `TapCardDebitRequest`, `TapCardDebitResponse`, `StepUpRequired`, `TokenAck`. |
-| `package.json` | Add `@noble/hashes` (small, audited). No need for `@noble/curves` or `@noble/ciphers` in the rev-2 design — pure HMAC-SHA256 is enough. |
+| File                             | Change                                                                                                                                  |
+| -------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| `app/(app)/tap-card.tsx`         | After NFC read, call `GET /tap-card/nonce` and branch on `tier`.                                                                        |
+| `app/(app)/tap-card-pin.tsx`     | **NEW.** PIN pad + on-device HMAC compute + submit.                                                                                     |
+| `app/(app)/tap-card-step-up.tsx` | **NEW.** QR + poll + re-submit.                                                                                                         |
+| `src/hooks/useTapCard.ts`        | Adds tier branching, K/PIN handling (wipe-on-use), HMAC math, write-back with PWD_AUTH, in-the-moment rescue, step-up retry loop.       |
+| `src/api/endpoints.ts`           | `tapCardApi.nonce()`, updated `tapCardApi.debit()` shape, new `tapCardApi.stepUpPoll()`, `tapCardApi.tokenAck()`.                       |
+| `src/api/types.ts`               | `TapCardNonceResponse` (with `tier`), `TapCardDebitRequest`, `TapCardDebitResponse`, `StepUpRequired`, `TokenAck`.                      |
+| `package.json`                   | Add `@noble/hashes` (small, audited). No need for `@noble/curves` or `@noble/ciphers` in the rev-2 design — pure HMAC-SHA256 is enough. |
 
 No native module changes needed beyond what
 `react-native-nfc-manager` + `@noble/hashes` already cover. Android
