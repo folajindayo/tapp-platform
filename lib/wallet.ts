@@ -21,43 +21,42 @@ import {
 
 export const WALLET_MOCK = process.env.NEXT_PUBLIC_WALLET_MOCK !== "0";
 
-// Last-resort fallbacks ONLY for when /api/rates is unreachable
-// (offline dev box, both Paycrest + LiFi down at once). Production
-// rates come from /api/rates which fans out to Paycrest (NGN/USDC)
-// and LiFi (SUI/USDC). Keep these intentionally crude so a stale
-// hero is obvious rather than authoritative.
-const FALLBACK_NGN_RATE = 0;
-const FALLBACK_SUI_USDC_RATE = 0;
-
 interface LiveRates {
   ngn_per_usdc: number;
   usdc_per_sui: number;
 }
 
+/**
+ * Fetch live rates from /api/rates (Paycrest NGN/USDC + LiFi
+ * SUI/USDC). Throws on any failure — we deliberately do NOT fall
+ * back to zero/placeholder rates because that would silently show
+ * the user wrong numbers (₦0 equivalent, missing SUI value in the
+ * headline). Callers are expected to surface the error as an
+ * explicit "rates unavailable, retry" UI state instead.
+ */
 async function fetchLiveRates(): Promise<LiveRates> {
   const res = await fetch("/api/rates", {
     headers: { Accept: "application/json" },
   });
   if (!res.ok) {
-    throw new Error(`/api/rates http ${res.status}`);
+    const txt = await res.text().catch(() => "");
+    throw new Error(`/api/rates http ${res.status}: ${txt.slice(0, 200)}`);
   }
   const j = (await res.json()) as {
-    ngn_per_usdc: number;
-    usdc_per_sui: number;
+    ngn_per_usdc?: number;
+    usdc_per_sui?: number;
   };
-  return { ngn_per_usdc: j.ngn_per_usdc, usdc_per_sui: j.usdc_per_sui };
-}
-
-async function safeFetchLiveRates(): Promise<LiveRates> {
-  try {
-    return await fetchLiveRates();
-  } catch (err) {
-    console.warn("[wallet] /api/rates fetch failed, using fallbacks:", err);
-    return {
-      ngn_per_usdc: FALLBACK_NGN_RATE,
-      usdc_per_sui: FALLBACK_SUI_USDC_RATE,
-    };
+  if (
+    typeof j.ngn_per_usdc !== "number" ||
+    typeof j.usdc_per_sui !== "number" ||
+    j.ngn_per_usdc <= 0 ||
+    j.usdc_per_sui <= 0
+  ) {
+    throw new Error(
+      `/api/rates returned malformed body (ngn=${j.ngn_per_usdc}, sui=${j.usdc_per_sui})`,
+    );
   }
+  return { ngn_per_usdc: j.ngn_per_usdc, usdc_per_sui: j.usdc_per_sui };
 }
 
 const API_BASE =
@@ -113,6 +112,7 @@ export interface ActivityEvent {
   reference: string | null;
   status: ActivityStatus;
   at: number;                  // unix ms
+  asset?: "USDC" | "SUI";
 }
 
 export interface OrderDetails {
@@ -191,7 +191,7 @@ async function mockWalletState(
   // Even in mock mode, fetch real rates — the mock-ness is just the
   // balances. Real rates here keep the hero accurate while the
   // backend / on-chain hookup is being built.
-  const rates = await safeFetchLiveRates();
+  const rates = await fetchLiveRates();
   return {
     sui_address:        suiAddress || suiAddressFor(seed),
     usdc_subunit:       72_500_000 + (h % 100_000_000),
@@ -217,7 +217,7 @@ async function onchainWalletState(suiAddress: string): Promise<WalletState> {
   const [usdc, sui, rates] = await Promise.all([
     fetchUsdcSubunit(suiAddress),
     fetchSuiMist(suiAddress),
-    safeFetchLiveRates(),
+    fetchLiveRates(),
   ]);
   return {
     sui_address:       suiAddress,
@@ -255,6 +255,7 @@ async function onchainActivity(suiAddress: string): Promise<ActivityEvent[]> {
         reference:      tx.counterparty,
         status:         "success",
         at:             tx.timestampMs,
+        asset:          isUsdc ? "USDC" : "SUI",
       };
     })
     .filter((x): x is ActivityEvent => x !== null);
@@ -291,6 +292,7 @@ function mockActivity(seed: string, n = 20): ActivityEvent[] {
       reference:      kind === "pay" ? `ref-${(r % 10_000).toString().padStart(4, "0")}` : null,
       status,
       at:             now - i * 1000 * 60 * (10 + (r % 300)),
+      asset:          kind === "deposit" ? (i % 2 === 0 ? "USDC" : "SUI") : undefined,
     });
   }
   return out;
@@ -304,7 +306,7 @@ async function mockOrder(id: string): Promise<OrderDetails> {
   const expires_at = Date.now() + 2 * 60_000;
   // Amount tied to merchant for repeatability.
   const usdc = ((h % 4500) / 100 + 1.25).toFixed(2);
-  const rates = await safeFetchLiveRates();
+  const rates = await fetchLiveRates();
   return {
     id,
     merchant_name:     merchant,
@@ -361,7 +363,7 @@ export const walletApi = {
     // hero math always has something to chew on.
     const w = await realGet<WalletState>("/v1/wallet/me", jwt);
     if (w.ngn_rate != null && w.sui_usdc_rate != null) return w;
-    const rates = await safeFetchLiveRates();
+    const rates = await fetchLiveRates();
     return {
       ...w,
       ngn_rate: w.ngn_rate ?? rates.ngn_per_usdc,

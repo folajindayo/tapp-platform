@@ -41,7 +41,9 @@ export function ActivityRow({ tx, ngnRate, href }: ActivityRowProps) {
   const title =
     tx.kind === "pay"
       ? tx.merchant ?? "Merchant payment"
-      : kindLabel[tx.kind];
+      : tx.kind === "deposit" && tx.asset
+        ? `Deposit ${tx.asset}`
+        : kindLabel[tx.kind];
 
   const Icon = declined
     ? PiXCircleFill

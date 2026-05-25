@@ -9,6 +9,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@cetusprotocol/sui-clmm-sdk": "^1.4.5",
     "@headlessui/react": "^2.2.10",
     "@hookform/resolvers": "^5.4.0",
     "@mysten/sui": "^2.17.0",
