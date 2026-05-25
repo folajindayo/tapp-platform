@@ -71,7 +71,7 @@
     },
     "extra": {
       "apiBaseUrl": "http://localhost:8000",
-      "checkoutBaseUrl": "https://checkout.zoracle.com"
+      "checkoutBaseUrl": "https://checkout.zoracle.xyz"
     }
   }
 }
