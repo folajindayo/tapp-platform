@@ -1,5 +1,5 @@
 import { type ReactNode } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView, type Edge } from 'react-native-safe-area-context';
 
 interface ScreenProps {
@@ -8,6 +8,8 @@ interface ScreenProps {
   contentContainerClassName?: string;
   scrollable?: boolean;
   edges?: Edge[];
+  refreshing?: boolean;
+  onRefresh?: () => void;
 }
 
 /**
@@ -25,6 +27,8 @@ export function Screen({
   contentContainerClassName,
   scrollable = true,
   edges = ['top', 'left', 'right'],
+  refreshing,
+  onRefresh,
 }: ScreenProps) {
   return (
     <SafeAreaView edges={edges} style={styles.root} className={className}>
@@ -35,6 +39,16 @@ export function Screen({
           contentContainerClassName={contentContainerClassName}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
+          refreshControl={
+            onRefresh ? (
+              <RefreshControl
+                refreshing={!!refreshing}
+                onRefresh={onRefresh}
+                tintColor="#0065F5"
+                colors={["#0065F5"]}
+              />
+            ) : undefined
+          }
         >
           {children}
         </ScrollView>

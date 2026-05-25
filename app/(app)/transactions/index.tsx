@@ -92,6 +92,10 @@ export default function TransactionsScreen() {
       <FlatList
         data={monthlyGroups}
         keyExtractor={(item) => item.monthYear}
+        refreshing={query.isRefetching}
+        onRefresh={() => {
+          void query.refetch();
+        }}
         renderItem={({ item }) => (
           <View className="mb-6">
             {/* Month Header label */}

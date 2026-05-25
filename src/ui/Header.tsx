@@ -42,7 +42,7 @@ export function Header({ title, back = true, right, onBack }: HeaderProps) {
           </TouchableOpacity>
         ) : null}
       </View>
-      <Text className="text-base font-semibold text-ink" numberOfLines={1}>
+      <Text className="!text-[16px] font-semibold text-ink" numberOfLines={1}>
         {title ?? ''}
       </Text>
       <View className="w-12 items-end">{right}</View>

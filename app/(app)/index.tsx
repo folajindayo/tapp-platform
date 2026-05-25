@@ -229,7 +229,7 @@ const s = StyleSheet.create({
   },
   todayText: {
     fontFamily: 'BricolageGrotesque-SemiBold',
-    fontSize: 12,
+    fontSize: 14,
     color: PAL.text,
   },
   todayCount: {
