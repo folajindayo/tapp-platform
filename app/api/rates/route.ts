@@ -50,6 +50,12 @@ let cache: { data: Rates; expiresAt: number } | null = null;
 const PAYCREST_BASE = "https://api.paycrest.io";
 const LIFI_BASE = "https://li.quest/v1";
 
+// LiFi quotes here are intentionally keyless. Per LiFi guidance, the
+// API key must only live on the canonical backend (Rails) — Next.js
+// route handlers in this repo count as "frontend" for that purpose.
+// Free-tier limits are sufficient for wallet-hero display rates.
+// When scale demands authenticated quotes, proxy through Rails.
+
 // Mainnet constants.
 const SUI_CHAIN_ID = "9270000000000000";
 const BASE_CHAIN_ID = "8453";
