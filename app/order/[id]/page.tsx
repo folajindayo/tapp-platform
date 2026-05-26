@@ -66,9 +66,8 @@ export default function OrderPage({ params }: { params: Promise<{ id: string }> 
   const haptic = useHaptic();
 
   // Compute the payment plan dynamically based on order details and user balances
-  const o = order.data;
-  const paymentPlan = (wallet.data && o) ? calculatePaymentPlan(
-    o.amount_subunit,
+  const paymentPlan = (wallet.data && order.data) ? calculatePaymentPlan(
+    order.data.amount_subunit,
     wallet.data.usdc_subunit,
     wallet.data.sui_mist,
     wallet.data.sui_usdc_rate
@@ -241,7 +240,6 @@ export default function OrderPage({ params }: { params: Promise<{ id: string }> 
   }
 
   const o = order.data;
-  const insufficient = !paymentPlan;
 
   if (phase === "done") {
     return (
