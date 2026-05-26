@@ -618,7 +618,7 @@ export const walletApi = {
 // UUID). Server only forwards events whose payload.order_id matches
 // the URL param, so subscribers see ONLY their own order's lifecycle.
 export function orderStreamURL(orderID: string): string {
-  return `${API_BASE}/v1/orders/${encodeURIComponent(orderID)}/stream`;
+  return `/api/orders/${encodeURIComponent(orderID)}/stream`;
 }
 
 // -----------------------------------------------------------------------------
