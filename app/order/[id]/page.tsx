@@ -417,8 +417,8 @@ export default function OrderPage({ params }: { params: Promise<{ id: string }> 
               </p>
             </InfoBanner>
 
-            <div className="rounded-3xl border border-blue-100 bg-blue-50/50 p-5 text-sm dark:border-blue-900/30 dark:bg-blue-900/5">
-              <p className="mb-3 font-semibold text-blue-800 dark:text-blue-400">Payment Breakdown</p>
+            <div className="rounded-3xl border border-gray-200 bg-gray-50/50 p-5 text-sm dark:border-white/10 dark:bg-white/5">
+              <p className="mb-3 font-semibold text-neutral-900 dark:text-white">Payment Breakdown</p>
               <div className="space-y-2">
                 <div className="flex justify-between text-xs text-gray-500 dark:text-white/50">
                   <span>USDC Balance Used</span>
@@ -432,7 +432,7 @@ export default function OrderPage({ params }: { params: Promise<{ id: string }> 
                     {formatUsdc(paymentPlan.breakdown.suiPaidInUsdc)} USDC
                   </span>
                 </div>
-                <hr className="border-dashed border-blue-100 dark:border-blue-900/30" />
+                <hr className="border-dashed border-gray-200 dark:border-white/10" />
                 <div className="flex justify-between text-xs text-gray-500 dark:text-white/50">
                   <span>SUI to Swap (Estimated)</span>
                   <span className="font-medium text-neutral-900 dark:text-white/80 tabular-nums">
@@ -457,8 +457,8 @@ export default function OrderPage({ params }: { params: Promise<{ id: string }> 
                     {(paymentPlan.breakdown.gasFeeSui / 1_000_000_000).toFixed(2)} SUI
                   </span>
                 </div>
-                <hr className="border-blue-100 dark:border-blue-900/30" />
-                <div className="flex justify-between text-xs font-semibold text-blue-900 dark:text-blue-300">
+                <hr className="border-gray-200 dark:border-white/10" />
+                <div className="flex justify-between text-xs font-semibold text-neutral-900 dark:text-white">
                   <span>Total SUI Swapped + Gas</span>
                   <span className="tabular-nums">
                     {((paymentPlan.suiNeededMist + paymentPlan.gasReservationMist) / 1_000_000_000).toFixed(4)} SUI
