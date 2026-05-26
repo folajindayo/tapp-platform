@@ -180,7 +180,7 @@ export interface ExecuteZkLoginOptions {
 }
 
 export async function executeZkLoginTx(
-  buildTx: (tx: Transaction) => void | Promise<void>,
+  buildTx: ((tx: Transaction) => void | Promise<void>) | Transaction,
   opts: ExecuteZkLoginOptions = {},
 ): Promise<{ digest: string; effects?: unknown }> {
   // Tag each major step so a bare "Cannot read properties of undefined"
@@ -214,6 +214,10 @@ export async function executeZkLoginTx(
   }
 
   const tx = await tag("init-tx", async () => {
+    if (buildTx instanceof Transaction) {
+      buildTx.setSender(session.suiAddress!);
+      return buildTx;
+    }
     const t = new Transaction();
     t.setSender(session.suiAddress!);
     await buildTx(t);

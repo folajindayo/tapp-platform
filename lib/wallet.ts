@@ -18,6 +18,8 @@ import {
   USDC_COIN_TYPE,
   SUI_COIN_TYPE,
 } from "./sui-client";
+import { PaymentPlan } from "./payment-plan";
+import { clientLogger } from "./client-logger";
 
 export const WALLET_MOCK = process.env.NEXT_PUBLIC_WALLET_MOCK !== "0";
 
@@ -418,27 +420,43 @@ export const walletApi = {
     _jwt: string,
     order: OrderDetails,
     session: { suiAddress: string; zkLoginReady: boolean },
+    paymentPlan?: PaymentPlan,
   ): Promise<{ acknowledged: true; digest: string }> => {
+    clientLogger.info("confirm-order", "starting order confirmation", {
+      orderId: order.id,
+      paymentPath: paymentPlan?.path ?? "usdc",
+      amountSubunit: order.amount_subunit,
+      zkLoginReady: session.zkLoginReady,
+    });
+
     if (WALLET_MOCK) {
+      clientLogger.info("confirm-order", "running in mock mode, simulating delay");
       await new Promise((r) => setTimeout(r, 800));
       const fakeDigest = "0xtx_mock_" + Date.now().toString(36);
+      clientLogger.info("confirm-order", "generated mock digest", { fakeDigest });
+      
       // Even in mock mode, fire-and-forget the confirm so the merchant's
       // mock-mode SSE consumers advance (no-op when Rails is offline).
-      void realPost(`/v1/orders/${order.id}/confirm`, { txDigest: fakeDigest }).catch(() => {});
+      void realPost(`/v1/orders/${order.id}/confirm`, { txDigest: fakeDigest }).catch((err) => {
+        clientLogger.warn("confirm-order", "mock confirm post failed", { err });
+      });
       return { acknowledged: true, digest: fakeDigest };
     }
 
     if (!session.zkLoginReady) {
+      clientLogger.error("confirm-order", "zkLogin not ready");
       throw new Error(
         "Your sign-in didn't complete the full zkLogin handshake — sign out and back in to enable on-chain payments.",
       );
     }
     if (!order.receive_address) {
+      clientLogger.error("confirm-order", "order missing receive address");
       throw new Error(
         "This order is missing a receive address. Ask the merchant to regenerate it.",
       );
     }
     if (order.amount_subunit <= 0) {
+      clientLogger.error("confirm-order", "order amount is zero or negative", { amount: order.amount_subunit });
       throw new Error("Order amount must be greater than zero.");
     }
 
@@ -452,25 +470,131 @@ export const walletApi = {
     const recipient = order.receive_address;
     const amountSubunit = order.amount_subunit;
 
-    const result = await executeZkLoginTx(async (tx: InstanceType<typeof Transaction>) => {
-      const client = suiReadClient();
-      const coins = await client.getCoins({
-        owner:    session.suiAddress,
-        coinType,
+    let result;
+    
+    if (paymentPlan && paymentPlan.path === "combined") {
+      clientLogger.info("confirm-order", "executing combined SUI + USDC payment path");
+      
+      // Initialize Cetus CLMM SDK for mainnet
+      clientLogger.debug("confirm-order", "initializing Cetus SDK");
+      const { CetusClmmSDK, clmmMainnet } = await import("@cetusprotocol/sui-clmm-sdk");
+      const sdk = new CetusClmmSDK(clmmMainnet);
+      sdk.senderAddress = session.suiAddress;
+
+      clientLogger.debug("confirm-order", "calling createSwapWithoutTransferCoinsPayload", {
+        pool_id: "0xb8d7d9e66a60c239e7a60110efcf8de6c705580ed924d0dde141f4a0e2c90105",
+        suiNeededMist: paymentPlan.suiNeededMist,
+        shortfallUsdcSubunit: paymentPlan.shortfallUsdcSubunit,
       });
-      if (coins.data.length === 0) {
-        throw new Error("No USDC coin objects found in this wallet. Top up first.");
+
+      const swapRes = await sdk.Swap.createSwapWithoutTransferCoinsPayload({
+        pool_id: "0xb8d7d9e66a60c239e7a60110efcf8de6c705580ed924d0dde141f4a0e2c90105", // SUI/USDC 0.25% pool
+        a2b: false, // B to A swap (SUI -> USDC)
+        by_amount_in: true,
+        amount: paymentPlan.suiNeededMist.toString(),
+        amount_limit: paymentPlan.shortfallUsdcSubunit.toString(),
+        coinTypeA: USDC_COIN_TYPE,
+        coinTypeB: SUI_COIN_TYPE,
+      });
+
+      const tx = swapRes.tx;
+      const coin_ab_s = swapRes.coin_ab_s; // coin_ab_s[0] is Coin A (USDC), coin_ab_s[1] is Coin B (SUI)
+
+      clientLogger.debug("confirm-order", "returned swap transaction and coin arguments", {
+        coinsCount: coin_ab_s.length,
+      });
+
+      // Transfer remaining SUI from the swap back to the user's wallet
+      clientLogger.debug("confirm-order", "transferring unspent swap SUI back to sender", {
+        recipient: session.suiAddress,
+      });
+      tx.transferObjects([coin_ab_s[1]], tx.pure.address(session.suiAddress));
+
+      // Fetch user's existing USDC coins
+      const client = suiReadClient();
+      clientLogger.debug("confirm-order", "fetching existing USDC coins in wallet");
+      const coins = await client.getCoins({
+        owner: session.suiAddress,
+        coinType: USDC_COIN_TYPE,
+      });
+
+      let primaryUsdc: any = null;
+      if (coins.data.length > 0) {
+        const inputs = coins.data.map((c) => tx.object(c.coinObjectId));
+        primaryUsdc = inputs[0];
+        if (inputs.length > 1) {
+          clientLogger.debug("confirm-order", "merging multiple USDC coin inputs into primary", {
+            inputsCount: inputs.length,
+          });
+          tx.mergeCoins(primaryUsdc, inputs.slice(1));
+        }
+        clientLogger.debug("confirm-order", "merging swapped USDC coin into primary USDC coin");
+        tx.mergeCoins(primaryUsdc, [coin_ab_s[0]]);
+      } else {
+        clientLogger.info("confirm-order", "no existing USDC coins, using swapped USDC directly as primary");
+        primaryUsdc = coin_ab_s[0];
       }
-      const inputs = coins.data.map((c) => tx.object(c.coinObjectId));
-      const primary = inputs[0];
-      if (inputs.length > 1) {
-        // Multi-coin wallets need a merge so we can split a single
-        // (potentially large) coin into the exact amount the merchant
-        // expects — Sui PTBs can't aggregate balance across inputs.
-        tx.mergeCoins(primary, inputs.slice(1));
-      }
-      const [out] = tx.splitCoins(primary, [tx.pure.u64(BigInt(amountSubunit))]);
+
+      // Split the exact amount owed to the merchant
+      clientLogger.debug("confirm-order", "splitting merchant payment from primary USDC coin", {
+        amountSubunit,
+      });
+      const [out] = tx.splitCoins(primaryUsdc, [tx.pure.u64(BigInt(amountSubunit))]);
+      
+      clientLogger.debug("confirm-order", "transferring payment coin to merchant", {
+        recipient,
+      });
       tx.transferObjects([out], tx.pure.address(recipient));
+
+      // If user had no existing USDC coins, the swapped USDC coin was the primary coin.
+      // We must transfer the remaining change on primaryUsdc back to the sender.
+      if (coins.data.length === 0) {
+        clientLogger.debug("confirm-order", "transferring remaining USDC change back to sender", {
+          recipient: session.suiAddress,
+        });
+        tx.transferObjects([primaryUsdc], tx.pure.address(session.suiAddress));
+      }
+
+      clientLogger.info("confirm-order", "submitting self-sponsored combined swap transaction block via zkLogin");
+      result = await executeZkLoginTx(tx, { selfSponsor: true });
+    } else {
+      clientLogger.info("confirm-order", "executing pure USDC payment path");
+      
+      result = await executeZkLoginTx(async (tx: InstanceType<typeof Transaction>) => {
+        const client = suiReadClient();
+        clientLogger.debug("confirm-order", "fetching existing USDC coins in wallet");
+        const coins = await client.getCoins({
+          owner:    session.suiAddress,
+          coinType,
+        });
+        if (coins.data.length === 0) {
+          clientLogger.error("confirm-order", "no USDC coins found in wallet");
+          throw new Error("No USDC coin objects found in this wallet. Top up first.");
+        }
+        
+        const inputs = coins.data.map((c) => tx.object(c.coinObjectId));
+        const primary = inputs[0];
+        if (inputs.length > 1) {
+          clientLogger.debug("confirm-order", "merging multiple USDC coin inputs into primary", {
+            inputsCount: inputs.length,
+          });
+          tx.mergeCoins(primary, inputs.slice(1));
+        }
+        
+        clientLogger.debug("confirm-order", "splitting merchant payment from primary USDC coin", {
+          amountSubunit,
+        });
+        const [out] = tx.splitCoins(primary, [tx.pure.u64(BigInt(amountSubunit))]);
+        
+        clientLogger.debug("confirm-order", "transferring payment coin to merchant", {
+          recipient,
+        });
+        tx.transferObjects([out], tx.pure.address(recipient));
+      });
+    }
+
+    clientLogger.info("confirm-order", "transaction execution complete, notifying backend", {
+      digest: result.digest,
     });
 
     // Best-effort ack so Rails pre-emits payment.deposited and the
@@ -478,7 +602,12 @@ export const walletApi = {
     // poll interval. Indexer remains authoritative — if this POST
     // fails the deposit still settles, just a few seconds slower.
     void realPost(`/v1/orders/${order.id}/confirm`, { txDigest: result.digest })
-      .catch((err) => console.warn("order confirm ack failed:", err));
+      .then(() => {
+        clientLogger.info("confirm-order", "notified backend of transaction confirmation successfully");
+      })
+      .catch((err) => {
+        clientLogger.warn("confirm-order", "order confirm ack failed:", { err });
+      });
 
     return { acknowledged: true, digest: result.digest };
   },
