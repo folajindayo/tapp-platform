@@ -31,6 +31,8 @@ import {
 } from "@/lib/wallet";
 import { useHaptic } from "@/lib/motion";
 import { SessionExpiredError } from "@/lib/zklogin";
+import { calculatePaymentPlan } from "@/lib/payment-plan";
+import { clientLogger } from "@/lib/client-logger";
 
 // Lifecycle: review → (optional step-up) → signing → submitting
 //   → submitted   (chain tx confirmed; awaiting Rails indexer)
@@ -63,17 +65,46 @@ export default function OrderPage({ params }: { params: Promise<{ id: string }> 
   const [digest, setDigest] = useState<string | null>(null);
   const haptic = useHaptic();
 
+  // Compute the payment plan dynamically based on order details and user balances
+  const o = order.data;
+  const paymentPlan = (wallet.data && o) ? calculatePaymentPlan(
+    o.amount_subunit,
+    wallet.data.usdc_subunit,
+    wallet.data.sui_mist,
+    wallet.data.sui_usdc_rate
+  ) : null;
+
+  const insufficient = !paymentPlan;
+
   useEffect(() => {
-    if (hydrated && !session)
+    if (hydrated && !session) {
+      clientLogger.info("checkout-page", "unauthorized session, redirecting to sign-in", { orderId: id });
       router.replace(`/sign-in?next=/order/${encodeURIComponent(id)}`);
+    }
   }, [hydrated, session, router, id]);
+
+  useEffect(() => {
+    clientLogger.info("checkout-page", "page state transition", {
+      orderId: id,
+      phase,
+      hasWallet: !!wallet.data,
+      hasOrder: !!order.data,
+      paymentPlanPath: paymentPlan?.path,
+    });
+  }, [id, phase, !!wallet.data, !!order.data, paymentPlan?.path]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function confirm() {
     if (!session || !order.data) return;
     setError(null);
     haptic.medium();
 
+    clientLogger.info("checkout-page", "confirming order payment", {
+      orderId: order.data.id,
+      path: paymentPlan?.path,
+    });
+
     if (order.data.step_up_required && phase !== "step-up") {
+      clientLogger.info("checkout-page", "biometric step-up verification required first");
       setPhase("step-up");
       return;
     }
@@ -84,7 +115,7 @@ export default function OrderPage({ params }: { params: Promise<{ id: string }> 
       const res = await walletApi.confirmOrder(session.jwt, order.data, {
         suiAddress:    session.suiAddress,
         zkLoginReady:  session.zkLoginReady,
-      });
+      }, paymentPlan ?? undefined);
       setDigest(res.digest);
       // We don't jump to "done" yet — Rails still has to bridge + settle.
       // The SSE subscription below advances the phase through bridging
@@ -92,6 +123,7 @@ export default function OrderPage({ params }: { params: Promise<{ id: string }> 
       setPhase("submitted");
       haptic.success();
     } catch (err) {
+      clientLogger.error("checkout-page", "payment execution failed", { err: String(err) });
       // Expired-JWT → sign out + back to /sign-in with this order as
       // the post-login redirect. Avoids surfacing raw Rails JSON to
       // the user and lets them resume the same payment after auth.
@@ -117,33 +149,58 @@ export default function OrderPage({ params }: { params: Promise<{ id: string }> 
     const live = phase === "submitted" || phase === "bridging" || phase === "fulfilled";
     if (!live || !order.data) return;
 
+    clientLogger.info("checkout-page", "subscribing to order backend event stream", { orderId: order.data.id });
     const es = new EventSource(orderStreamURL(order.data.id));
-    const advance = (next: Phase) => setPhase((p) => (p === "done" || p === "refunded" ? p : next));
+    const advance = (next: Phase) => {
+      clientLogger.info("checkout-page", "received backend status event", { nextStatus: next });
+      setPhase((p) => (p === "done" || p === "refunded" ? p : next));
+    };
 
-    es.addEventListener("payment.deposited", () => advance("submitted"));
-    es.addEventListener("payment.processing", () => advance("bridging"));
-    es.addEventListener("payment.fulfilled", () => advance("fulfilled"));
+    es.addEventListener("payment.deposited", () => {
+      clientLogger.info("checkout-page", "payment.deposited SSE received");
+      advance("submitted");
+    });
+    es.addEventListener("payment.processing", () => {
+      clientLogger.info("checkout-page", "payment.processing (bridging) SSE received");
+      advance("bridging");
+    });
+    es.addEventListener("payment.fulfilled", () => {
+      clientLogger.info("checkout-page", "payment.fulfilled SSE received");
+      advance("fulfilled");
+    });
     es.addEventListener("payment.settled", () => {
+      clientLogger.info("checkout-page", "payment.settled (done) SSE received");
       setPhase("done");
       haptic.success();
       es.close();
     });
     es.addEventListener("payment.refunded", () => {
+      clientLogger.info("checkout-page", "payment.refunded SSE received");
       setPhase("refunded");
       haptic.error();
       es.close();
     });
-    return () => es.close();
+    
+    es.onerror = (err) => {
+      clientLogger.warn("checkout-page", "EventSource connection encountered error", { err: String(err) });
+    };
+
+    return () => {
+      clientLogger.debug("checkout-page", "closing EventSource event stream");
+      es.close();
+    };
   }, [phase, order.data?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function runStepUp() {
     setError(null);
     setPhase("signing");
+    clientLogger.info("checkout-page", "initiating WebAuthn step-up biometric check");
     try {
       // Real impl: navigator.credentials.get(...) WebAuthn assertion.
       await new Promise((r) => setTimeout(r, 600));
       await confirm();
     } catch (err) {
+      clientLogger.error("checkout-page", "WebAuthn step-up check failed", { err: String(err) });
       const msg = err instanceof Error ? err.message : "Biometric check failed";
       setError(msg);
       setPhase("error");
@@ -184,7 +241,7 @@ export default function OrderPage({ params }: { params: Promise<{ id: string }> 
   }
 
   const o = order.data;
-  const insufficient = !!wallet.data && wallet.data.usdc_subunit < o.amount_subunit;
+  const insufficient = !paymentPlan;
 
   if (phase === "done") {
     return (
@@ -333,12 +390,11 @@ export default function OrderPage({ params }: { params: Promise<{ id: string }> 
         {insufficient && (
           <InfoBanner tone="warning">
             <p className="font-medium text-neutral-900 dark:text-white">
-              Not enough USDC
+              Insufficient balance
             </p>
             <p className="mt-1 text-xs">
-              Your balance is{" "}
-              {wallet.data ? formatUsdc(wallet.data.usdc_subunit) : "0.00"} USDC.
-              Top up to pay this order.
+              You do not have enough USDC or SUI in your wallet to cover this order and transaction fees.
+              Your balance is {wallet.data ? formatUsdc(wallet.data.usdc_subunit) : "0.00"} USDC and {wallet.data ? (wallet.data.sui_mist / 1_000_000_000).toFixed(2) : "0.00"} SUI.
             </p>
             <Link href="/deposit" className="mt-3 inline-block">
               <Button
@@ -351,6 +407,73 @@ export default function OrderPage({ params }: { params: Promise<{ id: string }> 
             </Link>
           </InfoBanner>
         )}
+
+        {paymentPlan && paymentPlan.path === "combined" && (
+          <div className="grid gap-4">
+            <InfoBanner tone="info">
+              <p className="font-medium text-neutral-900 dark:text-white">
+                SUI + USDC Combined Payment
+              </p>
+              <p className="mt-1 text-xs">
+                Your USDC balance is insufficient. We will swap a portion of your SUI to cover the remaining amount.
+              </p>
+            </InfoBanner>
+
+            <div className="rounded-3xl border border-blue-100 bg-blue-50/50 p-5 text-sm dark:border-blue-900/30 dark:bg-blue-900/5">
+              <p className="mb-3 font-semibold text-blue-800 dark:text-blue-400">Payment Breakdown</p>
+              <div className="space-y-2">
+                <div className="flex justify-between text-xs text-gray-500 dark:text-white/50">
+                  <span>USDC Balance Used</span>
+                  <span className="font-medium text-neutral-900 dark:text-white/80 tabular-nums">
+                    {formatUsdc(paymentPlan.breakdown.usdcPaid)} USDC
+                  </span>
+                </div>
+                <div className="flex justify-between text-xs text-gray-500 dark:text-white/50">
+                  <span>Shortfall Owed</span>
+                  <span className="font-medium text-neutral-900 dark:text-white/80 tabular-nums">
+                    {formatUsdc(paymentPlan.breakdown.suiPaidInUsdc)} USDC
+                  </span>
+                </div>
+                <hr className="border-dashed border-blue-100 dark:border-blue-900/30" />
+                <div className="flex justify-between text-xs text-gray-500 dark:text-white/50">
+                  <span>SUI to Swap (Estimated)</span>
+                  <span className="font-medium text-neutral-900 dark:text-white/80 tabular-nums">
+                    {(paymentPlan.suiQuoteMist / 1_000_000_000).toFixed(4)} SUI
+                  </span>
+                </div>
+                <div className="flex justify-between text-xs text-gray-500 dark:text-white/50">
+                  <span>Swap Fee (Cetus 0.25%)</span>
+                  <span className="font-medium text-neutral-900 dark:text-white/80 tabular-nums">
+                    {formatUsdc(paymentPlan.breakdown.swapFeeUsdc)} USDC
+                  </span>
+                </div>
+                <div className="flex justify-between text-xs text-gray-500 dark:text-white/50">
+                  <span>Slippage Protection (0.5%)</span>
+                  <span className="font-medium text-neutral-900 dark:text-white/80 tabular-nums">
+                    {formatUsdc(paymentPlan.breakdown.slippageBufferUsdc)} USDC
+                  </span>
+                </div>
+                <div className="flex justify-between text-xs text-gray-500 dark:text-white/50">
+                  <span>Network Gas Reservation</span>
+                  <span className="font-medium text-neutral-900 dark:text-white/80 tabular-nums">
+                    {(paymentPlan.breakdown.gasFeeSui / 1_000_000_000).toFixed(2)} SUI
+                  </span>
+                </div>
+                <hr className="border-blue-100 dark:border-blue-900/30" />
+                <div className="flex justify-between text-xs font-semibold text-blue-900 dark:text-blue-300">
+                  <span>Total SUI Swapped + Gas</span>
+                  <span className="tabular-nums">
+                    {((paymentPlan.suiNeededMist + paymentPlan.gasReservationMist) / 1_000_000_000).toFixed(4)} SUI
+                  </span>
+                </div>
+                <p className="text-[10px] text-gray-400 mt-2 leading-normal dark:text-white/30">
+                  * Rate: 1 SUI ≈ {wallet.data?.sui_usdc_rate.toFixed(4)} USDC. Any unused slippage buffer is automatically returned to your wallet.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
 
         {o.step_up_required && (
           <InfoBanner>
