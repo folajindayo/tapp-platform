@@ -374,6 +374,14 @@ export async function executeZkLoginTx(
 
   const result = await tag("submit", async () => {
     try {
+      console.log("[zkLogin] submit details", {
+        txBytesLen: finalTxBytes.length,
+        hasSponsor: !!sponsorSignature,
+        zkLoginSigLen: zkLoginSignature.length,
+        zkLoginSigPrefix: zkLoginSignature.slice(0, 20),
+        sponsorSigLen: sponsorSignature?.length,
+        sponsorSigPrefix: sponsorSignature?.slice(0, 20),
+      });
       return await client.executeTransactionBlock({
         transactionBlock: finalTxBytes,
         // Sponsored: needs both the user (zkLogin) and the sponsor.
