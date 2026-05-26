@@ -374,6 +374,14 @@ export async function executeZkLoginTx(
 
   const result = await tag("submit", async () => {
     try {
+      console.log("[zkLogin] submit details", {
+        txBytesLen: finalTxBytes.length,
+        hasSponsor: !!sponsorSignature,
+        zkLoginSigLen: zkLoginSignature.length,
+        zkLoginSigPrefix: zkLoginSignature.slice(0, 20),
+        sponsorSigLen: sponsorSignature?.length,
+        sponsorSigPrefix: sponsorSignature?.slice(0, 20),
+      });
       return await client.executeTransactionBlock({
         transactionBlock: finalTxBytes,
         // Sponsored: needs both the user (zkLogin) and the sponsor.
@@ -384,12 +392,29 @@ export async function executeZkLoginTx(
         options: { showEffects: true },
       });
     } catch (err) {
+      console.error("[zkLogin] submit failed", err);
       if (isZkLoginVerifyError(err)) {
         throw new SessionExpiredError(
           "Your sign-in needs to be refreshed. Please sign in again to continue.",
         );
       }
-      throw err;
+      // Serialize full error payload for UI display
+      let errMsg = err instanceof Error ? err.message : String(err);
+      if (err && typeof err === "object") {
+        try {
+          const keys = Object.keys(err);
+          const detailObj: Record<string, any> = {};
+          for (const k of keys) {
+            detailObj[k] = (err as any)[k];
+          }
+          if (keys.length > 0) {
+            errMsg += " | Struct: " + JSON.stringify(detailObj);
+          }
+        } catch {
+          // ignore serialization failure
+        }
+      }
+      throw new Error(errMsg);
     }
   });
   return { digest: result.digest, effects: result.effects };
