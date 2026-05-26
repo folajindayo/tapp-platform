@@ -479,7 +479,7 @@ export const walletApi = {
       clientLogger.debug("confirm-order", "initializing Cetus SDK");
       const { CetusClmmSDK, clmmMainnet } = await import("@cetusprotocol/sui-clmm-sdk");
       const sdk = new CetusClmmSDK(clmmMainnet);
-      sdk.senderAddress = session.suiAddress;
+      sdk.setSenderAddress(session.suiAddress);
 
       clientLogger.debug("confirm-order", "calling createSwapWithoutTransferCoinsPayload", {
         pool_id: "0xb8d7d9e66a60c239e7a60110efcf8de6c705580ed924d0dde141f4a0e2c90105",
@@ -493,8 +493,8 @@ export const walletApi = {
         by_amount_in: true,
         amount: paymentPlan.suiNeededMist.toString(),
         amount_limit: paymentPlan.shortfallUsdcSubunit.toString(),
-        coinTypeA: USDC_COIN_TYPE,
-        coinTypeB: SUI_COIN_TYPE,
+        coin_type_a: USDC_COIN_TYPE,
+        coin_type_b: SUI_COIN_TYPE,
       });
 
       const tx = swapRes.tx;
