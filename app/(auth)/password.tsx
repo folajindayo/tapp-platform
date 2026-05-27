@@ -51,7 +51,7 @@ export default function PasswordScreen() {
 
       if (msg.includes('do not match') || msg.includes('not found')) {
         // No account with this email → offer to sign up.
-        router.push({ pathname: '/(auth)/sign-up', params: { email } });
+        // router.push({ pathname: '/(auth)/sign-up', params: { email } });
         return;
       }
 

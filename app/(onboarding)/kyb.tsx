@@ -1,31 +1,25 @@
-import { useEffect, useState } from 'react';
-import {
-  Alert,
-  Pressable,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
-import * as WebBrowser from 'expo-web-browser';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { router } from 'expo-router';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { kycApi } from '@/api/endpoints';
-import { useAuthStore } from '@/auth/store';
-import { Button } from '@/ui';
+import { useEffect, useState } from "react";
+import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
+import * as WebBrowser from "expo-web-browser";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { router } from "expo-router";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { kycApi } from "@/api/endpoints";
+import { useAuthStore } from "@/auth/store";
+import { Button } from "@/ui";
 
 const POLL_INTERVAL_MS = 5_000;
 const POLL_MAX_DURATION_MS = 5 * 60 * 1000;
 
 // ─── Colors (same palette as bank-account) ───────────────────────────────────
 const C = {
-  bg: '#0A0A0C',
-  textPrimary: '#F5F5F7',
-  textSecondary: 'rgba(255,255,255,0.60)',
-  accent: '#3B82F6',
-  accentSoft: 'rgba(59,130,246,0.15)',
-  green: '#34D399',
-  greenSoft: 'rgba(52,211,153,0.12)',
+  bg: "#0A0A0C",
+  textPrimary: "#F5F5F7",
+  textSecondary: "rgba(255,255,255,0.60)",
+  accent: "#3B82F6",
+  accentSoft: "rgba(59,130,246,0.15)",
+  green: "#34D399",
+  greenSoft: "rgba(52,211,153,0.12)",
 } as const;
 
 export default function KybScreen() {
@@ -36,8 +30,8 @@ export default function KybScreen() {
 
   const isPolling = !!pollUntil && Date.now() < pollUntil;
   const statusQuery = useQuery({
-    queryKey: ['kyc', 'status', userId],
-    queryFn: () => kycApi.status(userId ?? ''),
+    queryKey: ["kyc", "status", userId],
+    queryFn: () => kycApi.status(userId ?? ""),
     enabled: !!userId && isPolling,
     refetchInterval: isPolling ? POLL_INTERVAL_MS : false,
     refetchIntervalInBackground: false,
@@ -45,29 +39,29 @@ export default function KybScreen() {
 
   useEffect(() => {
     if (!statusQuery.data) return;
-    if (statusQuery.data.status === 'success') {
+    if (statusQuery.data.status === "success") {
       setPollUntil(null);
-      void queryClient.invalidateQueries({ queryKey: ['auth', 'me'] });
-    } else if (statusQuery.data.status === 'failed') {
+      void queryClient.invalidateQueries({ queryKey: ["auth", "me"] });
+    } else if (statusQuery.data.status === "failed") {
       setPollUntil(null);
-      Alert.alert('Verification failed', 'Try again or use a different ID.');
+      Alert.alert("Verification failed", "Try again or use a different ID.");
     }
   }, [statusQuery.data, queryClient]);
 
   const startVerification = () => {
     router.replace("/(onboarding)/bank-account");
-  }
+  };
 
   const handleBack = () => {
     if (router.canGoBack()) {
       router.back();
     } else {
-      router.replace('/(auth)/sign-in');
+      router.replace("/(auth)/sign-in");
     }
   };
 
   return (
-    <SafeAreaView style={$.safeArea} edges={['top', 'left', 'right']}>
+    <SafeAreaView style={$.safeArea} edges={["top", "left", "right"]}>
       <View style={$.container}>
         {/* ── Top bar (same as bank-account) ──────────── */}
         <View style={$.topBar}>
@@ -86,7 +80,7 @@ export default function KybScreen() {
         {/* ── Title ──────────────────────────────────────── */}
         <Text style={$.heading}>Verify your identity</Text>
         <Text style={$.subheading}>
-          We use your BVN to confirm your identity.{'\n'}Takes about 30 seconds.
+          We use your BVN to confirm your identity.{"\n"}Takes about 30 seconds.
         </Text>
 
         {/* ── Bullet points ─────────────────────────────── */}
@@ -108,7 +102,7 @@ export default function KybScreen() {
 
         {/* ── CTA ───────────────────────────────────────── */}
         <Button
-          label={isPolling ? 'Verifying…' : 'Start verification'}
+          label={isPolling ? "Verifying…" : "Start verification"}
           onPress={startVerification}
           loading={starting || isPolling}
           disabled={isPolling}
@@ -136,9 +130,9 @@ const $ = StyleSheet.create({
 
   // Top bar — identical to bank-account
   topBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     paddingTop: 8,
     marginBottom: 28,
   },
@@ -146,36 +140,36 @@ const $ = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: 'rgba(255,255,255,0.07)',
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: "rgba(255,255,255,0.07)",
+    alignItems: "center",
+    justifyContent: "center",
   },
   backArrow: {
     fontSize: 22,
     color: C.textPrimary,
     marginTop: -2,
   },
-  dots: { flexDirection: 'row', gap: 6 },
+  dots: { flexDirection: "row", gap: 6 },
   dot: {
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: 'rgba(255,255,255,0.12)',
+    backgroundColor: "rgba(255,255,255,0.12)",
   },
-  dotDone: { backgroundColor: 'rgba(59,130,246,0.45)' },
+  dotDone: { backgroundColor: "rgba(59,130,246,0.45)" },
   dotActive: { backgroundColor: C.accent },
 
   // Title
   heading: {
     fontSize: 28,
-    fontWeight: '700',
+    fontWeight: "700",
     color: C.textPrimary,
     lineHeight: 36,
     marginBottom: 8,
   },
   subheading: {
     fontSize: 15,
-    fontWeight: '400',
+    fontWeight: "400",
     color: C.textSecondary,
     lineHeight: 22,
     marginBottom: 28,
@@ -184,8 +178,8 @@ const $ = StyleSheet.create({
   // Bullets
   bullets: { gap: 14 },
   bulletRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
+    flexDirection: "row",
+    alignItems: "flex-start",
     gap: 12,
   },
   bulletDot: {
@@ -198,7 +192,7 @@ const $ = StyleSheet.create({
   bulletText: {
     flex: 1,
     fontSize: 15,
-    fontWeight: '400',
+    fontWeight: "400",
     color: C.textPrimary,
     lineHeight: 22,
   },
@@ -206,9 +200,9 @@ const $ = StyleSheet.create({
   // Polling text
   pollingText: {
     fontSize: 14,
-    fontWeight: '400',
+    fontWeight: "400",
     color: C.textSecondary,
-    textAlign: 'center',
+    textAlign: "center",
     marginBottom: 12,
   },
 });

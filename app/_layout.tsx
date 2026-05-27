@@ -24,6 +24,7 @@ import {
 import * as SplashScreen from 'expo-splash-screen';
 import { useAuthStore } from '@/auth/store';
 import { useOnboardingState, type OnboardingStep } from '@/auth/useOnboardingState';
+import { ToastContainer } from '@/ui';
 
 void SplashScreen.preventAutoHideAsync();
 
@@ -116,6 +117,7 @@ function Guard() {
   return (
     <View style={{ flex: 1 }}>
       <Slot />
+      <ToastContainer />
       {!ready && <LoadingOverlay />}
     </View>
   );

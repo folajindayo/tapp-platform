@@ -55,7 +55,7 @@ export default function ProfileScreen() {
     onSuccess: async (fresh) => {
       qc.setQueryData(queryKeys.auth.me(), fresh);
       Keyboard.dismiss();
-      router.back();
+      router.replace('/(app)/settings');
     },
     onError: (err) => {
       Alert.alert('Couldn’t save', (err as { message?: string })?.message ?? 'Try again');
@@ -71,7 +71,7 @@ export default function ProfileScreen() {
   return (
     <SafeAreaView edges={['top']} style={s.root}>
       <View style={s.header}>
-        <Pressable hitSlop={12} onPress={() => router.back()} style={s.backBtn}>
+        <Pressable hitSlop={12} onPress={() => router.replace('/(app)/settings')} style={s.backBtn}>
           <ChevronLeft size={22} color={PAL.text} />
         </Pressable>
         <Text style={s.title}>Profile</Text>

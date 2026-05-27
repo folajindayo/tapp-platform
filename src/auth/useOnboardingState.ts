@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { authApi, merchantApi } from '@/api/endpoints';
 import { useAuthStore } from './store';
@@ -27,6 +28,18 @@ export function useOnboardingState(): OnboardingState {
 
   const me = meQuery.data;
   const kycDone = me?.kyc_status === 'success';
+
+  useEffect(() => {
+    if (me) {
+      const storeUser = useAuthStore.getState().user;
+      if (!storeUser || storeUser.id !== me.id || storeUser.email !== me.email) {
+        useAuthStore.getState().setUser({
+          id: me.id,
+          email: me.email,
+        });
+      }
+    }
+  }, [me]);
 
   // Fetch bank account as soon as email is verified — KYC and bank-account
   // setup can proceed in parallel from the user's perspective.

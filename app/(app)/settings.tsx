@@ -117,7 +117,7 @@ export default function SettingsScreen() {
             }
             chevron
             last
-            onPress={() => router.push("/(onboarding)/bank-account")}
+            onPress={() => router.push("/(onboarding)/bank-account?from=settings")}
           />
         </Section>
 

@@ -16,6 +16,7 @@ interface AuthState {
   isHydrated: boolean;
   user: AuthUser | null;
   setSession: (access: string, refresh: string, user?: AuthUser) => void;
+  setUser: (user: AuthUser | null) => void;
   signOut: () => void;
   /** Hydrates the encrypted MMKV instance from secure-store, then mirrors
    *  the persisted session into React state. Idempotent. Call once on
@@ -31,6 +32,13 @@ export const useAuthStore = create<AuthState>((set) => ({
     if (__DEV__) console.log('[auth] setSession — access:', access ? `${access.slice(0, 12)}…` : 'MISSING', '| user:', user);
     setTokens(access, refresh, user);
     set({ isAuthenticated: true, user: user ?? null });
+  },
+  setUser: (user) => {
+    if (__DEV__) console.log('[auth] setUser — user:', user);
+    const access = getAccessToken() ?? '';
+    const refresh = getRefreshToken() ?? '';
+    setTokens(access, refresh, user ?? undefined);
+    set({ user: user ?? null });
   },
   signOut: () => {
     // Fire-and-forget server revocation. We don't block on it — the

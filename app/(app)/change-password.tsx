@@ -33,7 +33,7 @@ export default function ChangePasswordScreen() {
       authApi.changePassword({ oldPassword: old_password, newPassword: new_password }),
     onSuccess: () => {
       Alert.alert('Password updated', 'Your password has been changed.', [
-        { text: 'OK', onPress: () => router.back() },
+        { text: 'OK', onPress: () => router.replace('/(app)/settings') },
       ]);
       reset();
     },
@@ -44,7 +44,7 @@ export default function ChangePasswordScreen() {
 
   return (
     <Screen scrollable={false}>
-      <Header title="Change password" />
+      <Header title="Change password" onBack={() => router.replace('/(app)/settings')} />
 
       <View className="flex-1 gap-6">
         <Text className="text-muted-text text-sm">

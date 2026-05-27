@@ -14,40 +14,42 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { catalogApi, merchantApi, verifyApi } from '@/api/endpoints';
-import { ChevronDown } from 'lucide-react-native';
-import { Button } from '@/ui';
+import { Check, ChevronDown, ChevronLeft, Landmark, Search, X } from 'lucide-react-native';
+import { Button, toast } from '@/ui';
+import { theme } from '@/ui/theme';
 
 const CURRENCY = 'NGN';
 const { height: SCREEN_H } = Dimensions.get('window');
 
 // ─── Colors ──────────────────────────────────────────────────────────────────
 const C = {
-  bg: '#0A0A0C',
-  card: '#141416',
-  cardBorder: 'rgba(255,255,255,0.06)',
-  field: '#1B1B1F',
-  fieldBorder: 'rgba(255,255,255,0.08)',
-  focus: '#3B82F6',
+  bg: theme.colors.black,
+  card: theme.colors.surface,
+  cardBorder: theme.colors.border,
+  field: theme.colors.surfaceSubtle,
+  fieldBorder: theme.colors.borderStrong,
+  focus: theme.colors.brand,
   white: '#FFFFFF',
-  textPrimary: '#F5F5F7',
-  textSecondary: 'rgba(255,255,255,0.60)',
-  textPlaceholder: 'rgba(255,255,255,0.35)',
-  accent: '#3B82F6',
-  accentSoft: 'rgba(59,130,246,0.15)',
-  green: '#34D399',
-  greenSoft: 'rgba(52,211,153,0.12)',
-  red: '#FB7185',
-  divider: 'rgba(255,255,255,0.05)',
-  overlay: 'rgba(0,0,0,0.60)',
-  sheet: '#1C1C1E',
+  textPrimary: theme.colors.textStrong,
+  textSecondary: theme.colors.textSecondary,
+  textPlaceholder: theme.colors.textSubtle,
+  accent: theme.colors.brand,
+  accentSoft: 'rgba(41, 141, 255, 0.12)',
+  green: theme.colors.success,
+  greenSoft: theme.colors.successBg,
+  red: theme.colors.danger,
+  divider: theme.colors.border,
+  overlay: 'rgba(0,0,0,0.70)',
+  sheet: theme.colors.surface,
 } as const;
 
 // ═════════════════════════════════════════════════════════════════════════════
 export default function BankAccountScreen() {
+  const { from } = useLocalSearchParams<{ from?: string }>();
   const queryClient = useQueryClient();
 
   const institutionsQ = useQuery({
@@ -105,6 +107,12 @@ export default function BankAccountScreen() {
         account_name: resolvedName,
       });
       await queryClient.invalidateQueries({ queryKey: ['merchant', 'bank-account'] });
+      toast.success('Payout account saved successfully');
+      if (from === 'settings') {
+        router.replace('/(app)/settings');
+      } else {
+        router.replace('/(app)');
+      }
     } catch (e) {
       Alert.alert('Error', (e as { message?: string })?.message ?? 'Try again');
     } finally {
@@ -115,16 +123,20 @@ export default function BankAccountScreen() {
   const canSave = !!resolvedName && !resolving && !saving;
 
   function goBack() {
-    if (router.canGoBack()) router.back();
-    else router.replace('/(onboarding)/kyb');
+    if (from === 'settings') {
+      router.replace('/(app)/settings');
+    } else {
+      if (router.canGoBack()) router.back();
+      else router.replace('/(onboarding)/kyb');
+    }
   }
 
   // ═════════════════════════════════════════════════════════════════════════
   return (
-    <SafeAreaView style={$.safeArea} edges={['top', 'left', 'right']}>
+    <SafeAreaView style={$.safeArea} edges={["top", "left", "right"]}>
       <KeyboardAvoidingView
         style={$.flex}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
         <ScrollView
           style={$.flex}
@@ -135,7 +147,7 @@ export default function BankAccountScreen() {
           {/* ── Top bar ─────────────────────────────────── */}
           <View style={$.topBar}>
             <Pressable onPress={goBack} hitSlop={14} style={$.backCircle}>
-              <Text style={$.backArrow}>‹</Text>
+              <ChevronLeft size={20} color={C.textPrimary} />
             </Pressable>
             <View style={$.dots}>
               <View style={[$.dot, $.dotDone]} />
@@ -147,13 +159,13 @@ export default function BankAccountScreen() {
           </View>
 
           {/* ── Title ───────────────────────────────────── */}
-          <Text style={$.heading}>Where should we{'\n'}send your money?</Text>
+          <Text style={$.heading}>Where should we{"\n"}send your money?</Text>
           <Text style={$.subheading}>
             Bank payouts settle in NGN to this account.
           </Text>
 
           {/* ── Card ────────────────────────────────────── */}
-          <View style={$.card}>
+          <View>
             {/* Bank selector */}
             <View style={$.fieldWrap}>
               <Text style={$.fieldLabel}>Bank</Text>
@@ -164,28 +176,30 @@ export default function BankAccountScreen() {
                   showPicker && $.selectFieldFocused,
                   pressed && $.selectFieldPressed,
                 ]}
+                className="flex !px-4 !py-6 bg-[#1E1E1E] rounded-[14px] flex-row w-full justify-between items-center"
               >
-                <Text
-                  numberOfLines={1}
-                  ellipsizeMode="tail"
-                  style={[
-                    $.selectText,
-                    !selectedBank && $.selectTextPlaceholder,
-                  ]}
-                >
-                  {selectedBank ? selectedBank.name : 'Tap to choose a bank'}
-                </Text>
-                {/* Wrap the chevron in a flex-shrink:0 box so the long
-                    bank name truncates with ellipsis instead of pushing
-                    the icon out of the row. */}
-                <View style={$.selectChevron}>
-                  <ChevronDown size={20} color={C.textSecondary} />
+                <View style={$.selectFieldLeft}>
+                  <Landmark
+                    size={20}
+                    color={selectedBank ? C.accent : C.textPlaceholder}
+                  />
+                  <Text
+                    style={[
+                      $.selectText,
+                      !selectedBank && $.selectTextPlaceholder,
+                    ]}
+                  >
+                    {selectedBank ? selectedBank.name : "Tap to choose a bank"}
+                  </Text>
+                </View>
+                <View className="right-8">
+                  <ChevronDown
+                    size={20}
+                    color={C.textSecondary}
+                  />
                 </View>
               </Pressable>
             </View>
-
-            {/* Divider */}
-            <View style={$.divider} />
 
             {/* Account number */}
             <View style={$.fieldWrap}>
@@ -193,13 +207,11 @@ export default function BankAccountScreen() {
                 <Text style={$.fieldLabel}>Account Number</Text>
                 <Text style={$.charCount}>{acctNum.length}/10</Text>
               </View>
-              <View
-                style={[$.inputField, inputFocused && $.inputFieldFocused]}
-              >
+              <View style={[$.inputField, inputFocused && $.inputFieldFocused]}>
                 <TextInput
                   value={acctNum}
                   onChangeText={(t) =>
-                    setAcctNum(t.replace(/[^0-9]/g, '').slice(0, 10))
+                    setAcctNum(t.replace(/[^0-9]/g, "").slice(0, 10))
                   }
                   placeholder="Enter 10-digit NUBAN"
                   placeholderTextColor={C.textPlaceholder}
@@ -221,26 +233,20 @@ export default function BankAccountScreen() {
               )}
               {!resolving && resolvedName && (
                 <View style={$.verifiedBadge}>
-                  <Text style={$.verifiedCheck}>✓</Text>
+                  <Check size={14} color={C.green} strokeWidth={3} />
                   <Text style={$.verifiedName} numberOfLines={1}>
                     {resolvedName}
                   </Text>
                 </View>
               )}
-              {!resolving && error && (
-                <Text style={$.errorLabel}>{error}</Text>
-              )}
+              {!resolving && error && <Text style={$.errorLabel}>{error}</Text>}
             </View>
           </View>
 
           {/* Actions */}
-          <View style={{ flexDirection: 'row', gap: 16, marginTop: 24 }}>
+          <View style={{ flexDirection: "row", gap: 16, marginTop: 24 }}>
             <View style={{ flex: 1 }}>
-              <Button
-                label="Cancel"
-                variant="secondary"
-                onPress={goBack}
-              />
+              <Button label="Cancel" variant="secondary" onPress={goBack} />
             </View>
             <View style={{ flex: 1.4 }}>
               <Button
@@ -263,7 +269,7 @@ export default function BankAccountScreen() {
         onPick={(code) => {
           setBankCode(code);
           setShowPicker(false);
-          setAcctNum('');
+          setAcctNum("");
           setResolvedName(null);
         }}
         onClose={() => setShowPicker(false)}
@@ -326,12 +332,13 @@ function BankPickerSheet({
           <View style={m.header}>
             <Text style={m.headerTitle}>Select Bank</Text>
             <Pressable onPress={close} hitSlop={12} style={m.closeCircle}>
-              <Text style={m.closeX}>✕</Text>
+              <X size={16} color={C.textSecondary} />
             </Pressable>
           </View>
 
           {/* Search */}
           <View style={m.searchRow}>
+            <Search size={18} color={C.textPlaceholder} style={{ marginRight: 2 }} />
             <TextInput
               value={q}
               onChangeText={setQ}
@@ -343,7 +350,7 @@ function BankPickerSheet({
             />
             {q.length > 0 && (
               <Pressable onPress={() => setQ('')} hitSlop={8}>
-                <Text style={m.clearX}>✕</Text>
+                <X size={16} color={C.textSecondary} />
               </Pressable>
             )}
           </View>
@@ -374,14 +381,17 @@ function BankPickerSheet({
                       pressed && m.bankRowPressed,
                       active && m.bankRowActive,
                     ]}
+                    className='flex flex-row justify-between w-full items-center'
                   >
-                    <Text
-                      style={[m.bankName, active && m.bankNameActive]}
-                      numberOfLines={1}
-                    >
-                      {item.name}
-                    </Text>
-                    {active && <Text style={m.checkMark}>✓</Text>}
+                    <View className='p-2'>
+                      <Text
+                        style={[m.bankName, active && m.bankNameActive]}
+                        numberOfLines={1}
+                      >
+                        {item.name}
+                      </Text>
+                    </View>
+                    {active && <Check size={18} color={C.accent} strokeWidth={2.5} />}
                   </Pressable>
                 );
               }}
@@ -429,20 +439,20 @@ const $ = StyleSheet.create({
     borderRadius: 4,
     backgroundColor: 'rgba(255,255,255,0.12)',
   },
-  dotDone: { backgroundColor: 'rgba(59,130,246,0.45)' },
+  dotDone: { backgroundColor: 'rgba(41, 141, 255, 0.4)' },
   dotActive: { backgroundColor: C.accent },
 
   // Title
   heading: {
+    fontFamily: theme.fontFamilies.display,
     fontSize: 28,
-    fontWeight: '700',
     color: C.textPrimary,
     lineHeight: 36,
     marginBottom: 8,
   },
   subheading: {
+    fontFamily: theme.fontFamilies.text,
     fontSize: 15,
-    fontWeight: '400',
     color: C.textSecondary,
     lineHeight: 22,
     marginBottom: 28,
@@ -464,51 +474,51 @@ const $ = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    marginTop: 16,
   },
   fieldLabel: {
+    fontFamily: theme.fontFamilies.textMedium,
     fontSize: 13,
-    fontWeight: '600',
     color: C.textSecondary,
-    textTransform: 'uppercase',
+    // textTransform: 'uppercase',
     letterSpacing: 0.6,
   },
   charCount: {
+    fontFamily: theme.fontFamilies.text,
     fontSize: 12,
-    fontWeight: '500',
     color: C.textPlaceholder,
   },
 
   selectField: {
-    height: 54,
+    height: 56,
     backgroundColor: C.field,
     borderRadius: 14,
     borderWidth: 1,
     borderColor: C.fieldBorder,
-    paddingHorizontal: 16,
+    padding: 16,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-  selectFieldPressed: { backgroundColor: '#222226' },
+  selectFieldPressed: { backgroundColor: 'rgba(255, 255, 255, 0.04)' },
   selectFieldFocused: { borderColor: C.focus },
+  selectFieldLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
   selectText: {
     flex: 1,
     minWidth: 0,         // RN flex quirk: lets the text shrink instead of growing to content
     flexShrink: 1,
+    fontFamily: theme.fontFamilies.textMedium,
     fontSize: 16,
-    fontWeight: '500',
     color: C.textPrimary,
     marginRight: 8,
   },
   selectTextPlaceholder: {
+    fontFamily: theme.fontFamilies.text,
     color: C.textSecondary,
-    fontWeight: '400',
-  },
-  selectChevron: {
-    flexShrink: 0,
-    width: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   chevron: {
     fontSize: 18,
@@ -524,7 +534,7 @@ const $ = StyleSheet.create({
 
   // Input
   inputField: {
-    height: 54,
+    height: 56,
     backgroundColor: C.field,
     borderRadius: 14,
     borderWidth: 1,
@@ -534,8 +544,8 @@ const $ = StyleSheet.create({
   },
   inputFieldFocused: { borderColor: C.focus },
   inputText: {
+    fontFamily: theme.fontFamilies.textMedium,
     fontSize: 16,
-    fontWeight: '500',
     color: C.textPrimary,
     padding: 0,
   },
@@ -548,8 +558,8 @@ const $ = StyleSheet.create({
     marginTop: 4,
   },
   statusLabel: {
+    fontFamily: theme.fontFamilies.text,
     fontSize: 13,
-    fontWeight: '400',
     color: C.textSecondary,
   },
   verifiedBadge: {
@@ -565,14 +575,14 @@ const $ = StyleSheet.create({
   },
   verifiedCheck: { fontSize: 13, color: C.green },
   verifiedName: {
+    fontFamily: theme.fontFamilies.displayMedium,
     fontSize: 13,
-    fontWeight: '600',
     color: C.green,
     maxWidth: 200,
   },
   errorLabel: {
+    fontFamily: theme.fontFamilies.text,
     fontSize: 13,
-    fontWeight: '400',
     color: C.red,
     marginTop: 4,
   },
@@ -617,8 +627,8 @@ const m = StyleSheet.create({
     paddingBottom: 14,
   },
   headerTitle: {
+    fontFamily: theme.fontFamilies.textBold,
     fontSize: 20,
-    fontWeight: '700',
     color: C.textPrimary,
   },
   closeCircle: {
@@ -634,7 +644,7 @@ const m = StyleSheet.create({
   // Search
   searchRow: {
     marginHorizontal: 20,
-    height: 46,
+    height: 48,
     borderRadius: 12,
     backgroundColor: 'rgba(255,255,255,0.06)',
     borderWidth: 1,
@@ -648,8 +658,8 @@ const m = StyleSheet.create({
   searchIcon: { fontSize: 14 },
   searchInput: {
     flex: 1,
+    fontFamily: theme.fontFamilies.text,
     fontSize: 15,
-    fontWeight: '400',
     color: C.textPrimary,
     padding: 0,
   },
@@ -662,8 +672,8 @@ const m = StyleSheet.create({
     justifyContent: 'center',
   },
   emptyText: {
+    fontFamily: theme.fontFamilies.text,
     fontSize: 14,
-    fontWeight: '400',
     color: C.textSecondary,
     textAlign: 'center',
   },
@@ -692,13 +702,13 @@ const m = StyleSheet.create({
   bankInitialActive: { color: C.accent },
   bankName: {
     flex: 1,
+    fontFamily: theme.fontFamilies.textMedium,
     fontSize: 15,
-    fontWeight: '500',
     color: C.textPrimary,
   },
   bankNameActive: {
+    fontFamily: theme.fontFamilies.displayMedium,
     color: C.accent,
-    fontWeight: '600',
   },
   checkMark: {
     fontSize: 16,

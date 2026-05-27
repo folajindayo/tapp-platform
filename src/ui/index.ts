@@ -9,3 +9,4 @@ export { Text, type TextProps } from './Text';
 export { formatNgn, formatNumber, maskAccountNumber } from './format';
 export { theme, colors, fontFamilies, radii, spacing, shadows, typography } from './theme';
 export * as Icons from './icons';
+export { ToastContainer, toast } from './Toast';
