@@ -132,6 +132,7 @@ export interface OrderDetails {
   // and advances the order state (SSE emits payment.deposited).
   receive_address?: string;
   coin_type?: string;
+  status?: "pending" | "processing" | "cancelled" | "fulfilled" | "validated" | "settled" | "refunded";
 }
 
 // -----------------------------------------------------------------------------
