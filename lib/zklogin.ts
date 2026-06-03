@@ -20,7 +20,7 @@
 // migrate to Shinami's gas station later; out of scope here.
 
 import { Ed25519Keypair } from "@mysten/sui/keypairs/ed25519";
-import { Transaction } from "@mysten/sui/transactions";
+import { Transaction, TransactionDataBuilder } from "@mysten/sui/transactions";
 import {
   generateNonce,
   generateRandomness,
@@ -39,6 +39,8 @@ import {
 } from "./shinami";
 
 const STORAGE_KEY = "tapp.zklogin.v1";
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 // Thrown when the session can't be used to authorize a payment and the
 // only recovery is signing out + back in. Covers:
@@ -275,6 +277,21 @@ export async function executeZkLoginTx(
     sponsorSignature = sponsored.sponsorSignature;
   }
 
+  await tag("dry-run", async () => {
+    const dryRun = await client.dryRunTransactionBlock({
+      transactionBlock: finalTxBytes,
+    });
+    const status = dryRun.effects.status;
+    console.log("[zkLogin] dry-run result", {
+      status: status.status,
+      error: status.error,
+      gasUsed: dryRun.effects.gasUsed,
+    });
+    if (status.status !== "success") {
+      throw new Error(`dry-run failed: ${status.error ?? "unknown Sui execution error"}`);
+    }
+  });
+
   const { signature: ephemeralSig } = await tag("sign-ephemeral", () =>
     ephemeralKp.signTransaction(finalTxBytes),
   );
@@ -372,8 +389,31 @@ export async function executeZkLoginTx(
     });
   });
 
+  const txBytesB64 = Buffer.from(finalTxBytes).toString("base64");
+
+  await tag("verify-zklogin-sig", async () => {
+    const verification = await client.verifyZkLoginSignature({
+      bytes: txBytesB64,
+      signature: zkLoginSignature,
+      intentScope: "TransactionData",
+      author: session.suiAddress!,
+    });
+    console.log("[zkLogin] signature verification result", verification);
+    if (!verification.success) {
+      throw new Error(
+        `zkLogin signature verification failed: ${JSON.stringify(verification)}`,
+      );
+    }
+  });
+
   const result = await tag("submit", async () => {
-    try {
+    const signature = sponsorSignature
+      ? [zkLoginSignature, sponsorSignature]
+      : zkLoginSignature;
+    const expectedDigest = TransactionDataBuilder.getDigestFromBytes(finalTxBytes);
+    let lastErr: unknown = null;
+
+    for (let attempt = 1; attempt <= 3; attempt += 1) {
       console.log("[zkLogin] submit details", {
         txBytesLen: finalTxBytes.length,
         hasSponsor: !!sponsorSignature,
@@ -381,41 +421,88 @@ export async function executeZkLoginTx(
         zkLoginSigPrefix: zkLoginSignature.slice(0, 20),
         sponsorSigLen: sponsorSignature?.length,
         sponsorSigPrefix: sponsorSignature?.slice(0, 20),
+        expectedDigest,
+        attempt,
       });
-      return await client.executeTransactionBlock({
-        transactionBlock: finalTxBytes,
-        // Sponsored: needs both the user (zkLogin) and the sponsor.
-        // Self-sponsor: only the user signs — Sui rejects extra sigs.
-        signature: sponsorSignature
-          ? [zkLoginSignature, sponsorSignature]
-          : zkLoginSignature,
-        options: { showEffects: true },
-      });
-    } catch (err) {
-      console.error("[zkLogin] submit failed", err);
-      if (isZkLoginVerifyError(err)) {
-        throw new SessionExpiredError(
-          "Your sign-in needs to be refreshed. Please sign in again to continue.",
-        );
-      }
-      // Serialize full error payload for UI display
-      let errMsg = err instanceof Error ? err.message : String(err);
-      if (err && typeof err === "object") {
+
+      let upstreamRefused = false;
+      try {
+        const submitRes = await fetch("/api/sui/execute", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${railsToken}`,
+          },
+          body: JSON.stringify({
+            txBytes: txBytesB64,
+            signatures: Array.isArray(signature) ? signature : [signature],
+          }),
+        });
+        if (!submitRes.ok) {
+          const errorText = await submitRes.text();
+          if (submitRes.status === 401) {
+            throw new SessionExpiredError();
+          }
+          // The relay reached its providers and gave us a structured
+          // refusal. Sui execution is deterministic on the same tx
+          // bytes, so retrying yields the same answer. Worse: every
+          // resubmit risks the validators seeing a new vote for the
+          // same owned gas coin → equivocation → 24h lock.
+          upstreamRefused = true;
+          throw new Error(`execute relay failed http ${submitRes.status}: ${errorText}`);
+        }
+        return await submitRes.json();
+      } catch (err) {
+        lastErr = err;
+        console.error("[zkLogin] submit failed", { err, expectedDigest, attempt });
+        if (isZkLoginVerifyError(err)) {
+          throw new SessionExpiredError(
+            "Your sign-in needs to be refreshed. Please sign in again to continue.",
+          );
+        }
+
         try {
-          const keys = Object.keys(err);
-          const detailObj: Record<string, any> = {};
-          for (const k of keys) {
-            detailObj[k] = (err as any)[k];
-          }
-          if (keys.length > 0) {
-            errMsg += " | Struct: " + JSON.stringify(detailObj);
-          }
+          const landed = await client.getTransactionBlock({
+            digest: expectedDigest,
+            options: { showEffects: true },
+          });
+          console.warn("[zkLogin] submit RPC errored, but transaction landed", {
+            digest: expectedDigest,
+            attempt,
+          });
+          return landed;
         } catch {
-          // ignore serialization failure
+          // Not indexed/available yet, or the submit did not reach validators.
+        }
+
+        if (upstreamRefused) {
+          break;
+        }
+
+        if (attempt < 3) {
+          await sleep(attempt * 800);
         }
       }
-      throw new Error(errMsg);
     }
+
+    // Serialize full error payload for UI display
+    let errMsg = lastErr instanceof Error ? lastErr.message : String(lastErr);
+    if (lastErr && typeof lastErr === "object") {
+      try {
+        const keys = Object.keys(lastErr);
+        const detailObj: Record<string, any> = {};
+        for (const k of keys) {
+          detailObj[k] = (lastErr as any)[k];
+        }
+        if (keys.length > 0) {
+          errMsg += " | Struct: " + JSON.stringify(detailObj);
+        }
+      } catch {
+        // ignore serialization failure
+      }
+    }
+    errMsg += ` | Digest: ${expectedDigest}`;
+    throw new Error(errMsg);
   });
   return { digest: result.digest, effects: result.effects };
 }

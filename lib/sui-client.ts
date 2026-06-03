@@ -13,6 +13,8 @@
  *   NEXT_PUBLIC_USDC_COIN_TYPE    = full type tag for the USDC coin on
  *                                   the current network (no default —
  *                                   testnet and mainnet packages differ)
+ *   NEXT_PUBLIC_SUI_EXECUTE_RPC_URL = optional transaction-submit RPC.
+ *                                     If unset, uses the read client.
  *   NEXT_PUBLIC_WALLET_MOCK       = "0" to disable the mock and hit Sui
  */
 
@@ -31,6 +33,7 @@ const NETWORK = (process.env.NEXT_PUBLIC_SUI_NETWORK ?? "testnet") as
   | "testnet"
   | "mainnet"
   | "devnet";
+const EXECUTE_RPC_URL = process.env.NEXT_PUBLIC_SUI_EXECUTE_RPC_URL ?? "";
 
 export const SUI_COIN_TYPE = "0x2::sui::SUI";
 
@@ -55,7 +58,7 @@ const USDC_DECIMALS = 6;
 // want to route around.
 function isRetryableRpcError(err: unknown): boolean {
   if (!(err instanceof Error)) return false;
-  return /429|too many requests|rate.?limit|5\d{2}\b|fetch failed|network|timeout|ECONNRESET|ETIMEDOUT/i.test(
+  return /429|too many requests|rate.?limit|5\d{2}\b|-32603|internalerror|internal error|fetch failed|network|timeout|ECONNRESET|ETIMEDOUT/i.test(
     err.message,
   );
 }
@@ -96,6 +99,7 @@ function withRpcFallback(primary: SuiClient, fallback: SuiClient): SuiClient {
 }
 
 let _client: SuiClient | null = null;
+let _executeClient: SuiClient | null = null;
 export function suiReadClient(): SuiClient {
   if (_client) return _client;
 
@@ -123,6 +127,21 @@ export function suiReadClient(): SuiClient {
   });
   _client = withRpcFallback(shinamiClient, publicClient);
   return _client;
+}
+
+export function suiExecuteClient(): SuiClient {
+  if (_executeClient) return _executeClient;
+  if (!EXECUTE_RPC_URL) {
+    _executeClient = suiReadClient();
+    return _executeClient;
+  }
+
+  const executeClient = new SuiClient({
+    network: NETWORK,
+    url: EXECUTE_RPC_URL,
+  });
+  _executeClient = withRpcFallback(executeClient, suiReadClient());
+  return _executeClient;
 }
 
 /** USDC balance in 10⁶ subunits — matches our internal `usdc_subunit`. */

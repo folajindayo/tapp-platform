@@ -50,7 +50,7 @@ export function BottomNav() {
   return (
     <nav
       aria-label="Primary"
-      className="fixed inset-x-0 bottom-0 z-30 border-t border-gray-200 bg-transparent transition-colors dark:border-white/10"
+      className="fixed inset-x-0 bottom-0 z-30 border-t border-gray-200 bg-white transition-colors dark:border-white/10 dark:bg-neutral-900"
     >
       <ul className="mx-auto flex w-full max-w-mobile items-end justify-between px-3 pt-2 pb-[max(env(safe-area-inset-bottom),0.5rem)]">
         {TABS.map((tab) =>

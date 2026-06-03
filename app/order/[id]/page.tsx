@@ -83,6 +83,24 @@ export default function OrderPage({ params }: { params: Promise<{ id: string }> 
   }, [hydrated, session, router, id]);
 
   useEffect(() => {
+    if (!order.data) return;
+    const status = order.data.status;
+    if (!status) return;
+
+    if (status === "settled") {
+      setPhase("done");
+    } else if (status === "refunded") {
+      setPhase("refunded");
+    } else if (status === "cancelled") {
+      setPhase("expired");
+    } else if (status === "fulfilled" || status === "validated") {
+      setPhase("fulfilled");
+    } else if (status === "processing") {
+      setPhase("bridging");
+    }
+  }, [order.data]);
+
+  useEffect(() => {
     clientLogger.info("checkout-page", "page state transition", {
       orderId: id,
       phase,
