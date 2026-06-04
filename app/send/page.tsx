@@ -12,7 +12,7 @@ import { Screen } from "@/components/ui/Screen";
 import { Button } from "@/components/ui/Button";
 import { InputError } from "@/components/ui/InputError";
 import { InfoBanner } from "@/components/ui/InfoBanner";
-import { SelectField } from "@/components/ui/SelectField";
+import { TabButton, TabRow } from "@/components/ui/TabButton";
 import { ReceiptCard } from "@/components/ui/ReceiptCard";
 import {
   AnimatedComponent,
@@ -52,6 +52,8 @@ const SELF_GAS_RESERVATION_MIST = 10_000_000;
 export default function SendPage() {
   const router = useRouter();
   const { hydrated, session } = useSession();
+  console.log(session);
+  
   const wallet = useWallet();
   const haptic = useHaptic();
 
@@ -250,21 +252,31 @@ export default function SendPage() {
           <h1 className="flex items-center gap-2 text-xl font-medium">
             <PiPaperPlaneTiltBold className="text-gray-400" /> Send
           </h1>
-          <p className="text-sm text-gray-500 dark:text-white/50">
+          <p className="text-[12px] text-gray-500 dark:text-white/50">
             Withdraw {asset} on Sui to any address. Funds move on-chain.
           </p>
         </div>
 
         <div className="grid gap-4 rounded-3xl border border-gray-200 p-4 dark:border-white/10">
-          <SelectField
-            label="Asset"
-            value={asset}
-            onChange={(e) => setAsset(e.target.value as Asset)}
-            required
-          >
-            <option value="USDC">USDC (Sui)</option>
-            <option value="SUI">SUI (native)</option>
-          </SelectField>
+          <div className="grid gap-2">
+            <label className="text-sm font-medium text-neutral-900 dark:text-white">
+              Asset
+            </label>
+            <TabRow>
+              <TabButton
+                active={asset === "USDC"}
+                onClick={() => setAsset("USDC")}
+              >
+                USDC (Sui)
+              </TabButton>
+              <TabButton
+                active={asset === "SUI"}
+                onClick={() => setAsset("SUI")}
+              >
+                SUI (native)
+              </TabButton>
+            </TabRow>
+          </div>
 
           <label
             className={`flex cursor-pointer items-start gap-3 rounded-xl border p-3 text-xs transition-colors ${

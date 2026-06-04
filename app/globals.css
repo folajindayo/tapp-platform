@@ -8,13 +8,15 @@
  */
 
 @theme {
-  --color-royal: #0065F5;
+  --color-royal: #0065f5;
 
   /* Mobile container width: 412px content + 16px padding either side */
   --max-width-mobile: 428px;
 
   /* Font stack — Inter via next/font (variable wired in layout.tsx) */
-  --font-sans: var(--font-inter, system-ui), -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-sans:
+    var(--font-inter, system-ui), -apple-system, BlinkMacSystemFont, "Segoe UI",
+    sans-serif;
 }
 
 /* Tailwind v4 class-based dark mode (mirrors zap's `darkMode: "class"`). */
@@ -170,8 +172,12 @@ html.theme-transitioning::view-transition-new(root) {
 }
 
 @keyframes liquid-dummy {
-  from { opacity: 0.99; }
-  to { opacity: 1; }
+  from {
+    opacity: 0.99;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 /* Temporarily disable transitions during theme snapshot capture to prevent fade/jank */
@@ -201,4 +207,6 @@ html.theme-transitioning.mobile-reveal::view-transition-old(root) {
   }
 }
 
-
+button {
+  cursor: pointer;
+}
