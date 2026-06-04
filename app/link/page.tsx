@@ -51,7 +51,7 @@ function NoTokenState() {
               No card detected
             </h1>
             <p className="text-sm text-gray-500 dark:text-white/50">
-              Tap a Zoracle card on the back of your phone to get started.
+              Tap a Tapp card on the back of your phone to get started.
             </p>
           </div>
         </AnimatedComponent>

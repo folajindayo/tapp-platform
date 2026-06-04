@@ -14,7 +14,7 @@ export function Logo({ className }: { className?: string }) {
       )}
     >
       <span aria-hidden className="size-2 rounded-full bg-blue-600" />
-      Zoracle
+      Tapp
     </span>
   );
 }

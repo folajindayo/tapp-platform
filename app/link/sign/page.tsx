@@ -11,7 +11,8 @@ import {
   AnimatedComponent,
   slideInOut,
 } from "@/components/ui/AnimatedComponents";
-import { useSession } from "@/lib/auth";
+import { signOut, useSession } from "@/lib/auth";
+import { InfoBanner } from "@/components/ui/InfoBanner";
 import { useLinkStore } from "@/lib/cardLinkStore";
 import { bytesToHex } from "@/lib/cardCrypto";
 import { cardsApi, ApiError } from "@/lib/api";
@@ -157,7 +158,30 @@ function Body() {
                 {DEMO_MODE ? " (demo mode — no Sui call)" : ""}
               </p>
             </div>
-            <Button onClick={go}>Sign &amp; finish</Button>
+
+            {session && !session.zkLoginReady && (
+              <InfoBanner tone="warning">
+                <p className="font-medium text-neutral-900 dark:text-white">
+                  Secure session expired or not ready
+                </p>
+                <p className="mt-1 text-xs">
+                  To protect your wallet, on-chain sessions expire after 24 hours. Sign in again to authorize linking this card.
+                </p>
+                <Button
+                  onClick={() => {
+                    const email = session.email;
+                    signOut();
+                    router.replace(`/sign-in?next=/link/sign?card=${cardId ?? ""}&email=${encodeURIComponent(email)}`);
+                  }}
+                  className="mt-3 text-xs py-1.5 px-3"
+                  fullWidth={false}
+                >
+                  Sign in again
+                </Button>
+              </InfoBanner>
+            )}
+
+            <Button onClick={go} disabled={!session || !session.zkLoginReady}>Sign &amp; finish</Button>
           </>
         ) : phase === "signing" ? (
           <>
@@ -170,7 +194,7 @@ function Body() {
           <>
             <div className="loader" />
             <p className="text-sm text-gray-500 dark:text-white/50">
-              Finalizing with Zoracle…
+              Finalizing with Tapp…
             </p>
           </>
         ) : phase === "done" ? (

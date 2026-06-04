@@ -64,6 +64,19 @@ function isZkLoginVerifyError(err: unknown): boolean {
   );
 }
 
+export function isZkLoginSessionExpired(session: ZkLoginSession | null): boolean {
+  if (!session || !session.jwt) return true;
+  try {
+    const claims = decodeJwt(session.jwt);
+    if (claims.exp && Date.now() / 1000 >= claims.exp - 300) {
+      return true;
+    }
+  } catch {
+    return true;
+  }
+  return false;
+}
+
 export interface ZkLoginSession {
   ephemeralPrivateKey: string;     // bech32 suiprivkey1…
   ephemeralPublicKey: string;      // Sui pubkey string (flag + bytes, base64)

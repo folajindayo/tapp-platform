@@ -34,6 +34,8 @@ export interface BuildAuthUrlParams {
   nonce:       string;
   /** Optional CSRF state param. We're already bound by nonce; state is bonus. */
   state?: string;
+  prompt?: string;
+  loginHint?: string;
 }
 
 export function buildGoogleAuthUrl({
@@ -41,6 +43,8 @@ export function buildGoogleAuthUrl({
   redirectUri,
   nonce,
   state,
+  prompt,
+  loginHint,
 }: BuildAuthUrlParams): string {
   const params = new URLSearchParams({
     client_id:     clientId,
@@ -48,10 +52,18 @@ export function buildGoogleAuthUrl({
     response_type: "id_token",
     scope:         "openid email profile",
     nonce,
-    // Force the account picker so the user can pick which Google account
-    // to bind to this Sui address.
-    prompt:        "select_account",
   });
+  
+  // If prompt is explicitly passed, use it. Otherwise, default to "select_account"
+  // ONLY if loginHint is not provided. If loginHint is provided, omit prompt to allow
+  // seamless automatic account authentication without prompting.
+  const activePrompt = prompt !== undefined ? prompt : (loginHint ? "" : "select_account");
+  if (activePrompt) {
+    params.set("prompt", activePrompt);
+  }
+  if (loginHint) {
+    params.set("login_hint", loginHint);
+  }
   if (state) params.set("state", state);
   return `${GOOGLE_AUTH_BASE}?${params.toString()}`;
 }

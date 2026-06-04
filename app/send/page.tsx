@@ -18,7 +18,7 @@ import {
   AnimatedComponent,
   slideInOut,
 } from "@/components/ui/AnimatedComponents";
-import { useSession } from "@/lib/auth";
+import { signOut, useSession } from "@/lib/auth";
 import {
   useWallet,
   WALLET_MOCK,
@@ -410,12 +410,22 @@ export default function SendPage() {
         ) : !session.zkLoginReady ? (
           <InfoBanner tone="warning">
             <p className="font-medium text-neutral-900 dark:text-white">
-              zkLogin not ready
+              Secure session expired or not ready
             </p>
             <p className="mt-1 text-xs">
-              Your session used the legacy sign-in path. Sign out and back in
-              to complete the zkLogin handshake — required for on-chain sends.
+              To protect your wallet, on-chain sessions expire after 24 hours. Sign in again to authorize sending funds.
             </p>
+            <Button
+              onClick={() => {
+                const email = session.email;
+                signOut();
+                router.replace(`/sign-in?next=/send&email=${encodeURIComponent(email)}`);
+              }}
+              className="mt-3 text-xs py-1.5 px-3"
+              fullWidth={false}
+            >
+              Sign in again
+            </Button>
           </InfoBanner>
         ) : null}
 
@@ -436,7 +446,7 @@ export default function SendPage() {
             <div className="flex-1">
               <Button
                 onClick={submit}
-                disabled={!!validation || amountSubunit <= 0 || !recipient}
+                disabled={!!validation || amountSubunit <= 0 || !recipient || !session.zkLoginReady}
               >
                 Send
               </Button>

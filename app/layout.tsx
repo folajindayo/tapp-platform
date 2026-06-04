@@ -21,12 +21,12 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "Zoracle",
+  title: "Tapp by Zoracle Labs",
   description: "Tap, pay, done.",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
-    title: "Zoracle",
+    title: "Tapp by Zoracle Labs",
     statusBarStyle: "default",
   },
   icons: {

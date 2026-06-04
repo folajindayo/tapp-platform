@@ -6,7 +6,7 @@ Last updated: 2026-05-22
 The cardholder is paying a merchant by tapping their phone (or
 scanning a QR on iOS). The merchant's app has already created a
 `PaymentOrder` in Rails and is broadcasting the URL
-`https://api.zoracle.com/order/<id>` via NFC HCE or QR. The payer's
+`https://api.usetapp.xyz/order/<id>` via NFC HCE or QR. The payer's
 phone opens it — and lands here.
 
 No app required on the payer side. Just a web page that opens via
