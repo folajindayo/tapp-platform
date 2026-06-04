@@ -40,7 +40,7 @@ export default function DepositPage() {
     if (typeof navigator !== "undefined" && "share" in navigator) {
       try {
         await navigator.share({
-          title: "My Zoracle wallet address",
+          title: "My Tapp wallet address",
           text:  `Send USDC on Sui to: ${wallet.data.sui_address}`,
         });
       } catch {

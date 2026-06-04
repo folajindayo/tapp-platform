@@ -29,6 +29,7 @@ function SignInBody() {
   const router = useRouter();
   const params = useSearchParams();
   const nextHref = params.get("next") ?? "/wallet";
+  const emailHint = params.get("email") ?? undefined;
   const { hydrated, session, login } = useSession();
 
   const [callbackError, setCallbackError] = useState<string | null>(null);
@@ -100,7 +101,7 @@ function SignInBody() {
           delay={0.15}
           className="w-full space-y-3"
         >
-          <GoogleSignInButton nextHref={nextHref} />
+          <GoogleSignInButton nextHref={nextHref} loginHint={emailHint} />
           {callbackError ? <InputError message={callbackError} /> : null}
           <Link
             href="/link"

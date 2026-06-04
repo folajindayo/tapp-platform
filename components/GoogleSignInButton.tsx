@@ -14,6 +14,7 @@ interface Props {
   /** Where to bounce back to after the post-callback completion. */
   nextHref?: string;
   label?: string;
+  loginHint?: string;
 }
 
 const NEXT_STORAGE_KEY = "tapp.signin.next.v1";
@@ -29,6 +30,7 @@ const NEXT_STORAGE_KEY = "tapp.signin.next.v1";
 export function GoogleSignInButton({
   nextHref = "/wallet",
   label = "Continue with Google",
+  loginHint,
 }: Props) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -51,7 +53,7 @@ export function GoogleSignInButton({
       const redirectUri = defaultRedirectUri();
       window.localStorage.setItem(NEXT_STORAGE_KEY, nextHref);
       window.location.assign(
-        buildGoogleAuthUrl({ clientId, redirectUri, nonce }),
+        buildGoogleAuthUrl({ clientId, redirectUri, nonce, loginHint }),
       );
     } catch (err) {
       setError(err instanceof Error ? err.message : "Couldn't start sign-in");
@@ -60,12 +62,15 @@ export function GoogleSignInButton({
   }
 
   return (
-    <div className="w-full space-y-3">
+    <div className="w-fit mx-auto space-y-3">
       <Button
         variant="secondary"
         loading={loading}
         onClick={start}
-        leadingIcon={<Icon xml={IconGoogle} size={20} />}
+        className="px-6"
+        leadingIcon={
+          <Icon xml={IconGoogle} size={20} />
+        }
       >
         {label}
       </Button>

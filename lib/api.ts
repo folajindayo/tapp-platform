@@ -1,5 +1,5 @@
 /**
- * Typed Rails API client. Talks to usezoracle/rails-sui.
+ * Typed Rails API client. Talks to tapp/rails-sui.
  *
  * Auth model:
  *   - Cardholder endpoints (`/v1/cards/...`) authenticate with the

@@ -12,7 +12,7 @@
 // PWD_AUTH on top, but v1's PWA-first cards can't, so we don't rely
 // on it.
 
-const ZORACLE_NDEF_TYPE = "zoracle.com:tapp-card";
+const ZORACLE_NDEF_TYPE = "usetapp.xyz:tapp-card";
 
 export function webNfcSupported(): boolean {
   return typeof window !== "undefined" && "NDEFReader" in window;
@@ -34,7 +34,7 @@ export async function readCardPayload(signal?: AbortSignal): Promise<{
           (r) => r.recordType === "external" && r.mediaType === ZORACLE_NDEF_TYPE,
         );
         if (!record || !record.data) {
-          reject(new Error("Card has no Zoracle payload — needs to be linked first"));
+          reject(new Error("Card has no Tapp payload — needs to be linked first"));
           return;
         }
         const data = record.data;
