@@ -52,8 +52,6 @@ const SELF_GAS_RESERVATION_MIST = 10_000_000;
 export default function SendPage() {
   const router = useRouter();
   const { hydrated, session } = useSession();
-  console.log(session);
-  
   const wallet = useWallet();
   const haptic = useHaptic();
 
