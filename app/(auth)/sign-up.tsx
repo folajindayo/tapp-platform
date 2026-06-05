@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState } from "react";
 import {
   Alert,
   Keyboard,
@@ -9,52 +9,52 @@ import {
   StyleSheet,
   TextInput,
   View,
-} from 'react-native';
-import { Link, router } from 'expo-router';
-import { Controller, useForm } from 'react-hook-form';
-import { useMutation } from '@tanstack/react-query';
-import { z } from 'zod';
-import { Eye, EyeOff } from 'lucide-react-native';
-import { authApi } from '@/api/endpoints';
-import type { ApiError } from '@/api/types';
-import { useAuthStore } from '@/auth/store';
-import { Button, Icon, Icons, Screen, Text } from '@/ui';
+} from "react-native";
+import { Link, router } from "expo-router";
+import { Controller, useForm } from "react-hook-form";
+import { useMutation } from "@tanstack/react-query";
+import { z } from "zod";
+import { Eye, EyeOff } from "lucide-react-native";
+import { authApi } from "@/api/endpoints";
+import type { ApiError } from "@/api/types";
+import { useAuthStore } from "@/auth/store";
+import { Button, Icon, Icons, Screen, Text } from "@/ui";
 
 const schema = z.object({
-  firstName: z.string().min(1, 'Required'),
-  lastName: z.string().min(1, 'Required'),
-  email: z.string().email('Enter a valid email'),
+  firstName: z.string().min(1, "Required"),
+  lastName: z.string().min(1, "Required"),
+  email: z.string().email("Enter a valid email"),
   password: z
     .string()
-    .min(8, 'At least 8 characters')
-    .regex(/[A-Za-z]/, 'Include a letter')
-    .regex(/[0-9]/, 'Include a number'),
+    .min(8, "At least 8 characters")
+    .regex(/[A-Za-z]/, "Include a letter")
+    .regex(/[0-9]/, "Include a number"),
 });
 
 type FormValues = z.infer<typeof schema>;
 
 const PAL = {
-  cardBg:      '#121214',
-  cardBorder:  'rgba(255, 255, 255, 0.08)',
-  fieldBg:     '#1F1F22',
-  fieldBorder: 'rgba(255, 255, 255, 0.10)',
-  fieldFocus:  '#3B82F6',
-  text:        '#FFFFFF',
-  textValue:   'rgba(255, 255, 255, 0.92)',
-  textMuted:   'rgba(255, 255, 255, 0.55)',
-  textSubtle:  'rgba(255, 255, 255, 0.45)',
-  required:    '#F43F5E',
-  brand:       '#3B82F6',
-  badgeBg:     'rgba(255, 255, 255, 0.08)',
-  badgeIcon:   'rgba(255, 255, 255, 0.65)',
+  cardBg: "#121214",
+  cardBorder: "rgba(255, 255, 255, 0.08)",
+  fieldBg: "#1F1F22",
+  fieldBorder: "rgba(255, 255, 255, 0.10)",
+  fieldFocus: "#3B82F6",
+  text: "#FFFFFF",
+  textValue: "rgba(255, 255, 255, 0.92)",
+  textMuted: "rgba(255, 255, 255, 0.55)",
+  textSubtle: "rgba(255, 255, 255, 0.45)",
+  required: "#F43F5E",
+  brand: "#3B82F6",
+  badgeBg: "rgba(255, 255, 255, 0.08)",
+  badgeIcon: "rgba(255, 255, 255, 0.65)",
 } as const;
 
 export default function SignUpScreen() {
   const setSession = useAuthStore((s) => s.setSession);
 
   const { control, handleSubmit, formState } = useForm<FormValues>({
-    defaultValues: { firstName: '', lastName: '', email: '', password: '' },
-    mode: 'onChange',
+    defaultValues: { firstName: "", lastName: "", email: "", password: "" },
+    mode: "onChange",
   });
 
   const mutation = useMutation<void, ApiError, FormValues>({
@@ -68,13 +68,14 @@ export default function SignUpScreen() {
       } else {
         // Tokens absent — route to password screen to let them sign in.
         router.replace({
-          pathname: '/(auth)/password',
+          pathname: "/(auth)/password",
           params: { email: values.email },
         });
       }
     },
     onError: (err) => {
-      Alert.alert('Sign up failed', err.message ?? 'Try again');
+      console.error("Sign up failed:", err);
+      Alert.alert("Sign up failed", err.message ?? "Try again");
     },
   });
 
@@ -86,7 +87,7 @@ export default function SignUpScreen() {
   return (
     <Screen scrollable={false}>
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
         style={s.flex}
       >
         <ScrollView
@@ -100,7 +101,9 @@ export default function SignUpScreen() {
 
           <View style={s.headerBlock}>
             <Text style={s.title}>Create account</Text>
-            <Text style={s.subtitle}>Receive crypto, get NGN in your bank.</Text>
+            <Text style={s.subtitle}>
+              Receive crypto, get NGN in your bank.
+            </Text>
           </View>
 
           <View style={s.formFields}>
@@ -206,17 +209,17 @@ interface FormFieldProps {
   error?: string;
   hint?: string;
   required?: boolean;
-  keyboardType?: 'default' | 'email-address' | 'number-pad';
-  autoCapitalize?: 'none' | 'sentences' | 'words' | 'characters';
-  autoComplete?: 'off' | 'email' | 'password' | 'name';
+  keyboardType?: "default" | "email-address" | "number-pad";
+  autoCapitalize?: "none" | "sentences" | "words" | "characters";
+  autoComplete?: "off" | "email" | "password" | "name";
   textContentType?:
-    | 'emailAddress'
-    | 'password'
-    | 'newPassword'
-    | 'givenName'
-    | 'familyName'
-    | 'name'
-    | 'none';
+    | "emailAddress"
+    | "password"
+    | "newPassword"
+    | "givenName"
+    | "familyName"
+    | "name"
+    | "none";
   secureTextEntry?: boolean;
   rightSlot?: React.ReactNode;
 }
@@ -235,10 +238,10 @@ function FormField(props: FormFieldProps) {
           onChangeText={props.onChangeText}
           placeholder={props.placeholder}
           placeholderTextColor={PAL.textSubtle}
-          keyboardType={props.keyboardType ?? 'default'}
-          autoCapitalize={props.autoCapitalize ?? 'sentences'}
-          autoComplete={props.autoComplete ?? 'off'}
-          textContentType={props.textContentType ?? 'none'}
+          keyboardType={props.keyboardType ?? "default"}
+          autoCapitalize={props.autoCapitalize ?? "sentences"}
+          autoComplete={props.autoComplete ?? "off"}
+          textContentType={props.textContentType ?? "none"}
           secureTextEntry={props.secureTextEntry}
           onFocus={() => setFocused(true)}
           onBlur={() => setFocused(false)}
@@ -257,7 +260,9 @@ function FormField(props: FormFieldProps) {
   );
 }
 
-function PasswordField(props: Omit<FormFieldProps, 'secureTextEntry' | 'rightSlot'>) {
+function PasswordField(
+  props: Omit<FormFieldProps, "secureTextEntry" | "rightSlot">,
+) {
   const [visible, setVisible] = useState(false);
   return (
     <FormField
@@ -267,10 +272,16 @@ function PasswordField(props: Omit<FormFieldProps, 'secureTextEntry' | 'rightSlo
       textContentType="newPassword"
       secureTextEntry={!visible}
       rightSlot={
-        <Pressable hitSlop={8} onPress={() => setVisible((v) => !v)} style={s.eyeButton}>
-          {visible
-            ? <EyeOff size={18} color={PAL.textMuted} />
-            : <Eye size={18} color={PAL.textMuted} />}
+        <Pressable
+          hitSlop={8}
+          onPress={() => setVisible((v) => !v)}
+          style={s.eyeButton}
+        >
+          {visible ? (
+            <EyeOff size={18} color={PAL.textMuted} />
+          ) : (
+            <Eye size={18} color={PAL.textMuted} />
+          )}
         </Pressable>
       }
     />
@@ -289,14 +300,14 @@ const s = StyleSheet.create({
     gap: 6,
   },
   title: {
-    fontFamily: 'BricolageGrotesque-Bold',
+    fontFamily: "BricolageGrotesque-Bold",
     fontSize: 28,
     lineHeight: 32,
     color: PAL.text,
     letterSpacing: -0.5,
   },
   subtitle: {
-    fontFamily: 'BricolageGrotesque-Regular',
+    fontFamily: "BricolageGrotesque-Regular",
     fontSize: 14,
     lineHeight: 19,
     color: PAL.textMuted,
@@ -310,7 +321,7 @@ const s = StyleSheet.create({
     gap: 16,
   },
   row: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: 12,
   },
   formFields: {
@@ -321,8 +332,8 @@ const s = StyleSheet.create({
     height: 56,
     borderRadius: 28,
     backgroundColor: PAL.badgeBg,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     marginBottom: 2,
   },
   rowCell: {
@@ -332,7 +343,7 @@ const s = StyleSheet.create({
     gap: 8,
   },
   label: {
-    fontFamily: 'BricolageGrotesque-SemiBold',
+    fontFamily: "BricolageGrotesque-SemiBold",
     fontSize: 14,
     color: PAL.text,
   },
@@ -344,12 +355,12 @@ const s = StyleSheet.create({
     paddingHorizontal: 14,
     borderRadius: 12,
     backgroundColor: PAL.fieldBg,
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
   },
   input: {
     flex: 1,
-    fontFamily: 'BricolageGrotesque-Medium',
+    fontFamily: "BricolageGrotesque-Medium",
     fontSize: 15,
     color: PAL.textValue,
     padding: 0,
@@ -359,27 +370,27 @@ const s = StyleSheet.create({
     paddingVertical: 4,
   },
   errorText: {
-    fontFamily: 'BricolageGrotesque-Regular',
+    fontFamily: "BricolageGrotesque-Regular",
     fontSize: 12,
     color: PAL.required,
   },
   hintText: {
-    fontFamily: 'BricolageGrotesque-Regular',
+    fontFamily: "BricolageGrotesque-Regular",
     fontSize: 12,
     color: PAL.textMuted,
   },
   signinRow: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'baseline',
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "baseline",
   },
   signinHint: {
-    fontFamily: 'BricolageGrotesque-Regular',
+    fontFamily: "BricolageGrotesque-Regular",
     fontSize: 14,
     color: PAL.textMuted,
   },
   signinLink: {
-    fontFamily: 'BricolageGrotesque-SemiBold',
+    fontFamily: "BricolageGrotesque-SemiBold",
     fontSize: 14,
     color: PAL.brand,
   },

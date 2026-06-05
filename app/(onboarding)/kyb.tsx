@@ -53,11 +53,8 @@ export default function KybScreen() {
   };
 
   const handleBack = () => {
-    if (router.canGoBack()) {
-      router.back();
-    } else {
-      router.replace("/(auth)/sign-in");
-    }
+    // Always sign out to cancel onboarding and log out
+    useAuthStore.getState().signOut();
   };
 
   return (

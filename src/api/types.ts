@@ -40,7 +40,7 @@ export interface ConfirmAccountRequest {
 // to disambiguate which token kind to mint.
 export interface ResendTokenRequest {
   email: string;
-  scope: 'emailVerification' | 'resetPassword';
+  scope: "emailVerification" | "resetPassword";
 }
 
 // ---- Me ----
@@ -51,7 +51,7 @@ export interface MeResponse {
   last_name?: string;
   scopes: string[];
   is_email_verified: boolean;
-  kyc_status?: 'pending' | 'success' | 'failed' | 'not_started';
+  kyc_status?: "pending" | "success" | "failed" | "not_started";
   has_sender_profile: boolean;
   has_provider_profile: boolean;
   has_tapp_card: boolean;
@@ -71,7 +71,7 @@ export interface RequestKycResponse {
   expires_at: string;
 }
 export interface KycStatusResponse {
-  status: 'pending' | 'success' | 'failed';
+  status: "pending" | "success" | "failed";
 }
 
 // ---- Catalog ----
@@ -86,7 +86,7 @@ export interface Currency {
 export interface Institution {
   code: string;
   name: string;
-  type: 'bank' | 'mobile_money';
+  type: "bank" | "mobile_money";
 }
 
 // ---- Verify account ----
@@ -135,7 +135,7 @@ export interface InitiateTapResponse {
 // docs/tap-card-pin-flow.md and rails/docs/tapp-card-spec.md (rev 2).
 
 /** Tier the backend resolved the amount into. Determines the UI flow. */
-export type TapCardTier = 'none' | 'pin' | 'step_up';
+export type TapCardTier = "none" | "pin" | "step_up";
 
 /**
  * GET /v1/sender/me/tap-card/nonce
@@ -149,36 +149,36 @@ export interface TapCardNonceRequest {
 }
 export interface TapCardNonceResponse {
   tier: TapCardTier;
-  server_nonce: string;        // hex, single-use, 60s TTL
-  step_up_url?: string;        // present only when tier === 'step_up'
-  step_up_token?: string;      // opaque; echoed back on re-submit
+  server_nonce: string; // hex, single-use, 60s TTL
+  step_up_url?: string; // present only when tier === 'step_up'
+  step_up_token?: string; // opaque; echoed back on re-submit
 }
 
 /** POST /v1/sender/me/tap-card — the debit itself. */
 export interface TapCardDebitRequest {
-  card_uid_hash:   string; // hex(sha256(UID))
+  card_uid_hash: string; // hex(sha256(UID))
   current_token_ct: string; // hex of the ciphertext bytes read off the card
-  amount:          string;  // fiat amount, decimal string
-  currency:        string;  // 'NGN' in v1
-  memo?:           string;
-  server_nonce:    string;  // echo from GET /nonce
+  amount: string; // fiat amount, decimal string
+  currency: string; // 'NGN' in v1
+  memo?: string;
+  server_nonce: string; // echo from GET /nonce
   /** HMAC challenge-response. Null when tier === 'none'. */
-  pin_response?:   string;  // hex(HMAC-SHA256(HMAC(K, PIN), server_nonce))
+  pin_response?: string; // hex(HMAC-SHA256(HMAC(K, PIN), server_nonce))
   /** Echoed back after a step-up grant; null on initial submit. */
-  step_up_token?:  string;
+  step_up_token?: string;
 }
 
 export interface TapCardDebitResponse {
-  status:          'settled' | 'processing';
-  order_id:        UUID;
-  amount:          string;
-  currency:        string;
+  status: "settled" | "processing";
+  order_id: UUID;
+  amount: string;
+  currency: string;
   /** New card-sector token to write back on success. Hex. */
-  new_card_token:  string;
+  new_card_token: string;
   /** Single-use NTAG215 PWD (4 bytes hex) for PWD_AUTH before write. */
-  card_password:   string;
+  card_password: string;
   remaining_daily: string; // subunit u64
-  tx_hash?:        string;
+  tx_hash?: string;
 }
 
 /** POST /v1/sender/me/tap-card/:order_id/token-ack */
@@ -188,20 +188,20 @@ export interface TapCardTokenAckRequest {
 
 /** GET /v1/sender/me/tap-card/step-up?token=… */
 export interface TapCardStepUpResponse {
-  status: 'pending' | 'granted' | 'denied' | 'expired';
+  status: "pending" | "granted" | "denied" | "expired";
 }
 
 // ---- Orders ----
 export type OrderStatus =
-  | 'initiated'
-  | 'pending'
-  | 'processing'
-  | 'fulfilled'
-  | 'validated'
-  | 'settled'
-  | 'cancelled'
-  | 'refunded'
-  | 'expired';
+  | "initiated"
+  | "pending"
+  | "processing"
+  | "fulfilled"
+  | "validated"
+  | "settled"
+  | "cancelled"
+  | "refunded"
+  | "expired";
 
 export interface PaymentOrderRecipient {
   institution: string;
@@ -277,11 +277,22 @@ export type RateResponse = string;
 
 // ---- SSE events ----
 export type SsePaymentEvent =
-  | { event: 'payment.deposited'; data: { order_id: UUID; sui_tx_hash?: string } }
-  | { event: 'payment.processing'; data: { order_id: UUID } }
-  | { event: 'payment.fulfilled'; data: { order_id: UUID; fiat_amount: string } }
   | {
-      event: 'payment.settled';
-      data: { order_id: UUID; fiat_amount: string; tx_hash: string; settled_at: string };
+      event: "payment.deposited";
+      data: { order_id: UUID; sui_tx_hash?: string };
     }
-  | { event: 'payment.refunded'; data: { order_id: UUID; reason: string } };
+  | { event: "payment.processing"; data: { order_id: UUID } }
+  | {
+      event: "payment.fulfilled";
+      data: { order_id: UUID; fiat_amount: string };
+    }
+  | {
+      event: "payment.settled";
+      data: {
+        order_id: UUID;
+        fiat_amount: string;
+        tx_hash: string;
+        settled_at: string;
+      };
+    }
+  | { event: "payment.refunded"; data: { order_id: UUID; reason: string } };

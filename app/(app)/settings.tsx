@@ -8,7 +8,6 @@ import { authApi, merchantApi } from "@/api/endpoints";
 import { queryKeys } from "@/queries/keys";
 import { useAuthStore } from "@/auth/store";
 import { Header, Icon, Icons, Screen, Text } from "@/ui";
-import { maskAccountNumber } from "@/ui/format";
 import { colors } from "@/ui/theme";
 
 cssInterop(Pressable, { className: { target: "style" } });
@@ -60,15 +59,6 @@ export default function SettingsScreen() {
     await Linking.openURL(url);
   }
 
-  const kycStatus = meQuery.data?.kyc_status;
-  const kycLabel =
-    kycStatus === "success"
-      ? "Verified"
-      : kycStatus
-        ? kycStatus.charAt(0).toUpperCase() + kycStatus.slice(1)
-        : "—";
-  const kycColor = kycStatus === "success" ? colors.success : colors.textMuted;
-
   return (
     // scrollable=false so the Header stays pinned; the body content
     // scrolls inside its own ScrollView below.
@@ -96,29 +86,33 @@ export default function SettingsScreen() {
             icon={Icons.IconEmail}
             label="Email"
             value={user?.email ?? "—"}
-          />
-          <Row
-            icon={Icons.IconKycStatus}
-            label="KYC"
-            value={kycStatus === "success" ? `✓ ${kycLabel}` : kycLabel}
-            valueColor={kycColor}
             last
           />
         </Section>
 
         <Section title="Payouts">
-          <Row
-            icon={Icons.IconBank}
-            label="Bank account"
-            value={
-              bankQuery.data
-                ? `${bankQuery.data.account_name} · ${maskAccountNumber(bankQuery.data.account_number)}`
-                : "Not set"
-            }
-            chevron
-            last
-            onPress={() => router.push("/(onboarding)/bank-account?from=settings")}
-          />
+          {bankQuery.data ? (
+            <>
+              <Row
+                icon={Icons.IconBank}
+                label="Account Name"
+                value={bankQuery.data.account_name}
+              />
+              <Row
+                icon={Icons.IconInfo}
+                label="Account Number"
+                value={bankQuery.data.account_number}
+                last
+              />
+            </>
+          ) : (
+            <Row
+              icon={Icons.IconBank}
+              label="Bank account"
+              value="Not set"
+              last
+            />
+          )}
         </Section>
 
         <Section title="Security">

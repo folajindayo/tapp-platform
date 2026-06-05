@@ -126,8 +126,10 @@ export default function BankAccountScreen() {
     if (from === 'settings') {
       router.replace('/(app)/settings');
     } else {
-      if (router.canGoBack()) router.back();
-      else router.replace('/(onboarding)/kyb');
+      // Always sign out to cancel onboarding and log out
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const { useAuthStore } = require('@/auth/store') as typeof import('@/auth/store');
+      useAuthStore.getState().signOut();
     }
   }
 
@@ -150,7 +152,6 @@ export default function BankAccountScreen() {
               <ChevronLeft size={20} color={C.textPrimary} />
             </Pressable>
             <View style={$.dots}>
-              <View style={[$.dot, $.dotDone]} />
               <View style={[$.dot, $.dotDone]} />
               <View style={[$.dot, $.dotDone]} />
               <View style={[$.dot, $.dotActive]} />

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState } from "react";
 import {
   Keyboard,
   Pressable,
@@ -6,50 +6,56 @@ import {
   StyleSheet,
   TextInput,
   View,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { Link, router, useLocalSearchParams } from 'expo-router';
-import { useMutation } from '@tanstack/react-query';
-import { ChevronLeft, Eye, EyeOff } from 'lucide-react-native';
-import { authApi } from '@/api/endpoints';
-import type { ApiError } from '@/api/types';
-import { useAuthStore } from '@/auth/store';
-import { Button, Icon, Icons, Text } from '@/ui';
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { Link, router, useLocalSearchParams } from "expo-router";
+import { useMutation } from "@tanstack/react-query";
+import { ChevronLeft, Eye, EyeOff } from "lucide-react-native";
+import { authApi } from "@/api/endpoints";
+import type { ApiError } from "@/api/types";
+import { useAuthStore } from "@/auth/store";
+import { Button, Icon, Icons, Text } from "@/ui";
 
 const PAL = {
-  bg:         '#0D0D0D',
-  badgeBg:    'rgba(255, 255, 255, 0.08)',
-  badgeIcon:  'rgba(255, 255, 255, 0.65)',
-  text:       '#FFFFFF',
-  textMuted:  'rgba(255, 255, 255, 0.55)',
-  textSubtle: 'rgba(255, 255, 255, 0.35)',
-  inputBg:    'rgba(255, 255, 255, 0.06)',
-  required:   '#F43F5E',
-  success:    '#22C55E',
-  successBg:  'rgba(34, 197, 94, 0.10)',
-  brand:      '#3B82F6',
+  bg: "#0D0D0D",
+  badgeBg: "rgba(255, 255, 255, 0.08)",
+  badgeIcon: "rgba(255, 255, 255, 0.65)",
+  text: "#FFFFFF",
+  textMuted: "rgba(255, 255, 255, 0.55)",
+  textSubtle: "rgba(255, 255, 255, 0.35)",
+  inputBg: "rgba(255, 255, 255, 0.06)",
+  required: "#F43F5E",
+  success: "#22C55E",
+  successBg: "rgba(34, 197, 94, 0.10)",
+  brand: "#3B82F6",
 } as const;
 
 export default function PasswordScreen() {
-  const { email, verified } = useLocalSearchParams<{ email?: string; verified?: string }>();
+  const { email, verified } = useLocalSearchParams<{
+    email?: string;
+    verified?: string;
+  }>();
   const setSession = useAuthStore((s) => s.setSession);
-  const [password, setPassword] = useState('');
+  const [password, setPassword] = useState("");
   const [visible, setVisible] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const justVerified = verified === 'true';
+  const justVerified = verified === "true";
   const valid = password.length >= 6 && !!email;
 
-  const mutation = useMutation<Awaited<ReturnType<typeof authApi.login>>, ApiError>({
+  const mutation = useMutation<
+    Awaited<ReturnType<typeof authApi.login>>,
+    ApiError
+  >({
     mutationFn: () => authApi.login({ email: email!, password }),
     onSuccess: (data) => {
       // Session set — Guard will route to the correct step based on /me response.
       setSession(data.accessToken, data.refreshToken);
     },
     onError: (err) => {
-      const msg = (err?.message ?? '').toLowerCase();
+      const msg = (err?.message ?? "").toLowerCase();
 
-      if (msg.includes('do not match') || msg.includes('not found')) {
+      if (msg.includes("do not match") || msg.includes("not found")) {
         // No account with this email → offer to sign up.
         // router.push({ pathname: '/(auth)/sign-up', params: { email } });
         return;
@@ -61,7 +67,7 @@ export default function PasswordScreen() {
       //   return;
       // }
 
-      setError(err?.message ?? 'Could not sign in. Try again.');
+      setError(err?.message ?? "Could not sign in. Try again.");
     },
   });
 
@@ -73,7 +79,7 @@ export default function PasswordScreen() {
   }
 
   return (
-    <SafeAreaView edges={['top']} style={s.root}>
+    <SafeAreaView edges={["top"]} style={s.root}>
       <ScrollView
         style={s.flex}
         contentContainerStyle={s.scroll}
@@ -87,7 +93,9 @@ export default function PasswordScreen() {
 
         {justVerified && (
           <View style={s.verifiedBanner}>
-            <Text style={s.verifiedText}>Email verified — sign in to continue.</Text>
+            <Text style={s.verifiedText}>
+              Email verified — sign in to continue.
+            </Text>
           </View>
         )}
 
@@ -96,12 +104,22 @@ export default function PasswordScreen() {
         </View>
 
         <Text style={s.title}>Enter your password</Text>
-        <Text style={s.subtitle} numberOfLines={1}>{email}</Text>
+        <Text style={s.subtitle} numberOfLines={1}>
+          {email}
+        </Text>
 
-        <View style={[s.input, error ? { borderWidth: 1, borderColor: PAL.required } : null]}>
+        <View
+          style={[
+            s.input,
+            error ? { borderWidth: 1, borderColor: PAL.required } : null,
+          ]}
+        >
           <TextInput
             value={password}
-            onChangeText={(t) => { setPassword(t); if (error) setError(null); }}
+            onChangeText={(t) => {
+              setPassword(t);
+              if (error) setError(null);
+            }}
             placeholder="Password"
             placeholderTextColor={PAL.textSubtle}
             secureTextEntry={!visible}
@@ -113,10 +131,16 @@ export default function PasswordScreen() {
             onSubmitEditing={submit}
             style={s.inputText}
           />
-          <Pressable hitSlop={8} onPress={() => setVisible((v) => !v)} style={s.eyeBtn}>
-            {visible
-              ? <EyeOff size={18} color={PAL.textMuted} />
-              : <Eye size={18} color={PAL.textMuted} />}
+          <Pressable
+            hitSlop={8}
+            onPress={() => setVisible((v) => !v)}
+            style={s.eyeBtn}
+          >
+            {visible ? (
+              <EyeOff size={18} color={PAL.textMuted} />
+            ) : (
+              <Eye size={18} color={PAL.textMuted} />
+            )}
           </Pressable>
         </View>
 
@@ -134,7 +158,12 @@ export default function PasswordScreen() {
 
         <Pressable
           hitSlop={8}
-          onPress={() => router.push({ pathname: '/(auth)/forgot-password', params: { email } })}
+          onPress={() =>
+            router.push({
+              pathname: "/(auth)/forgot-password",
+              params: { email },
+            })
+          }
           style={s.forgotRow}
         >
           <Text style={s.forgotText}>Forgot password?</Text>
@@ -144,7 +173,10 @@ export default function PasswordScreen() {
 
         <View style={s.signupRow}>
           <Text style={s.signupHint}>Don't have an account? </Text>
-          <Link href={{ pathname: '/(auth)/sign-up', params: { email } }} asChild>
+          <Link
+            href={{ pathname: "/(auth)/sign-up", params: { email } }}
+            asChild
+          >
             <Pressable hitSlop={6}>
               <Text style={s.signupLink}>Sign up</Text>
             </Pressable>
@@ -168,15 +200,15 @@ const s = StyleSheet.create({
     paddingBottom: 24,
   },
   backRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 2,
     height: 36,
-    alignSelf: 'flex-start',
+    alignSelf: "flex-start",
     marginBottom: 8,
   },
   backText: {
-    fontFamily: 'BricolageGrotesque-Medium',
+    fontFamily: "BricolageGrotesque-Medium",
     fontSize: 15,
     color: PAL.textMuted,
   },
@@ -188,22 +220,22 @@ const s = StyleSheet.create({
     marginBottom: 20,
   },
   verifiedText: {
-    fontFamily: 'BricolageGrotesque-Medium',
+    fontFamily: "BricolageGrotesque-Medium",
     fontSize: 13,
     color: PAL.success,
-    textAlign: 'center',
+    textAlign: "center",
   },
   badge: {
     width: 56,
     height: 56,
     borderRadius: 28,
     backgroundColor: PAL.badgeBg,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     marginBottom: 24,
   },
   title: {
-    fontFamily: 'BricolageGrotesque-Bold',
+    fontFamily: "BricolageGrotesque-Bold",
     fontSize: 28,
     lineHeight: 34,
     color: PAL.text,
@@ -211,7 +243,7 @@ const s = StyleSheet.create({
     marginBottom: 8,
   },
   subtitle: {
-    fontFamily: 'BricolageGrotesque-Regular',
+    fontFamily: "BricolageGrotesque-Regular",
     fontSize: 15,
     lineHeight: 20,
     color: PAL.textMuted,
@@ -222,14 +254,14 @@ const s = StyleSheet.create({
     paddingHorizontal: 18,
     borderRadius: 14,
     backgroundColor: PAL.inputBg,
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     marginBottom: 24,
   },
   inputText: {
     flex: 1,
     color: PAL.text,
-    fontFamily: 'BricolageGrotesque-Medium',
+    fontFamily: "BricolageGrotesque-Medium",
     fontSize: 16,
     padding: 0,
   },
@@ -240,35 +272,35 @@ const s = StyleSheet.create({
   errorText: {
     marginTop: -16,
     marginBottom: 16,
-    fontFamily: 'BricolageGrotesque-Regular',
+    fontFamily: "BricolageGrotesque-Regular",
     fontSize: 13,
     color: PAL.required,
   },
   buttonWrap: {
-    width: '100%',
+    width: "100%",
   },
   forgotRow: {
-    alignSelf: 'center',
+    alignSelf: "center",
     marginTop: 20,
   },
   forgotText: {
-    fontFamily: 'BricolageGrotesque-Medium',
+    fontFamily: "BricolageGrotesque-Medium",
     fontSize: 14,
     color: PAL.textMuted,
   },
   signupRow: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'baseline',
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "baseline",
     marginTop: 20,
   },
   signupHint: {
-    fontFamily: 'BricolageGrotesque-Regular',
+    fontFamily: "BricolageGrotesque-Regular",
     fontSize: 14,
     color: PAL.textMuted,
   },
   signupLink: {
-    fontFamily: 'BricolageGrotesque-SemiBold',
+    fontFamily: "BricolageGrotesque-SemiBold",
     fontSize: 14,
     color: PAL.brand,
   },

@@ -27,7 +27,7 @@ export function useOnboardingState(): OnboardingState {
   });
 
   const me = meQuery.data;
-  const kycDone = me?.kyc_status === 'success';
+  // const kycDone = me?.kyc_status === 'success';
 
   useEffect(() => {
     if (me) {
@@ -54,6 +54,11 @@ export function useOnboardingState(): OnboardingState {
     },
   });
 
+  if (__DEV__) {
+    console.log('[useOnboardingState] meQuery — data:', meQuery.data, '| error:', meQuery.error, '| isLoading:', meQuery.isLoading);
+    console.log('[useOnboardingState] bankQuery — data:', bankQuery.data, '| error:', bankQuery.error, '| isLoading:', bankQuery.isLoading);
+  }
+
   if (!isAuthenticated) return { step: 'sign-in', loading: false };
   if (meQuery.isLoading) return { step: 'sign-in', loading: true };
 
@@ -62,14 +67,15 @@ export function useOnboardingState(): OnboardingState {
 
   // if (!user.is_email_verified) return { step: 'verify-email', loading: false };
 
-  if (bankQuery.isLoading) return { step: kycDone ? 'bank-account' : 'kyb', loading: true };
+  if (bankQuery.isLoading) return { step: 'bank-account', loading: true };
 
   // A saved bank account means onboarding is complete regardless of KYC state.
   if (bankQuery.data) return { step: 'live', loading: false };
 
   // No bank account yet — show kyb first so the user completes identity
   // verification before setting up payouts.
-  if (!kycDone) return { step: 'kyb', loading: false };
+  // KYC is temporarily bypassed from the onboarding flow:
+  // if (!kycDone) return { step: 'kyb', loading: false };
 
   return { step: 'bank-account', loading: false };
 }

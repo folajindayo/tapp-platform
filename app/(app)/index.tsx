@@ -131,7 +131,7 @@ export default function DashboardScreen() {
             <ActivityIndicator size="small" color={PAL.brand} />
           ) : (
             <Text style={s.todayText}>
-              Today · {formatNgn(today.volume)}
+              Today · ${today.volume.toFixed(2)}
               <Text style={s.todayCount}>  ·  {today.count} {today.count === 1 ? 'sale' : 'sales'}</Text>
             </Text>
           )}
