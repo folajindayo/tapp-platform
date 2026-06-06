@@ -1,9 +1,9 @@
+import Image from "next/image";
+import logoIcon from "@/app/icon.png";
 import { cn } from "@/lib/utils";
 
 /**
- * Wordmark — "Zoracle" with a tiny royal-blue dot, mirroring zap's
- * "Zap" + Paycrest mini-logo treatment. Minimal on purpose; brand
- * marks can land later without touching consumers.
+ * Logo component — renders the updated brand icon next to the "Tapp" wordmark.
  */
 export function Logo({ className }: { className?: string }) {
   return (
@@ -12,9 +12,17 @@ export function Logo({ className }: { className?: string }) {
         "inline-flex items-center gap-2 text-lg font-semibold text-neutral-900 dark:text-white",
         className,
       )}
+      style={{ fontFamily: "var(--font-dm-sans), var(--font-sans)" }}
     >
-      <span aria-hidden className="size-2 rounded-full bg-blue-600" />
-      Tapp
+      <Image
+        src={logoIcon}
+        alt="Tapp Logo"
+        width={24}
+        height={24}
+        className="size-6 object-contain"
+        priority
+      />
+      tapp
     </span>
   );
 }

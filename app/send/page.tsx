@@ -137,25 +137,56 @@ export default function SendPage() {
         const { executeZkLoginTx } = await import("@/lib/zklogin");
         const { Transaction } = await import("@mysten/sui/transactions");
         const { suiReadClient } = await import("@/lib/sui-client");
-
         const result = await executeZkLoginTx(
           async (tx: InstanceType<typeof Transaction>) => {
-            // Self-sponsor + native SUI: split from `tx.gas` directly. The
-            // SDK picks one of the user's SUI coins, uses part for gas,
-            // splits the requested amount off the rest, and routes the
-            // remainder back to the sender as change.
+            const client = suiReadClient();
+
+            // Self-sponsor + native SUI: We must manually select SUI coins whose
+            // total balance covers both the transfer amount and the gas reservation fee,
+            // then set them as the explicit gas payment. This overrides the SDK's
+            // automatic gas selection (which only allocates coins covering the estimated
+            // execution fees and doesn't inspect custom splitCoins(tx.gas, ...) commands,
+            // causing dry-run to fail with InsufficientCoinBalance).
             if (selfSponsor && asset === "SUI") {
+              const coins = await client.getCoins({
+                owner: session.suiAddress,
+                coinType: "0x2::sui::SUI",
+              });
+              const requiredBalance = BigInt(amountSubunit) + BigInt(SELF_GAS_RESERVATION_MIST);
+              let accumulated = BigInt(0);
+              const selectedCoins: typeof coins.data = [];
+              for (const coin of coins.data) {
+                accumulated += BigInt(coin.balance);
+                selectedCoins.push(coin);
+                if (accumulated >= requiredBalance) {
+                  break;
+                }
+              }
+              if (accumulated < requiredBalance) {
+                throw new Error(
+                  `Insufficient SUI balance to pay for gas and withdraw. Required: ${
+                    (Number(requiredBalance) / 1e9).toFixed(4)
+                  } SUI, Available: ${(Number(accumulated) / 1e9).toFixed(4)} SUI`
+                );
+              }
+              tx.setGasPayment(
+                selectedCoins.map((c) => ({
+                  objectId: c.coinObjectId,
+                  version: c.version,
+                  digest: c.digest,
+                }))
+              );
               const [out] = tx.splitCoins(tx.gas, [tx.pure.u64(BigInt(amountSubunit))]);
               tx.transferObjects([out], tx.pure.address(recipient));
               return;
             }
+
             // Other cases: pick coin objects owned by the sender, merge if
             // many, split the requested amount off, transfer. For native
             // SUI under Rails-sponsored tx we deliberately do NOT split
             // from `tx.gas` — under sponsorship the gas coin is the
             // sponsor's, so splitting from it would charge the sponsor for
             // the value transfer, not just the fees.
-            const client = suiReadClient();
             const coinType = asset === "SUI" ? "0x2::sui::SUI" : USDC_COIN_TYPE;
             const coins = await client.getCoins({
               owner: session.suiAddress,
