@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Inter } from "next/font/google";
+import { DM_Sans, Inter } from "next/font/google";
 import "./globals.css";
 import { QueryProvider } from "@/lib/query-provider";
 import { GoogleProvider } from "@/lib/google-provider";
@@ -20,9 +20,16 @@ const inter = Inter({
   subsets: ["latin"],
 });
 
+const dmSans = DM_Sans({
+  variable: "--font-dm-sans",
+  subsets: ["latin"],
+  style: ["normal", "italic"],
+});
+
 export const metadata: Metadata = {
-  title: "Tapp by Zoracle Labs",
-  description: "Tap, pay, done.",
+  title: "Tapp — Tap. Pay. Done.",
+  description:
+    "Customers tap to pay in USDC. Merchants get money in their bank — without ever touching crypto.",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
@@ -59,7 +66,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${inter.variable} h-full antialiased`}
+      className={`${inter.variable} ${dmSans.variable} h-full antialiased`}
       suppressHydrationWarning
     >
       <body className="min-h-full bg-white text-neutral-900 transition-colors dark:bg-neutral-900 dark:text-white">
