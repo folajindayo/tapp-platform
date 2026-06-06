@@ -19,6 +19,7 @@ import { authApi } from "@/api/endpoints";
 import type { ApiError } from "@/api/types";
 import { useAuthStore } from "@/auth/store";
 import { Button, Icon, Icons, Screen, Text } from "@/ui";
+import { EarlyAccessModal } from "@/components/EarlyAccessModal";
 
 const schema = z.object({
   firstName: z.string().min(1, "Required"),
@@ -51,6 +52,7 @@ const PAL = {
 
 export default function SignUpScreen() {
   const setSession = useAuthStore((s) => s.setSession);
+  const [earlyAccessVisible, setEarlyAccessVisible] = useState(false);
 
   const { control, handleSubmit, formState } = useForm<FormValues>({
     defaultValues: { firstName: "", lastName: "", email: "", password: "" },
@@ -66,15 +68,20 @@ export default function SignUpScreen() {
       if (tokens?.accessToken) {
         setSession(tokens.accessToken, tokens.refreshToken);
       } else {
-        // Tokens absent — route to password screen to let them sign in.
+        // Tokens absent — route to verify-email screen with password for auto-login
         router.replace({
-          pathname: "/(auth)/password",
-          params: { email: values.email },
+          pathname: "/(auth)/verify-email",
+          params: { email: values.email, password: values.password },
         });
       }
     },
     onError: (err) => {
       console.error("Sign up failed:", err);
+      const msg = (err?.message ?? "").toLowerCase();
+      if (msg.includes("early access request is still pending") || msg.includes("early access")) {
+        setEarlyAccessVisible(true);
+        return;
+      }
       Alert.alert("Sign up failed", err.message ?? "Try again");
     },
   });
@@ -197,6 +204,11 @@ export default function SignUpScreen() {
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
+
+      <EarlyAccessModal
+        visible={earlyAccessVisible}
+        onClose={() => setEarlyAccessVisible(false)}
+      />
     </Screen>
   );
 }

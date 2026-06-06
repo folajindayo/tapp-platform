@@ -33,6 +33,8 @@ const PAL = {
 
 const PRESETS = [5000, 10000, 50000];
 
+// Module-level cache for the exchange rate
+let cachedExchangeRate: string | null = null;
 
 export default function DashboardScreen() {
   const [amountStr, setAmountStr] = useState('');
@@ -78,20 +80,27 @@ export default function DashboardScreen() {
     enabled: debouncedAmountStr !== '' && Number.parseFloat(debouncedAmountStr || '0') > 0,
   });
 
+  useEffect(() => {
+    if (rateQuery.data) {
+      cachedExchangeRate = rateQuery.data;
+    }
+  }, [rateQuery.data]);
+
   const usdcValue = useMemo(() => {
-    if (!amountStr || !rateQuery.data) return null;
+    if (!amountStr) return null;
+    const rateValStr = rateQuery.data || cachedExchangeRate;
+    if (!rateValStr) return null;
     const fiatVal = Number.parseFloat(amountStr);
-    const rateVal = Number.parseFloat(rateQuery.data);
+    const rateVal = Number.parseFloat(rateValStr);
     if (!fiatVal || !rateVal) return null;
     return fiatVal / rateVal;
   }, [amountStr, rateQuery.data]);
 
   const hintText = useMemo(() => {
     if (!amountValid) return '—';
-    if (rateQuery.isLoading) return '—';
     if (usdcValue === null) return '—';
     return `≈ ${formatNumber(usdcValue)} USDC`;
-  }, [amountValid, rateQuery.isLoading, usdcValue]);
+  }, [amountValid, usdcValue]);
 
   function press(key: KeypadKey) {
     if (key.type === 'back') {

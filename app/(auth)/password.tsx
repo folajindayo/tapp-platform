@@ -15,6 +15,7 @@ import { authApi } from "@/api/endpoints";
 import type { ApiError } from "@/api/types";
 import { useAuthStore } from "@/auth/store";
 import { Button, Icon, Icons, Text } from "@/ui";
+import { EarlyAccessModal } from "@/components/EarlyAccessModal";
 
 const PAL = {
   bg: "#0D0D0D",
@@ -39,6 +40,7 @@ export default function PasswordScreen() {
   const [password, setPassword] = useState("");
   const [visible, setVisible] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [earlyAccessVisible, setEarlyAccessVisible] = useState(false);
 
   const justVerified = verified === "true";
   const valid = password.length >= 6 && !!email;
@@ -54,6 +56,11 @@ export default function PasswordScreen() {
     },
     onError: (err) => {
       const msg = (err?.message ?? "").toLowerCase();
+
+      if (msg.includes("early access request is still pending") || msg.includes("early access")) {
+        setEarlyAccessVisible(true);
+        return;
+      }
 
       if (msg.includes("do not match") || msg.includes("not found")) {
         // No account with this email → offer to sign up.
@@ -183,6 +190,11 @@ export default function PasswordScreen() {
           </Link>
         </View>
       </ScrollView>
+
+      <EarlyAccessModal
+        visible={earlyAccessVisible}
+        onClose={() => setEarlyAccessVisible(false)}
+      />
     </SafeAreaView>
   );
 }

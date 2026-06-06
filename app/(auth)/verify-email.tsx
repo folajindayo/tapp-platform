@@ -33,7 +33,10 @@ const PAL = {
 } as const;
 
 export default function VerifyEmailScreen() {
-  const { email: paramEmail } = useLocalSearchParams<{ email?: string }>();
+  const { email: paramEmail, password } = useLocalSearchParams<{
+    email?: string;
+    password?: string;
+  }>();
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const storeEmail = useAuthStore((s) => s.user?.email);
 
@@ -83,6 +86,18 @@ export default function VerifyEmailScreen() {
         // Authenticated path: invalidate /me so the Guard sees the updated
         // is_email_verified flag and advances to the next onboarding step.
         await queryClient.invalidateQueries({ queryKey: ['auth', 'me'] });
+      } else if (password) {
+        // Unauthenticated path with password: login automatically!
+        try {
+          const loginData = await authApi.login({ email, password });
+          useAuthStore.getState().setSession(loginData.accessToken, loginData.refreshToken);
+        } catch (loginErr) {
+          // Fallback to password screen if login fails for some reason
+          router.replace({
+            pathname: '/(auth)/password',
+            params: { email, verified: 'true' },
+          });
+        }
       } else {
         // Unauthenticated path: user registered but couldn't log in until now.
         // Route back to the password screen so they can sign in; a success
