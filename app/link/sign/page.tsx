@@ -88,15 +88,64 @@ function Body() {
             `NEXT_PUBLIC_TAPP_PACKAGE_ID must be a 32-byte 0x address (64 hex chars); got ${Math.max(0, packageId.length - 2)}. Looks truncated — check the deploy env var.`,
           );
         }
+        // The card is denominated in USDC (matches the rails settlement
+        // system). T must be the bare coin type (…::usdc::USDC), NOT Coin<…>.
+        const usdcCoinType = process.env.NEXT_PUBLIC_USDC_COIN_TYPE;
+        if (!usdcCoinType || !/^0x[0-9a-f]{1,64}::[^:]+::[^:]+$/i.test(usdcCoinType)) {
+          throw new Error(
+            "NEXT_PUBLIC_USDC_COIN_TYPE must be a coin type like 0x…::usdc::USDC — set it for this network.",
+          );
+        }
+        // Seed the cap's balance from the holder's USDC. `fundingSubunit` is
+        // micro-USDC (6 dp). If they chose an amount, select their USDC coins
+        // up front and remember the ids; if it's 0 we mint a zero coin in the
+        // PTB so the cap still gets created (they top up later).
+        const fundingMicro = BigInt(link.fundingSubunit);
+        let usdcCoinIds: string[] = [];
+        if (fundingMicro > BigInt(0)) {
+          const owner = zk.readSession()?.suiAddress;
+          if (!owner) throw new Error("No wallet address — please sign in again.");
+          const { data: coins } = await zk.suiClient().getCoins({
+            owner,
+            coinType: usdcCoinType,
+          });
+          const total = coins.reduce((sum, c) => sum + BigInt(c.balance), BigInt(0));
+          if (total < fundingMicro) {
+            const usd = (m: bigint) => `$${(Number(m) / 1e6).toFixed(2)}`;
+            throw new Error(
+              `Not enough USDC to fund this card — need ${usd(fundingMicro)}, wallet has ${usd(total)}. Lower the funding amount and try again (you can top up later).`,
+            );
+          }
+          usdcCoinIds = coins.map((c) => c.coinObjectId);
+        }
+
         const result = await zk.executeZkLoginTx((tx: InstanceType<typeof Transaction>) => {
+          // create_cap wants a Coin<T> to seed the balance. (tx.gas is
+          // Coin<SUI> and can't fund a USDC cap — that was the arg-0
+          // TypeMismatch.)
+          let funding;
+          if (fundingMicro > BigInt(0)) {
+            // Merge the holder's USDC into one coin, then split the exact
+            // funding amount off it.
+            const primary = tx.object(usdcCoinIds[0]);
+            if (usdcCoinIds.length > 1) {
+              tx.mergeCoins(
+                primary,
+                usdcCoinIds.slice(1).map((id) => tx.object(id)),
+              );
+            }
+            funding = tx.splitCoins(primary, [tx.pure.u64(fundingMicro)])[0];
+          } else {
+            funding = tx.moveCall({
+              target: "0x2::coin::zero",
+              typeArguments: [usdcCoinType],
+            });
+          }
           tx.moveCall({
             target: `${packageId}::tapp_card::create_cap`,
-            typeArguments: [
-              process.env.NEXT_PUBLIC_USDC_COIN_TYPE ??
-                "0x2::coin::Coin<0x2::sui::SUI>",
-            ],
+            typeArguments: [usdcCoinType],
             arguments: [
-              tx.gas,
+              funding,
               tx.pure.u64(BigInt(link.dailyLimitSubunit)),
               tx.pure.u64(BigInt(link.perTapLimitSubunit)),
               tx.pure.vector("u8", Array.from(link.cardUidHash!)),
@@ -109,8 +158,7 @@ function Body() {
         const cap = created[0];
         if (!cap) throw new Error("create_cap effects missing — check Move call args");
         capObjectId = cap.reference.objectId;
-        coinType =
-          process.env.NEXT_PUBLIC_USDC_COIN_TYPE ?? "unknown";
+        coinType = usdcCoinType;
         txDigest = result.digest;
       }
 

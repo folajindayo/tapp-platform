@@ -72,7 +72,8 @@ function Body() {
       daily:   daily * 100,
       perTap:  perTap * 100,
       stepUp:  stepUp * 100,
-      funding: Math.round(funding * 100),
+      // Funding is USDC (6 decimals), not fiat kobo — scale by 1e6.
+      funding: Math.round(funding * 1_000_000),
       pin,
     });
     router.push(`/link/write?card=${cardId}`);
