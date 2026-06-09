@@ -30,8 +30,10 @@ export async function readCardPayload(signal?: AbortSignal): Promise<{
     reader.onreadingerror = () => reject(new Error("NFC read failed"));
     reader.onreading = (event: NDEFReadingEvent) => {
       try {
+        // External-type records report their type string in `recordType`
+        // (there is no `mediaType` for them — that's mime-only).
         const record = event.message.records.find(
-          (r) => r.recordType === "external" && r.mediaType === ZORACLE_NDEF_TYPE,
+          (r) => r.recordType === ZORACLE_NDEF_TYPE,
         );
         if (!record || !record.data) {
           reject(new Error("Card has no Tapp payload — needs to be linked first"));
@@ -68,8 +70,9 @@ export async function writeCardPayload(payload: Uint8Array, signal?: AbortSignal
     {
       records: [
         {
-          recordType: "external",
-          mediaType: ZORACLE_NDEF_TYPE,
+          // External-type record: the "<domain>:<type>" string IS the
+          // recordType. `mediaType` is mime-only and throws here if set.
+          recordType: ZORACLE_NDEF_TYPE,
           // Web NFC expects ArrayBuffer or string for `data`; pass
           // the underlying buffer so a 0x00 byte doesn't get
           // truncated as a string terminator.
