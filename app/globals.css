@@ -152,6 +152,27 @@ select {
   animation: aurora-2 20s ease-in-out infinite;
 }
 
+/* Landing page — slow vertical drift for the floating network chips */
+@keyframes landing-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-16px);
+  }
+}
+
+.animate-landing-float {
+  animation: landing-float 10s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-landing-float {
+    animation: none;
+  }
+}
+
 /* Custom Liquid ink reveal transition using View Transitions API + SVG Filter */
 html.theme-transitioning {
   view-transition-name: root;

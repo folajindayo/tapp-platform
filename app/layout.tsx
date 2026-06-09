@@ -1,23 +1,28 @@
 import type { Metadata, Viewport } from "next";
-import { Inter } from "next/font/google";
+import { DM_Sans, Inter } from "next/font/google";
 import "./globals.css";
 import { QueryProvider } from "@/lib/query-provider";
 import { GoogleProvider } from "@/lib/google-provider";
 import { SessionProvider } from "@/lib/auth";
 import { ServiceWorkerRegistrar } from "./register-sw";
 import { ThemeProvider } from "@/components/ThemeProvider";
-import { Navbar } from "@/components/Navbar";
+import { AppShell } from "@/components/AppShell";
 import { BottomNav } from "@/components/BottomNav";
 
 // Zap-style components
-import { Preloader } from "@/components/ui/Preloader";
 import { LogoOutlineBg } from "@/components/ui/LogoOutlineBg";
-import { Disclaimer } from "@/components/ui/Disclaimer";
 import { CookieConsent } from "@/components/ui/CookieConsent";
 
 const inter = Inter({
   variable: "--font-inter",
   subsets: ["latin"],
+});
+
+// Landing page + brand wordmark (the app body keeps Inter).
+const dmSans = DM_Sans({
+  variable: "--font-dm-sans",
+  subsets: ["latin"],
+  style: ["normal", "italic"],
 });
 
 export const metadata: Metadata = {
@@ -59,7 +64,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${inter.variable} h-full antialiased`}
+      className={`${inter.variable} ${dmSans.variable} h-full antialiased`}
       suppressHydrationWarning
     >
       <body className="min-h-full bg-white text-neutral-900 transition-colors dark:bg-neutral-900 dark:text-white">
@@ -67,14 +72,9 @@ export default function RootLayout({
           <GoogleProvider>
             <SessionProvider>
               <QueryProvider>
-                <Preloader />
-                <Navbar />
-                <div className="relative z-10 mx-auto flex min-h-screen w-full max-w-mobile flex-col px-4 pt-28 pb-24">
-                  <main className="w-full flex-grow">{children}</main>
-                </div>
+                <AppShell>{children}</AppShell>
                 <BottomNav />
                 <LogoOutlineBg />
-                <Disclaimer />
                 <CookieConsent />
               </QueryProvider>
             </SessionProvider>
