@@ -6,7 +6,8 @@ import { PiShieldCheckFill } from "react-icons/pi";
 import { Screen } from "@/components/ui/Screen";
 import { Button } from "@/components/ui/Button";
 import { Icon } from "@/components/ui/Icon";
-import { IconSuccessBadge, IconGoogle } from "@/lib/icons";
+import { IconSuccessBadge } from "@/lib/icons";
+import { GoogleSignInButton } from "@/components/GoogleSignInButton";
 import { useSession } from "@/lib/auth";
 import { cardsApi, ApiError } from "@/lib/api";
 import {
@@ -69,6 +70,8 @@ function LoadingState() {
 }
 
 function SignInState({ token }: { token: string }) {
+  // Sign in inline on this page — clicking Google goes straight to OAuth and
+  // returns here to claim the card. No bounce to a separate /sign-in screen.
   const nextHref = `/link?token=${encodeURIComponent(token)}`;
   return (
     <Screen centered>
@@ -81,14 +84,7 @@ function SignInState({ token }: { token: string }) {
             Sign in with Google to claim it as yours.
           </p>
         </div>
-        <a
-          href={`/sign-in?next=${encodeURIComponent(nextHref)}`}
-          className="w-full"
-        >
-          <Button leadingIcon={<Icon xml={IconGoogle} size={18} />}>
-            Continue with Google
-          </Button>
-        </a>
+        <GoogleSignInButton nextHref={nextHref} />
         <p className="inline-flex items-center gap-1 text-xs text-gray-500 dark:text-white/50">
           <PiShieldCheckFill className="text-blue-500" />
           This link works once. No one else can claim it after you.
