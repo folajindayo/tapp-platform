@@ -81,7 +81,7 @@ function NoCardState() {
           No card linked
         </p>
         <p className="mt-1 text-xs">
-          Tap your physical Zoracle Card to the back of your phone, or open
+          Tap your physical Tapp Card to the back of your phone, or open
           the activation link printed on the card.
         </p>
       </InfoBanner>

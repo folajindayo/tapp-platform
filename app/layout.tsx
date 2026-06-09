@@ -26,12 +26,13 @@ const dmSans = DM_Sans({
 });
 
 export const metadata: Metadata = {
-  title: "Zoracle",
-  description: "Tap, pay, done.",
+  title: "Tapp — Tap. Pay. Done.",
+  description:
+    "Customers tap to pay in USDC. Merchants get money in their bank — without ever touching crypto.",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
-    title: "Zoracle",
+    title: "Tapp by Zoracle Labs",
     statusBarStyle: "default",
   },
   icons: {

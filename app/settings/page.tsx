@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -11,6 +11,8 @@ import {
   PiLockKeyBold,
   PiQuestionBold,
   PiSignOutBold,
+  PiCopyBold,
+  PiCheckBold,
 } from "react-icons/pi";
 import { Screen } from "@/components/ui/Screen";
 import { StatusChip } from "@/components/ui/StatusChip";
@@ -26,6 +28,18 @@ export default function SettingsPage() {
   const router = useRouter();
   const { hydrated, session, clear } = useSession();
   const wallet = useWallet();
+  const [copied, setCopied] = useState(false);
+
+  const copyToClipboard = async () => {
+    if (!wallet.data?.sui_address) return;
+    try {
+      await navigator.clipboard.writeText(wallet.data.sui_address);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      console.error("Failed to copy address:", err);
+    }
+  };
 
   useEffect(() => {
     if (hydrated && !session) router.replace("/sign-in?next=/settings");
@@ -91,10 +105,35 @@ export default function SettingsPage() {
         </div>
 
         <div className="grid gap-2 rounded-3xl border border-gray-200 p-4 dark:border-white/10">
-          <p className="text-xs font-medium uppercase tracking-wider text-gray-400 dark:text-white/30">
-            Wallet address
-          </p>
-          <p className="select-all break-all font-mono text-xs text-neutral-900 dark:text-white/80">
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-medium uppercase tracking-wider text-gray-400 dark:text-white/30">
+              Wallet address
+            </p>
+            {wallet.data && (
+              <button
+                type="button"
+                onClick={copyToClipboard}
+                className="flex items-center gap-1 text-xs font-medium text-blue-600 transition-all hover:text-blue-700 active:scale-95 dark:text-blue-500"
+              >
+                {copied ? (
+                  <>
+                    <PiCheckBold className="text-green-500" />
+                    <span className="text-green-500 font-semibold">Copied!</span>
+                  </>
+                ) : (
+                  <>
+                    <PiCopyBold />
+                    <span>Copy</span>
+                  </>
+                )}
+              </button>
+            )}
+          </div>
+          <p
+            onClick={copyToClipboard}
+            className="cursor-pointer select-all break-all font-mono text-xs text-neutral-900 transition-colors hover:text-blue-600 dark:text-white/80 dark:hover:text-blue-400"
+            title="Click to copy"
+          >
             {wallet.data ? wallet.data.sui_address : "—"}
           </p>
           <p className="text-xs text-gray-500 dark:text-white/50">

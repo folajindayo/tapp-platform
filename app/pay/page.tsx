@@ -11,7 +11,7 @@ import { useSession } from "@/lib/auth";
 
 /**
  * Pay flow entry — full-screen scanner. We accept either a full URL
- * (https://app.zoracle.com/order/abc-123) or a bare order id and
+ * (https://app.usetapp.xyz/order/abc-123) or a bare order id and
  * route to /order/[id].
  */
 export default function PayPage() {
@@ -29,7 +29,7 @@ export default function PayPage() {
     setScanning(false);
     const id = extractOrderId(text);
     if (!id) {
-      setError("That QR doesn't look like a Zoracle order. Try again.");
+      setError("That QR doesn't look like a Tapp order. Try again.");
       return;
     }
     router.replace(`/order/${encodeURIComponent(id)}`);
@@ -39,7 +39,7 @@ export default function PayPage() {
     if (!manual.trim()) return;
     const id = extractOrderId(manual.trim());
     if (!id) {
-      setError("Couldn't read that link. Paste a Zoracle order URL.");
+      setError("Couldn't read that link. Paste a Tapp order URL.");
       return;
     }
     router.replace(`/order/${encodeURIComponent(id)}`);
@@ -81,7 +81,7 @@ export default function PayPage() {
             spellCheck={false}
             value={manual}
             onChange={(e) => setManual(e.target.value)}
-            placeholder="https://app.zoracle.com/order/…"
+            placeholder="https://app.usetapp.xyz/order/…"
             className="w-full rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm transition-all placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50 dark:border-white/20 dark:bg-neutral-900 dark:text-white/80 dark:placeholder:text-white/30"
           />
         </div>

@@ -40,7 +40,7 @@ export function ActivityRow({ tx, ngnRate, href }: ActivityRowProps) {
 
   const title =
     tx.kind === "pay"
-      ? tx.merchant ?? "Merchant payment"
+      ? tx.merchant ?? "Sent"
       : tx.kind === "deposit" && tx.asset
         ? `Deposit ${tx.asset}`
         : kindLabel[tx.kind];
@@ -53,20 +53,22 @@ export function ActivityRow({ tx, ngnRate, href }: ActivityRowProps) {
         ? PiArrowDownLeftBold
         : PiArrowUpRightBold;
 
-  const iconColor = declined
-    ? "text-rose-500"
+  const containerColor = declined
+    ? "bg-rose-50 text-rose-500 dark:bg-rose-950/20"
     : pending
-      ? "text-amber-500"
+      ? "bg-amber-50 text-amber-500 dark:bg-amber-950/20"
       : inflow
-        ? "text-orange-700 dark:text-orange-400"
-        : "text-gray-400 dark:text-white/40";
+        ? "bg-orange-50 text-orange-700 dark:bg-orange-950/20 dark:text-orange-400"
+        : (tx.kind === "pay" && tx.merchant !== null)
+          ? "bg-green-50 text-green-600 dark:bg-green-950/20 dark:text-green-400"
+          : "bg-blue-50 text-blue-600 dark:bg-blue-950/20 dark:text-blue-400";
 
   const body = (
     <div className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-gray-50 dark:hover:bg-white/5">
       <span
         className={cn(
-          "grid size-8 shrink-0 place-items-center rounded-full bg-gray-50 text-base dark:bg-white/5",
-          iconColor,
+          "grid size-8 shrink-0 place-items-center rounded-full text-base",
+          containerColor,
         )}
       >
         <Icon />

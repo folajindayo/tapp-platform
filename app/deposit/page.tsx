@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { QRCode } from "react-qrcode-logo";
-import { HiOutlineDuplicate, HiCheck } from "react-icons/hi";
+import { HiOutlineDuplicate, HiCheck, HiOutlineShare } from "react-icons/hi";
 import { Screen } from "@/components/ui/Screen";
 import { Button } from "@/components/ui/Button";
 import { InfoBanner } from "@/components/ui/InfoBanner";
@@ -40,7 +40,7 @@ export default function DepositPage() {
     if (typeof navigator !== "undefined" && "share" in navigator) {
       try {
         await navigator.share({
-          title: "My Zoracle wallet address",
+          title: "My Tapp wallet address",
           text:  `Send USDC on Sui to: ${wallet.data.sui_address}`,
         });
       } catch {
@@ -71,7 +71,7 @@ export default function DepositPage() {
           <>
             <div className="grid place-items-center gap-4 rounded-3xl border border-gray-200 p-6 dark:border-white/10">
               <div
-                className="rounded-2xl bg-white p-3 dark:bg-white/5"
+                className="rounded-2xl overflow-hidden"
                 style={{ borderRadius: 16 }}
               >
                 <QRCode
@@ -101,7 +101,11 @@ export default function DepositPage() {
               >
                 {copied ? "Copied" : "Copy address"}
               </Button>
-              <Button variant="secondary" onClick={share}>
+              <Button
+                variant="secondary"
+                onClick={share}
+                leadingIcon={<HiOutlineShare className="text-base" />}
+              >
                 Share
               </Button>
             </div>

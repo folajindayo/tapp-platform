@@ -24,7 +24,11 @@ import {
 import { decodeJwt } from "jose";
 import { sha256 } from "@noble/hashes/sha2.js";
 import { jwtToAddress } from "@mysten/sui/zklogin";
-import { completeZkLoginSession, readSession as readZkLoginSession } from "./zklogin";
+import {
+  completeZkLoginSession,
+  readSession as readZkLoginSession,
+  isZkLoginSessionExpired,
+} from "./zklogin";
 
 export interface Session {
   jwt: string;
@@ -200,13 +204,28 @@ function readSession(): Session | null {
     const raw = window.localStorage.getItem(STORAGE_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw) as Session;
-    // Back-compat: older sessions don't have zkLoginReady. Recompute on
-    // each read by checking whether the zkLogin store has a matching
-    // address (the user might have completed zkLogin in another tab).
-    if (parsed.zkLoginReady === undefined) {
-      const zk = readZkLoginSession();
-      parsed.zkLoginReady = !!zk?.suiAddress && zk.suiAddress === parsed.suiAddress;
+    
+    const WALLET_MOCK = process.env.NEXT_PUBLIC_WALLET_MOCK !== "0";
+    
+    // Check if the underlying zkLogin session is valid and not expired.
+    const zk = readZkLoginSession();
+    const isExpired = isZkLoginSessionExpired(zk);
+    const addressMatch = !!zk?.suiAddress && zk.suiAddress === parsed.suiAddress;
+    const zkValid = zk && !isExpired && addressMatch;
+    
+    if (typeof window !== "undefined") {
+      console.log("[zkLogin] readSession evaluation:", {
+        hasZkSession: !!zk,
+        isExpired,
+        addressMatch,
+        zkAddress: zk?.suiAddress,
+        sessionAddress: parsed.suiAddress,
+        zkValid: !!zkValid,
+        walletMock: WALLET_MOCK,
+      });
     }
+    
+    parsed.zkLoginReady = WALLET_MOCK ? true : !!zkValid;
     return parsed;
   } catch {
     return null;

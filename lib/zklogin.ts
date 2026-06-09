@@ -64,6 +64,34 @@ function isZkLoginVerifyError(err: unknown): boolean {
   );
 }
 
+export function isZkLoginSessionExpired(session: ZkLoginSession | null): boolean {
+  if (!session) {
+    if (typeof window !== "undefined") console.warn("[zkLogin] session is null");
+    return true;
+  }
+  if (!session.jwt) {
+    if (typeof window !== "undefined") console.warn("[zkLogin] session.jwt is missing");
+    return true;
+  }
+  try {
+    const claims = decodeJwt(session.jwt);
+    if (claims.exp) {
+      const now = Date.now() / 1000;
+      const isExpired = now >= claims.exp - 300;
+      if (isExpired) {
+        console.warn(`[zkLogin] JWT token expired: now=${now}, exp=${claims.exp}, diff=${claims.exp - now}`);
+      }
+      return isExpired;
+    } else {
+      if (typeof window !== "undefined") console.warn("[zkLogin] JWT claims.exp is missing");
+    }
+  } catch (err) {
+    if (typeof window !== "undefined") console.error("[zkLogin] failed to decode JWT:", err);
+    return true;
+  }
+  return false;
+}
+
 export interface ZkLoginSession {
   ephemeralPrivateKey: string;     // bech32 suiprivkey1…
   ephemeralPublicKey: string;      // Sui pubkey string (flag + bytes, base64)

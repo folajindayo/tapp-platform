@@ -12,13 +12,13 @@ import { Screen } from "@/components/ui/Screen";
 import { Button } from "@/components/ui/Button";
 import { InputError } from "@/components/ui/InputError";
 import { InfoBanner } from "@/components/ui/InfoBanner";
-import { SelectField } from "@/components/ui/SelectField";
+import { TabButton, TabRow } from "@/components/ui/TabButton";
 import { ReceiptCard } from "@/components/ui/ReceiptCard";
 import {
   AnimatedComponent,
   slideInOut,
 } from "@/components/ui/AnimatedComponents";
-import { useSession } from "@/lib/auth";
+import { signOut, useSession } from "@/lib/auth";
 import {
   useWallet,
   WALLET_MOCK,
@@ -137,25 +137,56 @@ export default function SendPage() {
         const { executeZkLoginTx } = await import("@/lib/zklogin");
         const { Transaction } = await import("@mysten/sui/transactions");
         const { suiReadClient } = await import("@/lib/sui-client");
-
         const result = await executeZkLoginTx(
           async (tx: InstanceType<typeof Transaction>) => {
-            // Self-sponsor + native SUI: split from `tx.gas` directly. The
-            // SDK picks one of the user's SUI coins, uses part for gas,
-            // splits the requested amount off the rest, and routes the
-            // remainder back to the sender as change.
+            const client = suiReadClient();
+
+            // Self-sponsor + native SUI: We must manually select SUI coins whose
+            // total balance covers both the transfer amount and the gas reservation fee,
+            // then set them as the explicit gas payment. This overrides the SDK's
+            // automatic gas selection (which only allocates coins covering the estimated
+            // execution fees and doesn't inspect custom splitCoins(tx.gas, ...) commands,
+            // causing dry-run to fail with InsufficientCoinBalance).
             if (selfSponsor && asset === "SUI") {
+              const coins = await client.getCoins({
+                owner: session.suiAddress,
+                coinType: "0x2::sui::SUI",
+              });
+              const requiredBalance = BigInt(amountSubunit) + BigInt(SELF_GAS_RESERVATION_MIST);
+              let accumulated = BigInt(0);
+              const selectedCoins: typeof coins.data = [];
+              for (const coin of coins.data) {
+                accumulated += BigInt(coin.balance);
+                selectedCoins.push(coin);
+                if (accumulated >= requiredBalance) {
+                  break;
+                }
+              }
+              if (accumulated < requiredBalance) {
+                throw new Error(
+                  `Insufficient SUI balance to pay for gas and withdraw. Required: ${
+                    (Number(requiredBalance) / 1e9).toFixed(4)
+                  } SUI, Available: ${(Number(accumulated) / 1e9).toFixed(4)} SUI`
+                );
+              }
+              tx.setGasPayment(
+                selectedCoins.map((c) => ({
+                  objectId: c.coinObjectId,
+                  version: c.version,
+                  digest: c.digest,
+                }))
+              );
               const [out] = tx.splitCoins(tx.gas, [tx.pure.u64(BigInt(amountSubunit))]);
               tx.transferObjects([out], tx.pure.address(recipient));
               return;
             }
+
             // Other cases: pick coin objects owned by the sender, merge if
             // many, split the requested amount off, transfer. For native
             // SUI under Rails-sponsored tx we deliberately do NOT split
             // from `tx.gas` — under sponsorship the gas coin is the
             // sponsor's, so splitting from it would charge the sponsor for
             // the value transfer, not just the fees.
-            const client = suiReadClient();
             const coinType = asset === "SUI" ? "0x2::sui::SUI" : USDC_COIN_TYPE;
             const coins = await client.getCoins({
               owner: session.suiAddress,
@@ -250,21 +281,31 @@ export default function SendPage() {
           <h1 className="flex items-center gap-2 text-xl font-medium">
             <PiPaperPlaneTiltBold className="text-gray-400" /> Send
           </h1>
-          <p className="text-sm text-gray-500 dark:text-white/50">
+          <p className="text-[12px] text-gray-500 dark:text-white/50">
             Withdraw {asset} on Sui to any address. Funds move on-chain.
           </p>
         </div>
 
         <div className="grid gap-4 rounded-3xl border border-gray-200 p-4 dark:border-white/10">
-          <SelectField
-            label="Asset"
-            value={asset}
-            onChange={(e) => setAsset(e.target.value as Asset)}
-            required
-          >
-            <option value="USDC">USDC (Sui)</option>
-            <option value="SUI">SUI (native)</option>
-          </SelectField>
+          <div className="grid gap-2">
+            <label className="text-sm font-medium text-neutral-900 dark:text-white">
+              Asset
+            </label>
+            <TabRow>
+              <TabButton
+                active={asset === "USDC"}
+                onClick={() => setAsset("USDC")}
+              >
+                USDC (Sui)
+              </TabButton>
+              <TabButton
+                active={asset === "SUI"}
+                onClick={() => setAsset("SUI")}
+              >
+                SUI (native)
+              </TabButton>
+            </TabRow>
+          </div>
 
           <label
             className={`flex cursor-pointer items-start gap-3 rounded-xl border p-3 text-xs transition-colors ${
@@ -410,12 +451,22 @@ export default function SendPage() {
         ) : !session.zkLoginReady ? (
           <InfoBanner tone="warning">
             <p className="font-medium text-neutral-900 dark:text-white">
-              zkLogin not ready
+              Secure session expired or not ready
             </p>
             <p className="mt-1 text-xs">
-              Your session used the legacy sign-in path. Sign out and back in
-              to complete the zkLogin handshake — required for on-chain sends.
+              To protect your wallet, on-chain sessions expire after 24 hours. Sign in again to authorize sending funds.
             </p>
+            <Button
+              onClick={() => {
+                const email = session.email;
+                signOut();
+                router.replace(`/sign-in?next=/send&email=${encodeURIComponent(email)}`);
+              }}
+              className="mt-3 text-xs py-1.5 px-3"
+              fullWidth={false}
+            >
+              Sign in again
+            </Button>
           </InfoBanner>
         ) : null}
 
@@ -436,7 +487,7 @@ export default function SendPage() {
             <div className="flex-1">
               <Button
                 onClick={submit}
-                disabled={!!validation || amountSubunit <= 0 || !recipient}
+                disabled={!!validation || amountSubunit <= 0 || !recipient || !session.zkLoginReady}
               >
                 Send
               </Button>
