@@ -156,6 +156,20 @@ export const cardsApi = {
   revoke: (jwt: string) =>
     request<PtbSkeleton>("POST", "/v1/cards/revoke", { token: jwt }),
 
+  /**
+   * Persists new spend limits to the off-chain mirror (read back via `me`)
+   * and returns the `update_limits` PTB skeleton for on-chain enforcement.
+   */
+  updateLimits: (
+    body: {
+      daily_limit_subunit: number;
+      per_tap_limit_subunit: number;
+      step_up_threshold_subunit: number;
+    },
+    jwt: string,
+  ) =>
+    request<PtbSkeleton>("POST", "/v1/cards/me/limits", { body, token: jwt }),
+
   /** Issues the canonical rotation token + a one-shot nonce. */
   resync: (jwt: string) =>
     request<ResyncPayload>("POST", "/v1/cards/me/resync", { token: jwt }),
