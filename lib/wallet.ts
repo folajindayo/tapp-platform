@@ -325,19 +325,27 @@ async function mockOrder(id: string): Promise<OrderDetails> {
 // Public API
 // -----------------------------------------------------------------------------
 
-async function realGet<T>(path: string, jwt: string): Promise<T> {
+async function realGet<T>(path: string, jwt: string, retried = false): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
     headers: {
       Authorization: `Bearer ${jwt}`,
       "ngrok-skip-browser-warning": "1",
     },
   });
-  if (!res.ok) throw new Error(`${path} → ${res.status}`);
+  if (!res.ok) {
+    // Expired access token → refresh once and retry transparently.
+    if (res.status === 401 && !retried) {
+      const { refreshAccessToken } = await import("./auth");
+      const fresh = await refreshAccessToken(jwt);
+      if (fresh) return realGet<T>(path, fresh, true);
+    }
+    throw new Error(`${path} → ${res.status}`);
+  }
   const json = (await res.json()) as { data: T };
   return json.data;
 }
 
-async function realPost<T>(path: string, body: unknown, jwt?: string): Promise<T> {
+async function realPost<T>(path: string, body: unknown, jwt?: string, retried = false): Promise<T> {
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     "ngrok-skip-browser-warning": "1",
@@ -348,7 +356,14 @@ async function realPost<T>(path: string, body: unknown, jwt?: string): Promise<T
     headers,
     body:    JSON.stringify(body),
   });
-  if (!res.ok) throw new Error(`${path} → ${res.status}`);
+  if (!res.ok) {
+    if (res.status === 401 && jwt && !retried) {
+      const { refreshAccessToken } = await import("./auth");
+      const fresh = await refreshAccessToken(jwt);
+      if (fresh) return realPost<T>(path, body, fresh, true);
+    }
+    throw new Error(`${path} → ${res.status}`);
+  }
   const json = (await res.json()) as { data: T };
   return json.data;
 }
