@@ -196,6 +196,114 @@ export async function signInWithGoogleCredential(
 export function signOut(): void {
   if (typeof window === "undefined") return;
   window.localStorage.removeItem(STORAGE_KEY);
+  notifySessionChange();
+}
+
+/* ------------------------------------------------------------------ */
+/*  Session-change notifier — lets out-of-band updates (token refresh  */
+/*  or forced sign-out) re-sync every useSession() consumer.           */
+/* ------------------------------------------------------------------ */
+
+const sessionListeners = new Set<() => void>();
+function notifySessionChange(): void {
+  sessionListeners.forEach((fn) => fn());
+}
+function subscribeSessionChange(fn: () => void): () => void {
+  sessionListeners.add(fn);
+  return () => {
+    sessionListeners.delete(fn);
+  };
+}
+
+/* ------------------------------------------------------------------ */
+/*  Access-token refresh (silent, single-flight)                       */
+/* ------------------------------------------------------------------ */
+
+interface RefreshResponse {
+  accessToken: string;
+  refreshToken: string;
+}
+
+function parseStoredSession(): Session | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem(STORAGE_KEY);
+    return raw ? (JSON.parse(raw) as Session) : null;
+  } catch {
+    return null;
+  }
+}
+
+let refreshInFlight: Promise<string | null> | null = null;
+
+/**
+ * Exchange the stored refresh token for a fresh access token. The rails
+ * access JWT lives only ~15 min; this rotates + persists both tokens so
+ * the session survives up to the 7-day refresh window.
+ *
+ * Single-flighted: concurrent 401s share one rotation. Otherwise the
+ * second caller would replay an already-consumed refresh token and the
+ * backend's replay detection would kill the whole family.
+ *
+ * `failedToken` is the access token that just 401'd — if the stored
+ * token has already advanced past it (another request refreshed first),
+ * hand that back instead of rotating again.
+ *
+ * Returns the new access token, or null when there's no usable session
+ * or the refresh token itself is rejected (the session is then cleared).
+ */
+export function refreshAccessToken(failedToken?: string): Promise<string | null> {
+  const current = parseStoredSession();
+  if (failedToken && current?.jwt && current.jwt !== failedToken) {
+    return Promise.resolve(current.jwt);
+  }
+  if (refreshInFlight) return refreshInFlight;
+  refreshInFlight = doRefresh().finally(() => {
+    refreshInFlight = null;
+  });
+  return refreshInFlight;
+}
+
+async function doRefresh(): Promise<string | null> {
+  const current = parseStoredSession();
+  if (!current?.refreshJwt) return null;
+
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE}/v1/auth/refresh`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "ngrok-skip-browser-warning": "1",
+      },
+      body: JSON.stringify({ refreshToken: current.refreshJwt }),
+    });
+  } catch {
+    // Network blip — transient. Keep the session; just fail this attempt.
+    return null;
+  }
+
+  if (res.status === 401) {
+    // Refresh token expired/revoked — the session is genuinely dead.
+    signOut();
+    return null;
+  }
+
+  const body = (await res.json().catch(() => ({}))) as RailsEnvelope<RefreshResponse>;
+  if (!res.ok || body.status !== "success" || !body.data?.accessToken) {
+    return null; // unexpected (5xx, etc.) — transient, keep the session
+  }
+
+  const updated: Session = {
+    ...current,
+    jwt: body.data.accessToken,
+    refreshJwt: body.data.refreshToken,
+  };
+  if (typeof window !== "undefined") {
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+  }
+  notifySessionChange();
+  return updated.jwt;
 }
 
 function readSession(): Session | null {
@@ -258,6 +366,9 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     setSession(readSession());
     setHydrated(true);
+    // Re-sync when a token refresh (or forced sign-out) updates storage
+    // out-of-band, so consumers always hold the freshest access token.
+    return subscribeSessionChange(() => setSession(readSession()));
   }, []);
 
   const refresh = useCallback(() => setSession(readSession()), []);

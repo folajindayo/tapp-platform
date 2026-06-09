@@ -8,6 +8,8 @@
  *     don't call it from JS; the URL just opens in the address bar.
  */
 
+import { refreshAccessToken } from "./auth";
+
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
 
 export class ApiError extends Error {
@@ -40,6 +42,7 @@ async function request<T>(
   method: string,
   path: string,
   { body, token, signal }: RequestOptions = {},
+  retried = false,
 ): Promise<T> {
   const headers: Record<string, string> = {
     "ngrok-skip-browser-warning": "1",
@@ -57,6 +60,15 @@ async function request<T>(
   const json = (await res.json().catch(() => ({}))) as RailsEnvelope<T>;
 
   if (!res.ok || json.status === "error") {
+    // The rails access JWT lives ~15 min. On a 401, silently refresh it
+    // (rotating the refresh token) and retry the request once with the
+    // fresh token, so an expired access token never surfaces to the user.
+    if (res.status === 401 && token && !retried && !path.startsWith("/v1/auth/")) {
+      const fresh = await refreshAccessToken(token);
+      if (fresh) {
+        return request<T>(method, path, { body, token: fresh, signal }, true);
+      }
+    }
     throw new ApiError(
       res.status,
       json.message ?? `Request failed (${res.status})`,
