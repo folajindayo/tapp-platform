@@ -125,7 +125,7 @@ function Body() {
             help="USDC to load now — you can top up later"
             value={funding}
             onChange={setFunding}
-            min={5}
+            min={1}
             max={200}
             step={1}
             display={`$${funding}`}
