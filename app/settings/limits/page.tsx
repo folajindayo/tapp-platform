@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { PiArrowLeftBold, PiCheckCircleFill } from "react-icons/pi";
 import { Screen } from "@/components/ui/Screen";
 import { Button } from "@/components/ui/Button";
@@ -19,6 +19,7 @@ import { formatNgn } from "@/lib/utils";
 
 export default function SettingsLimitsPage() {
   const router = useRouter();
+  const qc = useQueryClient();
   const { hydrated, session } = useSession();
 
   useEffect(() => {
@@ -36,6 +37,7 @@ export default function SettingsLimitsPage() {
   const [perTap, setPerTap] = useState<number | null>(null);
   const [stepUp, setStepUp] = useState<number | null>(null);
   const [saved, setSaved]   = useState(false);
+  const [saving, setSaving] = useState(false);
   const [error, setError]   = useState<string | null>(null);
 
   useEffect(() => {
@@ -46,16 +48,32 @@ export default function SettingsLimitsPage() {
     }
   }, [card.data, daily]);
 
-  function save() {
-    if (daily == null || perTap == null || stepUp == null) return;
+  async function save() {
+    if (daily == null || perTap == null || stepUp == null || !session) return;
     if (perTap > stepUp || stepUp > daily) {
       setError("Limits must satisfy: per-tap ≤ step-up ≤ daily.");
       return;
     }
     setError(null);
-    // TODO: PATCH /v1/cards/me/limits — endpoint not wired yet.
-    setSaved(true);
-    setTimeout(() => setSaved(false), 1500);
+    setSaving(true);
+    try {
+      await cardsApi.updateLimits(
+        {
+          daily_limit_subunit: Math.round(daily * 100),
+          per_tap_limit_subunit: Math.round(perTap * 100),
+          step_up_threshold_subunit: Math.round(stepUp * 100),
+        },
+        session.jwt,
+      );
+      // Refresh the cached card so the new limits stick on reload.
+      await qc.invalidateQueries({ queryKey: ["cards", "me"] });
+      setSaved(true);
+      setTimeout(() => setSaved(false), 1500);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Couldn't save limits");
+    } finally {
+      setSaving(false);
+    }
   }
 
   if (!hydrated || !session) return <Screen />;
@@ -123,11 +141,13 @@ export default function SettingsLimitsPage() {
 
             {saved ? (
               <StatusChip tone="success" icon={<PiCheckCircleFill />}>
-                Saved (offline — backend endpoint coming)
+                Saved
               </StatusChip>
             ) : null}
 
-            <Button onClick={save}>Save changes</Button>
+            <Button onClick={save} loading={saving} disabled={saving}>
+              Save changes
+            </Button>
           </>
         )}
       </AnimatedComponent>
