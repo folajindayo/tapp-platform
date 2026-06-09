@@ -1,16 +1,18 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   PiQrCodeBold,
   PiArrowDownLeftBold,
   PiPaperPlaneTiltBold,
+  PiArrowsLeftRightBold,
   PiWarningOctagonFill,
 } from "react-icons/pi";
 import { Screen } from "@/components/ui/Screen";
 import { Button } from "@/components/ui/Button";
+import { SwapModal } from "@/components/ui/SwapModal";
 import { BalanceHero } from "@/components/ui/BalanceHero";
 import { ActivityList } from "@/components/ui/ActivityList";
 import { InfoBanner } from "@/components/ui/InfoBanner";
@@ -30,6 +32,7 @@ export default function WalletPage() {
   const { hydrated, session } = useSession();
   const wallet = useWallet();
   const history = useWalletHistory();
+  const [swapOpen, setSwapOpen] = useState(false);
 
   useEffect(() => {
     if (hydrated && !session) router.replace("/sign-in?next=/wallet");
@@ -97,7 +100,7 @@ export default function WalletPage() {
               />
             </div>
 
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-4 gap-2">
               <Link href="/pay" className="block w-full">
                 <Button
                   variant="primary"
@@ -116,6 +119,14 @@ export default function WalletPage() {
                   Send
                 </Button>
               </Link>
+              <Button
+                variant="secondary"
+                onClick={() => setSwapOpen(true)}
+                leadingIcon={<PiArrowsLeftRightBold className="text-base" />}
+                className="px-2"
+              >
+                Swap
+              </Button>
               <Link href="/deposit" className="block w-full">
                 <Button
                   variant="secondary"
@@ -187,6 +198,15 @@ export default function WalletPage() {
         ) : null}
         </CrossFade>
       </AnimatedComponent>
+
+      <SwapModal
+        open={swapOpen}
+        onClose={() => setSwapOpen(false)}
+        onSwapped={() => {
+          wallet.refetch();
+          history.refetch();
+        }}
+      />
     </Screen>
   );
 }
