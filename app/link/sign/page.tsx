@@ -79,6 +79,15 @@ function Body() {
             "NEXT_PUBLIC_TAPP_PACKAGE_ID not set — deploy the Move package or use NEXT_PUBLIC_DEMO_LINK=1.",
           );
         }
+        // A package id must be a full 32-byte address (0x + 64 hex). A shorter
+        // value gets silently left-padded by the SDK into a *different*,
+        // unpublished address that fails on-chain with a cryptic "package not
+        // found" — so reject it up front with an actionable message.
+        if (!/^0x[0-9a-f]{64}$/i.test(packageId)) {
+          throw new Error(
+            `NEXT_PUBLIC_TAPP_PACKAGE_ID must be a 32-byte 0x address (64 hex chars); got ${Math.max(0, packageId.length - 2)}. Looks truncated — check the deploy env var.`,
+          );
+        }
         const result = await zk.executeZkLoginTx((tx: InstanceType<typeof Transaction>) => {
           tx.moveCall({
             target: `${packageId}::tapp_card::create_cap`,
