@@ -9,12 +9,13 @@ import {
   Transition,
   TransitionChild,
 } from "@headlessui/react";
-import { PiArrowsDownUpBold, PiXBold, PiCheckCircleFill } from "react-icons/pi";
+import { PiArrowsDownUpBold, PiXBold, PiCheckCircleFill, PiSpinnerBold } from "react-icons/pi";
 import { Button } from "@/components/ui/Button";
 import { InputError } from "@/components/ui/InputError";
 import {
   type SwapDirection,
   quoteSwap,
+  getCachedQuote,
   executeSwap,
   coinBalanceBase,
   inCoinType,
@@ -83,6 +84,20 @@ export function SwapModal({
       setQuoting(false);
       return;
     }
+
+    const cached = getCachedQuote(direction, amountBase);
+    if (cached) {
+      if (cached.isExceed) {
+        setError("Amount is larger than the pool can fill.");
+        setOutBase(null);
+      } else {
+        setError(null);
+        setOutBase(cached.amountOutBase);
+      }
+      setQuoting(false);
+      return;
+    }
+
     setQuoting(true);
     const id = setTimeout(async () => {
       try {
@@ -266,14 +281,21 @@ export function SwapModal({
                       quoting ||
                       amountBase <= BigInt(0) ||
                       insufficient ||
-                      outBase === null
+                      (outBase === null && !quoting)
+                    }
+                    leadingIcon={
+                      quoting ? (
+                        <PiSpinnerBold className="animate-spin text-base" />
+                      ) : undefined
                     }
                   >
                     {insufficient
                       ? `Not enough ${fromSym}`
                       : swapping
                         ? "Swapping…"
-                        : `Swap ${fromSym} → ${toSym}`}
+                        : quoting
+                          ? "Fetching rate…"
+                          : `Swap ${fromSym} → ${toSym}`}
                   </Button>
                 </div>
               )}
