@@ -51,7 +51,7 @@ export default function AcceptPaymentScreen() {
   const memoStr = typeof memo === 'string' ? memo : undefined;
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
-  const [activeTab, setActiveTab] = useState<'nfc' | 'scan'>('nfc');
+  const [activeTab, setActiveTab] = useState<'nfc' | 'scan'>('scan');
 
   // Reuse the existing broadcast hook — it creates the order via Rails
   // and subscribes to settlement events. The NFC HCE side of the hook is
@@ -118,7 +118,14 @@ export default function AcceptPaymentScreen() {
           {/* Segmented Control / Tab Bar */}
           <View style={s.tabContainer}>
             <Pressable
-              onPress={() => setActiveTab('nfc')}
+              onPress={() => {
+                // The pill IS the selector — picking NFC opens the live card
+                // reader directly (no extra button).
+                setActiveTab('nfc');
+                const p = new URLSearchParams({ amount: amountStr });
+                if (memoStr) p.set('memo', memoStr);
+                router.push(`/tap-card?${p.toString()}`);
+              }}
               style={[s.tabButton, activeTab === 'nfc' && s.tabButtonActive]}
             >
               <Text style={[s.tabLabel, activeTab === 'nfc' && s.tabLabelActive]}>NFC Tap</Text>
@@ -132,21 +139,13 @@ export default function AcceptPaymentScreen() {
           </View>
 
           {activeTab === 'nfc' ? (
-            /* NFC slot — opens the live card reader (useTapCard / /tap-card).
-               Without this the pulse is purely decorative and a card tap does
-               nothing, because no NFC reader session is ever started here. */
-            <Pressable
-              style={s.nfcSlot}
-              onPress={() => {
-                const p = new URLSearchParams({ amount: amountStr });
-                if (memoStr) p.set('memo', memoStr);
-                router.push(`/tap-card?${p.toString()}`);
-              }}
-            >
+            /* NFC slot — the "NFC Tap" pill opens the live reader (/tap-card),
+               so this is just the affordance while it's the selected method. */
+            <View style={s.nfcSlot}>
               <NfcPulse />
-              <Text style={s.affordanceLabel}>Tap to read card</Text>
-              <Text style={s.affordanceHint}>Press here, then hold the customer’s card to the back</Text>
-            </Pressable>
+              <Text style={s.affordanceLabel}>Opening card reader…</Text>
+              <Text style={s.affordanceHint}>Hold the customer’s card to the back of the phone</Text>
+            </View>
           ) : (
             /* QR — visible affordance for phone payment */
             <View style={s.qrSlot}>
