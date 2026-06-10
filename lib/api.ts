@@ -119,6 +119,13 @@ export interface CardSummary {
   on_chain_balance?: string;
 }
 
+export interface ReclaimableCap {
+  card_id: string;
+  cap_object_id: string;
+  coin_type: string;
+  on_chain_balance: string;
+}
+
 export interface PtbSkeleton {
   package_id: string;
   module: string;
@@ -157,6 +164,14 @@ export const cardsApi = {
   /** Dashboard summary for the signed-in cardholder. */
   me: (jwt: string) =>
     request<CardSummary>("GET", "/v1/cards/me", { token: jwt }),
+
+  /** Caps the holder owns — sign destroy_and_reclaim on each before reset. */
+  reclaimable: (jwt: string) =>
+    request<{ caps: ReclaimableCap[] }>("GET", "/v1/cards/reclaimable", { token: jwt }),
+
+  /** Delete all the holder's card rows (refused while a cap still holds funds). */
+  reset: (jwt: string) =>
+    request<{ deleted: number }>("POST", "/v1/cards/reset", { token: jwt }),
 
   /** Returns the PTB skeleton the PWA signs to add USDC to the cap. */
   topUp: (amount_subunit: number, jwt: string) =>

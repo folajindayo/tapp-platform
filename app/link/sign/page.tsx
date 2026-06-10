@@ -62,6 +62,17 @@ function Body() {
     setPhase("signing");
 
     try {
+      // Idempotency guard — the whole point of this fix. create_cap moves
+      // real USDC, so it must run AT MOST ONCE per holder. If they already
+      // have a live, funded card (e.g. they re-entered linking because the
+      // balance showed 0), do NOT fund a second cap — send them to the card
+      // they already have. This is what was double-charging users.
+      const existing = await cardsApi.me(session.jwt).catch(() => null);
+      if (existing && existing.status === "live" && existing.cap_object_id) {
+        router.replace("/settings/card");
+        return;
+      }
+
       let capObjectId: string;
       let coinType: string;
       let txDigest: string;

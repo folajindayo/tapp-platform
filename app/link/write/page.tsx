@@ -28,6 +28,13 @@ import {
 } from "@/lib/webnfc";
 import { useLinkStore } from "@/lib/cardLinkStore";
 
+/** Constant-time-ish byte compare for the write read-back verification. */
+function sameBytes(a: Uint8Array, b: Uint8Array): boolean {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
+  return true;
+}
+
 export default function LinkWritePage() {
   return (
     <Suspense fallback={<Screen centered />}>
@@ -74,8 +81,17 @@ function Body() {
 
       await writeCardPayload(payload);
 
-      const { uid } = await readCardPayload();
-      const cardUidHash = uidHash(uid);
+      // Verify the write actually persisted BEFORE anything downstream funds
+      // the card. Without this, a card can end up funded + "live" while the
+      // chip is physically blank — which is exactly why the merchant couldn't
+      // read it. Read the card back and require the exact payload to be there.
+      const readback = await readCardPayload();
+      if (!sameBytes(readback.payload, payload)) {
+        throw new Error(
+          "The card didn't store its data — keep it flat against the phone and tap again.",
+        );
+      }
+      const cardUidHash = uidHash(readback.uid);
 
       setCryptoMaterial({ K, linkingProof, pinVerifier, cardPassword, rotationToken });
       setCardUidHash(cardUidHash);
