@@ -33,8 +33,46 @@ export default function TopUpPage() {
     setError(null);
     setPhase("signing");
     try {
-      const skeleton = await cardsApi.topUp(Math.round(numericAmount * 100), session.jwt);
-      console.info("Top-up PTB skeleton (sign + submit):", skeleton);
+      const card = await cardsApi.me(session.jwt);
+      if (card.status !== "live" || !card.cap_object_id || !card.coin_type) {
+        throw new Error("Your card isn't live yet — finish linking first.");
+      }
+      const packageId = process.env.NEXT_PUBLIC_TAPP_PACKAGE_ID;
+      if (!packageId || !/^0x[0-9a-f]{64}$/i.test(packageId)) {
+        throw new Error("Card package isn't configured.");
+      }
+      const usdcType = card.coin_type;
+      const capId = card.cap_object_id;
+
+      const zk = await import("@/lib/zklogin");
+      const { Transaction } = await import("@mysten/sui/transactions");
+
+      // top_up moves real USDC into the cap. Amount is USDC (6 decimals).
+      const amountMicro = BigInt(Math.round(amount * 1_000_000));
+      const owner = zk.readSession()?.suiAddress;
+      if (!owner) throw new Error("No wallet address — please sign in again.");
+      const { data: coins } = await zk.suiClient().getCoins({ owner, coinType: usdcType });
+      const total = coins.reduce((s, c) => s + BigInt(c.balance), BigInt(0));
+      if (total < amountMicro) {
+        throw new Error(
+          `Not enough USDC to top up $${amount} — your wallet has $${(Number(total) / 1e6).toFixed(2)}. Swap some SUI → USDC first.`,
+        );
+      }
+      const coinIds = coins.map((c) => c.coinObjectId);
+
+      const result = await zk.executeZkLoginTx((tx: InstanceType<typeof Transaction>) => {
+        const primary = tx.object(coinIds[0]);
+        if (coinIds.length > 1) {
+          tx.mergeCoins(primary, coinIds.slice(1).map((id) => tx.object(id)));
+        }
+        const [funding] = tx.splitCoins(primary, [tx.pure.u64(amountMicro)]);
+        tx.moveCall({
+          target: `${packageId}::tapp_card::top_up`,
+          typeArguments: [usdcType],
+          arguments: [tx.object(capId), funding],
+        });
+      });
+      console.info("top-up digest:", result.digest);
       setPhase("done");
     } catch (err) {
       const msg =
@@ -53,7 +91,7 @@ export default function TopUpPage() {
       <Screen centered>
         <div className="flex flex-col items-center gap-6 text-center">
           <StatusChip tone="success" icon={<PiCheckCircleFill />}>
-            Top-up signed
+            Top-up sent
           </StatusChip>
           <p className="max-w-xs text-sm text-gray-500 dark:text-white/50">
             Your balance will update once the transaction confirms on Sui.
