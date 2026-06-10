@@ -117,7 +117,13 @@ function ClaimingState({
         onDone(res.card_id);
       } catch (err) {
         if (cancelled) return;
-        if (err instanceof ApiError && err.code === "card_already_claimed_by_you") {
+        if (
+          err instanceof ApiError &&
+          (err.code === "card_already_claimed_by_you" ||
+            err.code === "card_already_live")
+        ) {
+          // Same card re-tapped, or a new card while they already have a live
+          // one — either way, send them to the card they have.
           setStatus("already-yours");
           return;
         }
