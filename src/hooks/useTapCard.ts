@@ -262,8 +262,12 @@ export function useTapCard({ amount, currency = 'NGN', memo }: UseTapCardArgs) {
     if (phase.kind !== 'writing' && phase.kind !== 'write-retry') return;
     const resp = phase.response;
     try {
+      // Write-back must use the Ndef technology — ndefHandler.writeNdefMessage
+      // can't run on a raw NfcA session (android.nfc.tech.NfcA cannot be cast
+      // to android.nfc.tech.Ndef). getTag() still returns the cached NDEF
+      // message under Ndef, so the K re-read below works too.
       await NfcManager.requestTechnology(
-        NfcTech.NfcA,
+        NfcTech.Ndef,
         Platform.OS === 'ios'
           ? { alertMessage: 'Hold the card again to finalize', invalidateAfterFirstRead: true }
           : undefined,
