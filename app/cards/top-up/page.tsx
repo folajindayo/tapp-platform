@@ -18,7 +18,7 @@ import { cardsApi, ApiError } from "@/lib/api";
 export default function TopUpPage() {
   const router = useRouter();
   const { hydrated, session } = useSession();
-  const [amount, setAmount] = useState(25);
+  const [amount, setAmount] = useState(20);
   const [phase, setPhase] = useState<"ready" | "signing" | "done" | "error">("ready");
   const [error, setError] = useState<string | null>(null);
 
@@ -83,9 +83,9 @@ export default function TopUpPage() {
           </div>
           <input
             type="range"
-            min={5}
+            min={1}
             max={500}
-            step={5}
+            step={2}
             value={amount}
             onChange={(e) => setAmount(Number(e.target.value))}
             className="w-full accent-blue-600"

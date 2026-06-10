@@ -218,6 +218,7 @@ function readSession(): Session | null {
         hasZkSession: !!zk,
         isExpired,
         addressMatch,
+        salt: zk?.salt,
         zkAddress: zk?.suiAddress,
         sessionAddress: parsed.suiAddress,
         zkValid: !!zkValid,
