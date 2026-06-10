@@ -11,6 +11,7 @@ import {
   slideInOut,
 } from "@/components/ui/AnimatedComponents";
 import { useSession } from "@/lib/auth";
+import { cardsApi } from "@/lib/api";
 import { useLinkStore } from "@/lib/cardLinkStore";
 import { formatNgn } from "@/lib/utils";
 
@@ -53,6 +54,25 @@ function Body() {
       );
     if (cardId) setCardId(cardId);
   }, [cardId, hydrated, session, router, setCardId]);
+
+  // One card per user: if the holder already has a live card, the link flow
+  // is a dead end — bounce them to their card instead of re-showing "set
+  // limits" (and never let them fund a second cap).
+  useEffect(() => {
+    if (!session) return;
+    let cancelled = false;
+    cardsApi
+      .me(session.jwt)
+      .then((c) => {
+        if (!cancelled && c.status === "live" && c.cap_object_id) {
+          router.replace("/settings/card");
+        }
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [session, router]);
 
   function submit() {
     if (pin.length !== 4 || !/^\d{4}$/.test(pin)) {
