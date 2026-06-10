@@ -21,6 +21,7 @@ import {
 import { useSession } from "@/lib/auth";
 import { cardsApi, type CardSummary } from "@/lib/api";
 import { formatNgn } from "@/lib/utils";
+import { formatUsdc } from "@/lib/wallet";
 
 export default function SettingsCardPage() {
   const router = useRouter();
@@ -104,6 +105,7 @@ function CardDetail({ card }: { card: CardSummary }) {
 
       <ReceiptCard
         rows={[
+          { label: "Card balance",       value: <span className="tabular-nums font-semibold text-blue-600 dark:text-blue-400">{formatUsdc(Number(card.on_chain_balance ?? "0"))} USDC</span> },
           { label: "Daily limit",       value: <span className="tabular-nums">{formatNgn(card.daily_limit_subunit / 100)}</span> },
           { label: "Per-tap limit",     value: <span className="tabular-nums">{formatNgn(card.per_tap_limit_subunit / 100)}</span> },
           { label: "Step-up above",     value: <span className="tabular-nums">{formatNgn(card.step_up_threshold_subunit / 100)}</span> },

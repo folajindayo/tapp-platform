@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { PiSlidersHorizontalBold } from "react-icons/pi";
-import { type CardSnapshot } from "@/lib/wallet";
+import { type CardSnapshot, formatUsdc } from "@/lib/wallet";
 import { formatNgn } from "@/lib/utils";
 
 interface Props {
@@ -27,13 +27,18 @@ export function CardAllowanceWidget({ card }: Props) {
         <h3 className="text-xs font-medium uppercase tracking-wider text-gray-400 dark:text-white/30">
           Card spending today
         </h3>
-        <Link
-          href="/settings/limits"
-          aria-label="Edit limits"
-          className="text-base text-gray-400 transition-colors hover:text-blue-600 dark:text-white/40 dark:hover:text-blue-400"
-        >
-          <PiSlidersHorizontalBold />
-        </Link>
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-semibold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/40 px-2 py-0.5 rounded-full tabular-nums">
+            {formatUsdc(Number(card.on_chain_balance ?? 0))} USDC
+          </span>
+          <Link
+            href="/settings/limits"
+            aria-label="Edit limits"
+            className="text-base text-gray-400 transition-colors hover:text-blue-600 dark:text-white/40 dark:hover:text-blue-400"
+          >
+            <PiSlidersHorizontalBold />
+          </Link>
+        </div>
       </div>
 
       <div className="grid gap-2">
