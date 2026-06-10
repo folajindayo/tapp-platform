@@ -93,17 +93,11 @@ export async function readSecretWithAuth(
 }
 
 /**
- * Read the current rotation token (variable-length NDEF external
- * record) off the card. Returns the raw payload bytes — the merchant
- * app passes them along to the backend as hex without trying to
- * interpret them (they're an opaque ciphertext only the server can
- * decrypt).
- *
- * Assumes the caller already authenticated via PWD_AUTH.
+ * Read the full card payload (the single NDEF external record the PWA wrote:
+ * K(32) ‖ rotationToken(32) = 64 bytes). Returns the raw payload bytes; the
+ * caller splits K from the token. NDEF-only, no PWD_AUTH.
  */
-export async function readCurrentTokenNdef(): Promise<Uint8Array> {
-  // Use the higher-level NDEF read path — NTAG215 stores NDEF in TLVs
-  // starting at page 4, so the parser handles the framing for us.
+export async function readCardPayload(): Promise<Uint8Array> {
   const tag = await NfcManager.getTag();
   if (!tag?.ndefMessage?.length) {
     throw new Error("Card has no NDEF message — needs re-linking");
@@ -113,36 +107,27 @@ export async function readCurrentTokenNdef(): Promise<Uint8Array> {
   return Uint8Array.from(first.payload);
 }
 
+// The single external NDEF type the cardholder PWA writes and the merchant
+// reads/writes. MUST match tapp/lib/webnfc.ts ZORACLE_NDEF_TYPE exactly.
+export const TAPP_EXTERNAL_TYPE = "usetapp.xyz:tapp-card";
+
 /**
- * Write the new rotation token back to the card. Wraps as an NDEF
- * external record ("zoracle.xyz:tapp-card") so the page layout stays
- * stable across rotations.
+ * Write the canonical 64-byte card payload (K ‖ rotationToken) back to the
+ * card as a single NDEF external record.
  *
- * Assumes the caller already authenticated via PWD_AUTH in the same
- * NFC session.
+ * NDEF-only, NO PWD_AUTH: v1 cards are provisioned by the PWA over Web NFC,
+ * which cannot set an NTAG password — so the card has none, and a PWD_AUTH
+ * here would simply fail. Anti-replay is carried by the rotating token + the
+ * single-use server nonce, not by on-card password protection.
  */
-export async function writeRotation(newTokenHex: string): Promise<void> {
-  const payload = hexToBytes(newTokenHex);
+export async function writeCardPayload(payload: Uint8Array): Promise<void> {
   const record = Ndef.record(
     TNF_EXTERNAL_TYPE,
-    "zoracle.xyz:tapp-card",
+    TAPP_EXTERNAL_TYPE,
     [],
     Array.from(payload),
   );
   const bytes = Ndef.encodeMessage([record]);
   if (!bytes) throw new Error("NDEF encode failed");
   await NfcManager.ndefHandler.writeNdefMessage(bytes);
-}
-
-/**
- * One-shot helper for the debit-then-write path: assumes the session
- * is already open and the card is in the field; authenticates and
- * writes; throws on any failure (caller surfaces the rescue UX).
- */
-export async function authAndWriteRotation(
-  passwordHex: string,
-  newTokenHex: string,
-): Promise<void> {
-  await pwdAuth(passwordHex);
-  await writeRotation(newTokenHex);
 }

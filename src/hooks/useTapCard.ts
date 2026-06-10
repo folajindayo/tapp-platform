@@ -34,7 +34,7 @@ import { router } from 'expo-router';
 import { sha256 } from '@noble/hashes/sha2';
 import { merchantApi } from '@/api/endpoints';
 import type { TapCardDebitResponse, TapCardTier } from '@/api/types';
-import { authAndWriteRotation, readCurrentTokenNdef } from '@/hce/NfcCardIO';
+import { readCardPayload, writeCardPayload } from '@/hce/NfcCardIO';
 import { bytesToHex, computePinResponse, hexToBytes } from './pinHmac';
 
 export type TapCardPhase =
@@ -114,11 +114,16 @@ export function useTapCard({ amount, currency = 'NGN', memo }: UseTapCardArgs) {
       let K: Uint8Array;
       let currentTokenBytes: Uint8Array;
       try {
-        // For PoC: skip the PWD_AUTH and try to read the NDEF directly.
-        // Will fail on locked cards — surface a recoverable error.
-        currentTokenBytes = await readCurrentTokenNdef();
-        // K read requires PWD_AUTH; we surface a TODO for now.
-        K = new Uint8Array(32); // placeholder until link flow ships
+        // The PWA writes one NDEF record: K(32) ‖ rotationToken(32) = 64 bytes.
+        // No PWD — the card is provisioned over Web NFC which can't set one.
+        // Split it: K drives the PIN response, the token is what we send +
+        // the server matches against.
+        const payload = await readCardPayload();
+        if (payload.length < 64) {
+          throw new Error('Unexpected card payload length');
+        }
+        K = payload.slice(0, 32);
+        currentTokenBytes = payload.slice(32, 64);
       } catch {
         setPhase({
           kind: 'failed',
@@ -263,7 +268,16 @@ export function useTapCard({ amount, currency = 'NGN', memo }: UseTapCardArgs) {
           ? { alertMessage: 'Hold the card again to finalize', invalidateAfterFirstRead: true }
           : undefined,
       );
-      await authAndWriteRotation(resp.card_password, resp.new_card_token);
+      // Preserve K: re-read the current payload (K ‖ oldToken), keep K, and
+      // write K ‖ newToken. The backend's new_card_token is just the 32-byte
+      // rotation token; K never leaves the card so we splice it back in.
+      const existing = await readCardPayload();
+      const K = existing.slice(0, 32);
+      const newToken = hexToBytes(resp.new_card_token);
+      const newPayload = new Uint8Array(64);
+      newPayload.set(K, 0);
+      newPayload.set(newToken, 32);
+      await writeCardPayload(newPayload);
       await merchantApi.tapCardTokenAck(resp.order_id, { written: true });
       setPhase({ kind: 'settled', response: resp });
     } catch (err) {
