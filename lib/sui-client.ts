@@ -170,6 +170,31 @@ export async function fetchSuiMist(address: string): Promise<number> {
   }
 }
 
+/**
+ * Fetch all coin objects for a given type, paginated. Used by the send
+ * flow to select coins for transactions. If the Sui fullnode's coin
+ * index lags behind the balance index, this may temporarily return
+ * fewer coins than `getBalance` reports — callers should retry.
+ */
+export async function fetchAllCoins(
+  address: string,
+  coinType: string,
+): Promise<{ coinObjectId: string; version: string; digest: string; balance: string; coinType: string }[]> {
+  const client = suiReadClient();
+  const all: { coinObjectId: string; version: string; digest: string; balance: string; coinType: string }[] = [];
+  let cursor: string | null | undefined = undefined;
+  do {
+    const page = await client.getCoins({
+      owner: address,
+      coinType,
+      ...(cursor ? { cursor } : {}),
+    });
+    all.push(...page.data);
+    cursor = page.hasNextPage ? page.nextCursor : null;
+  } while (cursor);
+  return all;
+}
+
 export interface OnchainTx {
   digest:      string;
   timestampMs: number;

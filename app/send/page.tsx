@@ -136,10 +136,31 @@ export default function SendPage() {
         // of the bundle until the user actually sends.
         const { executeZkLoginTx } = await import("@/lib/zklogin");
         const { Transaction } = await import("@mysten/sui/transactions");
-        const { suiReadClient } = await import("@/lib/sui-client");
+        const { fetchAllCoins } = await import("@/lib/sui-client");
         const result = await executeZkLoginTx(
           async (tx: InstanceType<typeof Transaction>) => {
-            const client = suiReadClient();
+
+            // Fetch coins with retry — the Sui fullnode's coin index can
+            // lag behind the balance index after recent deposits. If we
+            // know the user has a balance (they passed the UI validation)
+            // but getCoins returns empty, wait and retry before failing.
+            async function getCoinsWithRetry(owner: string, coinType: string) {
+              const MAX_ATTEMPTS = 3;
+              const DELAY_MS = 2000;
+              for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+                const coins = await fetchAllCoins(owner, coinType);
+                const nonZero = coins.filter((c) => BigInt(c.balance) > BigInt(0));
+                if (nonZero.length > 0) return nonZero;
+                if (attempt < MAX_ATTEMPTS) {
+                  console.warn(
+                    `[send] getCoins returned empty (attempt ${attempt}/${MAX_ATTEMPTS}), ` +
+                      `retrying in ${DELAY_MS}ms — likely indexer lag`,
+                  );
+                  await new Promise((r) => setTimeout(r, DELAY_MS));
+                }
+              }
+              return []; // still empty after retries
+            }
 
             // Self-sponsor + native SUI: We must manually select SUI coins whose
             // total balance covers both the transfer amount and the gas reservation fee,
@@ -148,23 +169,26 @@ export default function SendPage() {
             // execution fees and doesn't inspect custom splitCoins(tx.gas, ...) commands,
             // causing dry-run to fail with InsufficientCoinBalance).
             if (selfSponsor && asset === "SUI") {
-              const coins = await client.getCoins({
-                owner: session.suiAddress,
-                coinType: "0x2::sui::SUI",
-              });
+              const spendableCoins = await getCoinsWithRetry(session.suiAddress, "0x2::sui::SUI");
               const requiredBalance = BigInt(amountSubunit) + BigInt(SELF_GAS_RESERVATION_MIST);
               let accumulated = BigInt(0);
-              const selectedCoins: typeof coins.data = [];
-              for (const coin of coins.data) {
+              const selectedCoins: typeof spendableCoins = [];
+              for (const coin of spendableCoins) {
                 accumulated += BigInt(coin.balance);
                 selectedCoins.push(coin);
                 if (accumulated >= requiredBalance) {
                   break;
                 }
               }
+              if (selectedCoins.length === 0) {
+                throw new Error(
+                  "Your SUI is still being processed by the network. " +
+                    "Please wait a moment and try again."
+                );
+              }
               if (accumulated < requiredBalance) {
                 throw new Error(
-                  `Insufficient SUI balance to pay for gas and withdraw. Required: ${
+                  `Insufficient spendable SUI for gas + withdraw. Required: ${
                     (Number(requiredBalance) / 1e9).toFixed(4)
                   } SUI, Available: ${(Number(accumulated) / 1e9).toFixed(4)} SUI`
                 );
@@ -188,14 +212,14 @@ export default function SendPage() {
             // sponsor's, so splitting from it would charge the sponsor for
             // the value transfer, not just the fees.
             const coinType = asset === "SUI" ? "0x2::sui::SUI" : USDC_COIN_TYPE;
-            const coins = await client.getCoins({
-              owner: session.suiAddress,
-              coinType,
-            });
-            if (coins.data.length === 0) {
-              throw new Error(`No ${asset} coin objects found in this wallet.`);
+            const nonZeroCoins = await getCoinsWithRetry(session.suiAddress, coinType);
+            if (nonZeroCoins.length === 0) {
+              throw new Error(
+                `Your ${asset} is still being processed by the network. ` +
+                  "Please wait a moment and try again."
+              );
             }
-            const inputs = coins.data.map((c) => tx.object(c.coinObjectId));
+            const inputs = nonZeroCoins.map((c) => tx.object(c.coinObjectId));
             const primary = inputs[0];
             if (inputs.length > 1) {
               tx.mergeCoins(primary, inputs.slice(1));

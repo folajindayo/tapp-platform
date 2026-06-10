@@ -231,3 +231,10 @@ html.theme-transitioning.mobile-reveal::view-transition-old(root) {
 button {
   cursor: pointer;
 }
+
+/* Prevent Headless UI from injecting padding-right when scroll locking, which shifts/clips layouts on mobile viewports */
+html,
+body {
+  padding-right: 0px !important;
+}
+

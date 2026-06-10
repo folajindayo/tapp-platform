@@ -135,13 +135,13 @@ export async function executeSwap(
   return { digest: result.digest, minOutBase: minOut };
 }
 
-/** Holder's total spendable balance (base units) of a coin type. */
+/** Holder's total balance (base units) of a coin type. */
 export async function coinBalanceBase(coinType: string): Promise<bigint> {
-  const { data } = await suiReadClient().getCoins({
+  const b = await suiReadClient().getBalance({
     owner: senderOrThrow(),
     coinType,
   });
-  return data.reduce((sum, c) => sum + BigInt(c.balance), BigInt(0));
+  return BigInt(b.totalBalance);
 }
 
 // ---- decimal-string <-> base-unit helpers (float-free) ----
