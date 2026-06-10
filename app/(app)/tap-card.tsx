@@ -45,7 +45,7 @@ export default function TapCardScreen() {
   });
 
   return (
-    <SafeAreaView edges={['top', 'left', 'right']} className="flex-1 bg-white">
+    <SafeAreaView edges={['top', 'left', 'right']} className="flex-1 bg-surface-bg">
       <Header amount={amount ?? '0'} onCancel={tap.cancel} />
 
       <Animated.View
