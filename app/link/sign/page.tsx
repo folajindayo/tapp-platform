@@ -130,6 +130,23 @@ function Body() {
           usdcCoinIds = coins.map((c) => c.coinObjectId);
         }
 
+        // The cap is USDC-denominated (balance + debits are in USDC subunit),
+        // so its on-chain limits must be too — otherwise the Move per-tap check
+        // compares USDC-subunit debits against NGN-kobo limits and rejects
+        // legitimate taps. Convert the NGN-kobo limits to USDC subunit via the
+        // live rate. The off-chain (NGN) limits still live on the card row.
+        const ratesRes = await fetch("/api/rates", { cache: "no-store" })
+          .then((r) => r.json())
+          .catch(() => null);
+        const ngnPerUsdc = Number(ratesRes?.ngn_per_usdc);
+        if (!ngnPerUsdc || ngnPerUsdc <= 0) {
+          throw new Error("Couldn't load the NGN/USDC rate — try again in a moment.");
+        }
+        const koboToUsdcMicro = (kobo: number) =>
+          BigInt(Math.max(1, Math.round((kobo / 100 / ngnPerUsdc) * 1_000_000)));
+        const dailyLimitUsdc = koboToUsdcMicro(link.dailyLimitSubunit);
+        const perTapLimitUsdc = koboToUsdcMicro(link.perTapLimitSubunit);
+
         const result = await zk.executeZkLoginTx((tx: InstanceType<typeof Transaction>) => {
           // create_cap wants a Coin<T> to seed the balance. (tx.gas is
           // Coin<SUI> and can't fund a USDC cap — that was the arg-0
@@ -157,8 +174,8 @@ function Body() {
             typeArguments: [usdcCoinType],
             arguments: [
               funding,
-              tx.pure.u64(BigInt(link.dailyLimitSubunit)),
-              tx.pure.u64(BigInt(link.perTapLimitSubunit)),
+              tx.pure.u64(dailyLimitUsdc),
+              tx.pure.u64(perTapLimitUsdc),
               tx.pure.vector("u8", Array.from(link.cardUidHash!)),
             ],
           });
