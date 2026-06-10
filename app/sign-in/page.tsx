@@ -31,6 +31,7 @@ function SignInBody() {
   const nextHref = params.get("next") ?? "/wallet";
   const emailHint = params.get("email") ?? undefined;
   const { hydrated, session, login } = useSession();
+  
 
   const [callbackError, setCallbackError] = useState<string | null>(null);
   const [completing, setCompleting] = useState(false);
