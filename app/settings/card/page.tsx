@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { reclaimAndReset } from "@/lib/cardReset";
 import {
   PiArrowLeftBold,
   PiCheckCircleFill,
@@ -139,8 +140,64 @@ function CardDetail({ card }: { card: CardSummary }) {
         <Link href="/cards/revoke" className="block w-full">
           <Button variant="danger">Revoke card</Button>
         </Link>
+        <ResetCardButton />
       </div>
     </>
+  );
+}
+
+/**
+ * Returns the card's on-chain balance to the holder's wallet (one
+ * destroy_and_reclaim signature per cap), then deletes the card rows so they
+ * can start fresh. Funds are reclaimed BEFORE any row is deleted.
+ */
+function ResetCardButton() {
+  const { session } = useSession();
+  const router = useRouter();
+  const qc = useQueryClient();
+  const [confirming, setConfirming] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  async function run() {
+    if (!session) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await reclaimAndReset(session.jwt, setMsg);
+      await qc.invalidateQueries({ queryKey: ["cards", "me"] });
+      router.replace("/wallet");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Reset failed — try again.");
+      setBusy(false);
+    }
+  }
+
+  if (!confirming) {
+    return (
+      <Button variant="secondary" onClick={() => setConfirming(true)}>
+        Reset card &amp; reclaim funds
+      </Button>
+    );
+  }
+
+  return (
+    <div className="grid gap-2 rounded-2xl border border-dashed border-gray-200 p-3 dark:border-white/10">
+      <p className="text-xs text-gray-500 dark:text-white/50">
+        This returns your card balance to your wallet and removes the card so
+        you can start over. You&apos;ll sign one transaction per card.
+      </p>
+      {error ? <p className="text-xs text-red-600 dark:text-red-400">{error}</p> : null}
+      <div className="grid grid-cols-2 gap-2">
+        <Button variant="secondary" onClick={() => setConfirming(false)} disabled={busy}>
+          Cancel
+        </Button>
+        <Button variant="danger" onClick={run} loading={busy}>
+          {busy ? (msg ?? "Working…") : "Confirm reset"}
+        </Button>
+      </div>
+    </div>
   );
 }
 
