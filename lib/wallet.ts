@@ -368,6 +368,33 @@ async function realPost<T>(path: string, body: unknown, jwt?: string, retried = 
   return json.data;
 }
 
+/**
+ * Fetch coins with retry — the Sui fullnode's coin index can lag
+ * behind the balance index after recent deposits. Retries up to 3
+ * times with a 2-second delay between attempts.
+ */
+async function getCoinsWithRetry(
+  fetchAllCoins: (address: string, coinType: string) => Promise<{ coinObjectId: string; version: string; digest: string; balance: string; coinType: string }[]>,
+  owner: string,
+  coinType: string,
+) {
+  const MAX_ATTEMPTS = 3;
+  const DELAY_MS = 2000;
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    const coins = await fetchAllCoins(owner, coinType);
+    const nonZero = coins.filter((c) => BigInt(c.balance) > BigInt(0));
+    if (nonZero.length > 0) return nonZero;
+    if (attempt < MAX_ATTEMPTS) {
+      console.warn(
+        `[wallet] getCoins returned empty (attempt ${attempt}/${MAX_ATTEMPTS}), ` +
+          `retrying in ${DELAY_MS}ms — likely indexer lag`,
+      );
+      await new Promise((r) => setTimeout(r, DELAY_MS));
+    }
+  }
+  return [];
+}
+
 export const walletApi = {
   me: async (
     jwt: string,
@@ -480,7 +507,7 @@ export const walletApi = {
     // initial bundle. Matches the pattern in /send/page.tsx.
     const { executeZkLoginTx } = await import("@/lib/zklogin");
     const { Transaction } = await import("@mysten/sui/transactions");
-    const { suiReadClient } = await import("@/lib/sui-client");
+    const { fetchAllCoins } = await import("@/lib/sui-client");
 
     const coinType = order.coin_type ?? USDC_COIN_TYPE;
     const recipient = order.receive_address;
@@ -526,17 +553,13 @@ export const walletApi = {
       });
       tx.transferObjects([coin_ab_s[1]], tx.pure.address(session.suiAddress));
 
-      // Fetch user's existing USDC coins
-      const client = suiReadClient();
+      // Fetch user's existing USDC coins (paginated + retry for indexer lag)
       clientLogger.debug("confirm-order", "fetching existing USDC coins in wallet");
-      const coins = await client.getCoins({
-        owner: session.suiAddress,
-        coinType: USDC_COIN_TYPE,
-      });
+      const nonZeroUsdc = await getCoinsWithRetry(fetchAllCoins, session.suiAddress, USDC_COIN_TYPE);
 
       let primaryUsdc: any = null;
-      if (coins.data.length > 0) {
-        const inputs = coins.data.map((c) => tx.object(c.coinObjectId));
+      if (nonZeroUsdc.length > 0) {
+        const inputs = nonZeroUsdc.map((c) => tx.object(c.coinObjectId));
         primaryUsdc = inputs[0];
         if (inputs.length > 1) {
           clientLogger.debug("confirm-order", "merging multiple USDC coin inputs into primary", {
@@ -564,7 +587,7 @@ export const walletApi = {
 
       // If user had no existing USDC coins, the swapped USDC coin was the primary coin.
       // We must transfer the remaining change on primaryUsdc back to the sender.
-      if (coins.data.length === 0) {
+      if (nonZeroUsdc.length === 0) {
         clientLogger.debug("confirm-order", "transferring remaining USDC change back to sender", {
           recipient: session.suiAddress,
         });
@@ -577,18 +600,17 @@ export const walletApi = {
       clientLogger.info("confirm-order", "executing pure USDC payment path");
       
       result = await executeZkLoginTx(async (tx: InstanceType<typeof Transaction>) => {
-        const client = suiReadClient();
         clientLogger.debug("confirm-order", "fetching existing USDC coins in wallet");
-        const coins = await client.getCoins({
-          owner:    session.suiAddress,
-          coinType,
-        });
-        if (coins.data.length === 0) {
+        const nonZeroCoins = await getCoinsWithRetry(fetchAllCoins, session.suiAddress, coinType);
+        if (nonZeroCoins.length === 0) {
           clientLogger.error("confirm-order", "no USDC coins found in wallet");
-          throw new Error("No USDC coin objects found in this wallet. Top up first.");
+          throw new Error(
+            "Your USDC is still being processed by the network. " +
+              "Please wait a moment and try again."
+          );
         }
         
-        const inputs = coins.data.map((c) => tx.object(c.coinObjectId));
+        const inputs = nonZeroCoins.map((c) => tx.object(c.coinObjectId));
         const primary = inputs[0];
         if (inputs.length > 1) {
           clientLogger.debug("confirm-order", "merging multiple USDC coin inputs into primary", {

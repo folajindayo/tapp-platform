@@ -55,7 +55,7 @@ export function FundCardModal({
           <DialogBackdrop className="fixed inset-0 bg-black/25 backdrop-blur-sm" />
         </TransitionChild>
 
-        <div className="fixed inset-0 grid place-items-center p-4">
+        <div className="fixed inset-0 flex w-screen items-center justify-center p-4">
           <TransitionChild
             as={Fragment}
             enter="ease-out duration-200"
