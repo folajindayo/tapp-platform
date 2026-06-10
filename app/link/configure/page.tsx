@@ -41,7 +41,7 @@ function Body() {
   const [daily, setDaily] = useState(DEFAULTS.dailyNGN);
   const [perTap, setPerTap] = useState(DEFAULTS.perTapNGN);
   const [stepUp, setStepUp] = useState(DEFAULTS.stepUpNGN);
-  const [funding, setFunding] = useState(DEFAULTS.fundingUSDC);
+  const [funding, setFunding] = useState(String(DEFAULTS.fundingUSDC));
   const [pin, setPin] = useState("");
   const [pinConfirm, setPinConfirm] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -93,7 +93,7 @@ function Body() {
       perTap:  perTap * 100,
       stepUp:  stepUp * 100,
       // Funding is USDC (6 decimals), not fiat kobo — scale by 1e6.
-      funding: Math.round(funding * 1_000_000),
+      funding: Math.round((parseFloat(funding) || 0) * 1_000_000),
       pin,
     });
     router.push(`/link/write?card=${cardId}`);
@@ -140,16 +140,32 @@ function Body() {
             step={1_000}
             display={formatNgn(stepUp)}
           />
-          <RangeField
-            label="Fund with"
-            help="USDC to load now — you can top up later"
-            value={funding}
-            onChange={setFunding}
-            min={1}
-            max={200}
-            step={1}
-            display={`$${funding}`}
-          />
+          <div className="grid gap-2 py-4">
+            <div className="flex items-baseline justify-between">
+              <label htmlFor="funding" className="text-sm font-medium text-neutral-900 dark:text-white">
+                Fund with
+              </label>
+            </div>
+            <div className="relative">
+              <input
+                id="funding"
+                type="number"
+                inputMode="decimal"
+                step="any"
+                min="0.01"
+                value={funding}
+                onChange={(e) => setFunding(e.target.value)}
+                placeholder="0.00"
+                className="w-full rounded-xl border border-gray-300 bg-white px-4 py-2 pr-16 text-sm tabular-nums text-neutral-900 transition-all placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50 dark:border-white/20 dark:bg-neutral-900 dark:text-white/80 dark:placeholder:text-white/30"
+              />
+              <span className="pointer-events-none absolute inset-y-0 right-4 flex items-center text-xs text-gray-400 dark:text-white/30">
+                USDC
+              </span>
+            </div>
+            <p className="text-xs text-gray-400 dark:text-white/40">
+              USDC to load now — you can top up later
+            </p>
+          </div>
         </div>
 
         <div className="grid gap-4 rounded-3xl border border-gray-200 p-4 dark:border-white/10">
@@ -159,7 +175,12 @@ function Body() {
 
         {error ? <InputError message={error} /> : null}
 
-        <Button onClick={submit}>Continue — tap your card</Button>
+        <Button
+          onClick={submit}
+          disabled={!funding || parseFloat(funding) <= 0 || isNaN(parseFloat(funding))}
+        >
+          Continue — tap your card
+        </Button>
       </AnimatedComponent>
     </Screen>
   );

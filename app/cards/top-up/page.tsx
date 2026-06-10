@@ -18,7 +18,7 @@ import { cardsApi, ApiError } from "@/lib/api";
 export default function TopUpPage() {
   const router = useRouter();
   const { hydrated, session } = useSession();
-  const [amount, setAmount] = useState(20);
+  const [amount, setAmount] = useState("20");
   const [phase, setPhase] = useState<"ready" | "signing" | "done" | "error">("ready");
   const [error, setError] = useState<string | null>(null);
 
@@ -28,10 +28,12 @@ export default function TopUpPage() {
 
   async function go() {
     if (!session) return;
+    const numericAmount = parseFloat(amount);
+    if (isNaN(numericAmount) || numericAmount <= 0) return;
     setError(null);
     setPhase("signing");
     try {
-      const skeleton = await cardsApi.topUp(Math.round(amount * 100), session.jwt);
+      const skeleton = await cardsApi.topUp(Math.round(numericAmount * 100), session.jwt);
       console.info("Top-up PTB skeleton (sign + submit):", skeleton);
       setPhase("done");
     } catch (err) {
@@ -76,20 +78,24 @@ export default function TopUpPage() {
 
         <div className="grid gap-2 rounded-3xl border border-gray-200 p-4 transition-all dark:border-white/10">
           <div className="flex items-baseline justify-between">
-            <label className="text-sm font-medium">Amount</label>
-            <span className="rounded-full bg-gray-50 px-2 py-1 text-xs font-medium tabular-nums dark:bg-white/5">
-              ${amount}
+            <label htmlFor="amount" className="text-sm font-medium">Amount</label>
+          </div>
+          <div className="relative">
+            <input
+              id="amount"
+              type="number"
+              inputMode="decimal"
+              step="any"
+              min="0.01"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              placeholder="0.00"
+              className="w-full rounded-xl border border-gray-300 bg-white px-4 py-2 pr-16 text-sm tabular-nums text-neutral-900 transition-all placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50 dark:border-white/20 dark:bg-neutral-900 dark:text-white/80 dark:placeholder:text-white/30"
+            />
+            <span className="pointer-events-none absolute inset-y-0 right-4 flex items-center text-xs text-gray-400 dark:text-white/30">
+              USDC
             </span>
           </div>
-          <input
-            type="range"
-            min={1}
-            max={500}
-            step={2}
-            value={amount}
-            onChange={(e) => setAmount(Number(e.target.value))}
-            className="w-full accent-blue-600"
-          />
           <p className="text-xs text-gray-400 dark:text-white/40">
             Sign with Google to confirm.
           </p>
@@ -102,7 +108,11 @@ export default function TopUpPage() {
             <Button variant="secondary">Cancel</Button>
           </Link>
           <div className="flex-1">
-            <Button onClick={go} loading={phase === "signing"}>
+            <Button
+              onClick={go}
+              loading={phase === "signing"}
+              disabled={phase === "signing" || !amount || parseFloat(amount) <= 0 || isNaN(parseFloat(amount))}
+            >
               Sign &amp; top up
             </Button>
           </div>
