@@ -11,6 +11,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { useSession } from "./auth";
+import { cardsApi } from "./api";
 import {
   fetchUsdcSubunit,
   fetchSuiMist,
@@ -216,25 +217,34 @@ async function mockWalletState(
   };
 }
 
-async function onchainWalletState(suiAddress: string): Promise<WalletState> {
-  const [usdc, sui, rates] = await Promise.all([
+async function onchainWalletState(suiAddress: string, jwt?: string): Promise<WalletState> {
+  const [usdc, sui, rates, card] = await Promise.all([
     fetchUsdcSubunit(suiAddress),
     fetchSuiMist(suiAddress),
     fetchLiveRates(),
+    jwt ? cardsApi.me(jwt).catch(() => null) : Promise.resolve(null),
   ]);
+
+  const hasLinkedCard = !!card && card.status !== "revoked";
+
   return {
     sui_address:       suiAddress,
     usdc_subunit:      usdc,
     sui_mist:          sui,
     ngn_rate:          rates.ngn_per_usdc,
     sui_usdc_rate:     rates.usdc_per_sui,
-    // Card linkage isn't on-chain in v1 — Rails owns that mapping. For
-    // direct-RPC mode we default to "no card linked" until the wallet
-    // page is wired to ALSO read /v1/cards/me alongside.
-    has_linked_card:   false,
-    card_needs_resync: false,
-    card_id:           null,
-    card:              null,
+    has_linked_card:   hasLinkedCard,
+    card_needs_resync: card ? card.needs_resync : false,
+    card_id:           hasLinkedCard ? card.id : null,
+    card:              hasLinkedCard && card
+      ? {
+          daily_limit_subunit:       card.daily_limit_subunit,
+          per_tap_limit_subunit:     card.per_tap_limit_subunit,
+          step_up_threshold_subunit: card.step_up_threshold_subunit,
+          spent_today_subunit:       card.spent_today_subunit,
+          pin_attempts_remaining:    card.pin_attempts_remaining,
+        }
+      : null,
   };
 }
 
@@ -402,7 +412,7 @@ export const walletApi = {
     suiAddress?: string,
   ): Promise<WalletState> => {
     if (WALLET_MOCK) return mockWalletState(seed, suiAddress);
-    if (suiAddress) return onchainWalletState(suiAddress);
+    if (suiAddress) return onchainWalletState(suiAddress, jwt);
     // Backend may not yet emit the rate fields — fall back to the
     // live /api/rates source if either is missing, so the wallet
     // hero math always has something to chew on.
