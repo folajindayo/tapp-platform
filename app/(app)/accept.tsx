@@ -51,13 +51,17 @@ export default function AcceptPaymentScreen() {
   const memoStr = typeof memo === 'string' ? memo : undefined;
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
-  const [activeTab, setActiveTab] = useState<'nfc' | 'scan'>('scan');
+  // 'choose' = no method picked yet → NO order created. Picking QR arms the
+  // broadcast (one Route-B/NGN order); picking NFC navigates to /tap-card
+  // (one Route-A/USDC debit). This stops a single tap creating two orders.
+  const [activeTab, setActiveTab] = useState<'choose' | 'scan'>('choose');
 
-  // Reuse the existing broadcast hook — it creates the order via Rails
-  // and subscribes to settlement events. The NFC HCE side of the hook is
-  // a no-op when we don't call NfcHce.start (which we don't here — we
-  // show a QR instead).
-  const { phase, cancel } = useTapBroadcast({ amount: amountStr, memo: memoStr });
+  // The broadcast order is only created once the QR method is chosen.
+  const { phase, cancel } = useTapBroadcast({
+    amount: amountStr,
+    memo: memoStr,
+    enabled: activeTab === 'scan',
+  });
 
   const order = 'order' in phase ? phase.order : null;
   const checkoutUrl = order?.checkout_url ?? null;
@@ -120,15 +124,14 @@ export default function AcceptPaymentScreen() {
             <Pressable
               onPress={() => {
                 // The pill IS the selector — picking NFC opens the live card
-                // reader directly (no extra button).
-                setActiveTab('nfc');
+                // reader directly. No broadcast order is created on this path.
                 const p = new URLSearchParams({ amount: amountStr });
                 if (memoStr) p.set('memo', memoStr);
                 router.push(`/tap-card?${p.toString()}`);
               }}
-              style={[s.tabButton, activeTab === 'nfc' && s.tabButtonActive]}
+              style={s.tabButton}
             >
-              <Text style={[s.tabLabel, activeTab === 'nfc' && s.tabLabelActive]}>NFC Tap</Text>
+              <Text style={s.tabLabel}>NFC Tap</Text>
             </Pressable>
             <Pressable
               onPress={() => setActiveTab('scan')}
@@ -138,16 +141,8 @@ export default function AcceptPaymentScreen() {
             </Pressable>
           </View>
 
-          {activeTab === 'nfc' ? (
-            /* NFC slot — the "NFC Tap" pill opens the live reader (/tap-card),
-               so this is just the affordance while it's the selected method. */
-            <View style={s.nfcSlot}>
-              <NfcPulse />
-              <Text style={s.affordanceLabel}>Opening card reader…</Text>
-              <Text style={s.affordanceHint}>Hold the customer’s card to the back of the phone</Text>
-            </View>
-          ) : (
-            /* QR — visible affordance for phone payment */
+          {activeTab === 'scan' ? (
+            /* QR — visible affordance for phone payment (creates the order). */
             <View style={s.qrSlot}>
               {checkoutUrl ? (
                 <View style={[s.qrSurface, { borderColor: isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.1)' }]}>
@@ -176,6 +171,14 @@ export default function AcceptPaymentScreen() {
               )}
               <Text style={s.affordanceLabel}>Scan with phone</Text>
               <Text style={s.affordanceHint}>Customer opens camera and scans</Text>
+            </View>
+          ) : (
+            /* Choose — nothing is created until a method is picked, so a card
+               payment never leaves an orphaned phone-to-phone order behind. */
+            <View style={s.nfcSlot}>
+              <NfcPulse />
+              <Text style={s.affordanceLabel}>Choose how to get paid</Text>
+              <Text style={s.affordanceHint}>NFC Tap for a card · QR Scan for a phone</Text>
             </View>
           )}
 

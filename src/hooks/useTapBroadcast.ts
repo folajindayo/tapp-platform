@@ -31,7 +31,11 @@ type Phase =
  *   4. On settle → stop, return result
  *   5. On cancel/expiry → call /cancel
  */
-export function useTapBroadcast(args: { amount: string; memo?: string }) {
+export function useTapBroadcast(args: { amount: string; memo?: string; enabled?: boolean }) {
+  // Gate: don't create the phone-to-phone order until this path is actually
+  // chosen. Otherwise just opening the accept screen creates a (Route-B, NGN)
+  // order that's orphaned the moment the customer pays by card instead.
+  const enabled = args.enabled ?? true;
   const [phase, setPhase] = useState<Phase>({ kind: 'idle' });
   const closedRef = useRef(false);
   const prevBrightnessRef = useRef<number | null>(null);
@@ -48,6 +52,7 @@ export function useTapBroadcast(args: { amount: string; memo?: string }) {
   });
 
   useEffect(() => {
+    if (!enabled) return;
     let cancelled = false;
     (async () => {
       setPhase({ kind: 'creating' });
@@ -67,9 +72,9 @@ export function useTapBroadcast(args: { amount: string; memo?: string }) {
       cancelled = true;
       void teardown();
     };
-    // create.mutateAsync intentionally not in deps — single-shot
+    // create.mutateAsync intentionally not in deps — single-shot per enable.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [enabled]);
 
   // ── 2/3/4. Broadcast + SSE ──────────────────────────────────────────
   async function startBroadcast(order: InitiateTapResponse) {
