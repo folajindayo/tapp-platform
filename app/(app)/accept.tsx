@@ -132,12 +132,21 @@ export default function AcceptPaymentScreen() {
           </View>
 
           {activeTab === 'nfc' ? (
-            /* NFC slot */
-            <View style={s.nfcSlot}>
+            /* NFC slot — opens the live card reader (useTapCard / /tap-card).
+               Without this the pulse is purely decorative and a card tap does
+               nothing, because no NFC reader session is ever started here. */
+            <Pressable
+              style={s.nfcSlot}
+              onPress={() => {
+                const p = new URLSearchParams({ amount: amountStr });
+                if (memoStr) p.set('memo', memoStr);
+                router.push(`/tap-card?${p.toString()}`);
+              }}
+            >
               <NfcPulse />
-              <Text style={s.affordanceLabel}>Tap card here</Text>
-              <Text style={s.affordanceHint}>Customer holds Tapp card to the back</Text>
-            </View>
+              <Text style={s.affordanceLabel}>Tap to read card</Text>
+              <Text style={s.affordanceHint}>Press here, then hold the customer’s card to the back</Text>
+            </Pressable>
           ) : (
             /* QR — visible affordance for phone payment */
             <View style={s.qrSlot}>
