@@ -116,6 +116,7 @@ export interface CardSummary {
   spent_today_subunit: number;
   needs_resync: boolean;
   pin_attempts_remaining: number;
+  on_chain_balance?: string;
 }
 
 export interface PtbSkeleton {

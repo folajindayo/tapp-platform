@@ -102,6 +102,7 @@ export interface CardSnapshot {
   step_up_threshold_subunit: number;
   spent_today_subunit:       number;
   pin_attempts_remaining:    number;
+  on_chain_balance?:         string;
 }
 
 export type ActivityKind = "pay" | "deposit" | "topup" | "refund";
@@ -243,6 +244,7 @@ async function onchainWalletState(suiAddress: string, jwt?: string): Promise<Wal
           step_up_threshold_subunit: card.step_up_threshold_subunit,
           spent_today_subunit:       card.spent_today_subunit,
           pin_attempts_remaining:    card.pin_attempts_remaining,
+          on_chain_balance:          card.on_chain_balance,
         }
       : null,
   };
