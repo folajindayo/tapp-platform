@@ -20,6 +20,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import QRCodeStyled from 'react-native-qrcode-styled';
 import Animated, {
   Easing,
+  FadeIn,
+  FadeOut,
   useAnimatedStyle,
   useSharedValue,
   withRepeat,
@@ -28,7 +30,9 @@ import Animated, {
 } from 'react-native-reanimated';
 import { ChevronLeft } from 'lucide-react-native';
 import { useTapBroadcast } from '@/hooks/useTapBroadcast';
-import { Text } from '@/ui';
+import { useTapCard, type TapCardPhase } from '@/hooks/useTapCard';
+import { StepUpQR } from '@/components/StepUpQR';
+import { Button, Icon, Icons, PinDots, PinPad, Text } from '@/ui';
 import { formatNgn } from '@/ui/format';
 
 const PAL = {
@@ -45,16 +49,16 @@ const PAL = {
   success:    '#22C55E',
 } as const;
 
+const FADE = FadeIn.duration(220).easing(Easing.bezier(0.32, 0.72, 0, 1).factory());
+const FADE_OUT = FadeOut.duration(180).easing(Easing.bezier(0.32, 0.72, 0, 1).factory());
+
 export default function AcceptPaymentScreen() {
   const { amount, memo } = useLocalSearchParams<{ amount?: string; memo?: string }>();
   const amountStr = typeof amount === 'string' ? amount : '0';
   const memoStr = typeof memo === 'string' ? memo : undefined;
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
-  // 'choose' = no method picked yet → NO order created. Picking QR arms the
-  // broadcast (one Route-B/NGN order); picking NFC navigates to /tap-card
-  // (one Route-A/USDC debit). This stops a single tap creating two orders.
-  const [activeTab, setActiveTab] = useState<'choose' | 'scan'>('choose');
+  const [activeTab, setActiveTab] = useState<'nfc' | 'scan'>('nfc');
 
   // The broadcast order is only created once the QR method is chosen.
   const { phase, cancel } = useTapBroadcast({
@@ -63,8 +67,22 @@ export default function AcceptPaymentScreen() {
     enabled: activeTab === 'scan',
   });
 
+  const tap = useTapCard({
+    amount: amountStr,
+    memo: memoStr,
+    enabled: activeTab === 'nfc',
+  });
+
   const order = 'order' in phase ? phase.order : null;
   const checkoutUrl = order?.checkout_url ?? null;
+
+  const handleCancel = () => {
+    if (activeTab === 'nfc') {
+      tap.cancel();
+    } else {
+      cancel();
+    }
+  };
 
   // Settled state takes over the entire card — full-bleed success.
   if (phase.kind === 'settled') {
@@ -106,32 +124,30 @@ export default function AcceptPaymentScreen() {
     <SafeAreaView edges={['top', 'bottom']} style={s.root}>
       <View style={s.body}>
         {/* Header: small back + amount */}
-        <View style={s.header}>
-          <Pressable hitSlop={12} onPress={cancel} style={s.backBtn}>
-            <ChevronLeft size={22} color={PAL.text} />
-          </Pressable>
-          <View style={s.headerCenter}>
-            <Text style={s.headerLabel}>Charge</Text>
-            <Text style={s.headerAmount}>{formatNgn(amountStr)}</Text>
+        {activeTab !== 'nfc' ? (
+          <View style={s.header}>
+            <Pressable hitSlop={12} onPress={handleCancel} style={s.backBtn}>
+              <ChevronLeft size={22} color={PAL.text} />
+            </Pressable>
+            <View style={s.headerCenter}>
+              <Text style={s.headerLabel}>Charge</Text>
+              <Text style={s.headerAmount}>{formatNgn(amountStr)}</Text>
+            </View>
+            <View style={s.headerRight} />
           </View>
-          <View style={s.headerRight} />
-        </View>
+        ) : (
+          <View style={{ height: 40 }} />
+        )}
 
         {/* Main card — tabbed affordance */}
         <View style={s.card}>
           {/* Segmented Control / Tab Bar */}
           <View style={s.tabContainer}>
             <Pressable
-              onPress={() => {
-                // The pill IS the selector — picking NFC opens the live card
-                // reader directly. No broadcast order is created on this path.
-                const p = new URLSearchParams({ amount: amountStr });
-                if (memoStr) p.set('memo', memoStr);
-                router.push(`/tap-card?${p.toString()}`);
-              }}
-              style={s.tabButton}
+              onPress={() => setActiveTab('nfc')}
+              style={[s.tabButton, activeTab === 'nfc' && s.tabButtonActive]}
             >
-              <Text style={s.tabLabel}>NFC Tap</Text>
+              <Text style={[s.tabLabel, activeTab === 'nfc' && s.tabLabelActive]}>NFC Tap</Text>
             </Pressable>
             <Pressable
               onPress={() => setActiveTab('scan')}
@@ -173,13 +189,23 @@ export default function AcceptPaymentScreen() {
               <Text style={s.affordanceHint}>Customer opens camera and scans</Text>
             </View>
           ) : (
-            /* Choose — nothing is created until a method is picked, so a card
-               payment never leaves an orphaned phone-to-phone order behind. */
-            <View style={s.nfcSlot}>
-              <NfcPulse />
-              <Text style={s.affordanceLabel}>Choose how to get paid</Text>
-              <Text style={s.affordanceHint}>NFC Tap for a card · QR Scan for a phone</Text>
-            </View>
+            /* NFC Tap interface embedded directly below the tab! */
+            <Animated.View
+              key={tap.phase.kind}
+              entering={FADE}
+              exiting={FADE_OUT}
+              className="flex-1 w-full"
+            >
+              <NfcBody
+                phase={tap.phase}
+                amount={amountStr}
+                submitPin={tap.submitPin}
+                submitStepUp={tap.submitStepUp}
+                retry={tap.retry}
+                retryWrite={tap.retryWrite}
+                cancel={tap.cancel}
+              />
+            </Animated.View>
           )}
 
           {/* Bottom spacer to balance card content vertically */}
@@ -187,16 +213,18 @@ export default function AcceptPaymentScreen() {
         </View>
 
         {/* Status footer */}
-        <View style={s.footer}>
-          <View style={s.statusDot} />
-          <Text style={s.statusText}>
-            {phase.kind === 'creating' ? 'Preparing payment…'
-              : phase.kind === 'detected' ? 'Tap received — confirming…'
-              : phase.kind === 'processing' ? 'Bridging funds…'
-              : phase.kind === 'fulfilled' ? 'Settling to your bank…'
-              : 'Waiting for payment'}
-          </Text>
-        </View>
+        {activeTab === 'scan' && (
+          <View style={s.footer}>
+            <View style={s.statusDot} />
+            <Text style={s.statusText}>
+              {phase.kind === 'creating' ? 'Preparing payment…'
+                : phase.kind === 'detected' ? 'Tap received — confirming…'
+                : phase.kind === 'processing' ? 'Bridging funds…'
+                : phase.kind === 'fulfilled' ? 'Settling to your bank…'
+                : 'Waiting for payment'}
+            </Text>
+          </View>
+        )}
       </View>
     </SafeAreaView>
   );
@@ -449,3 +477,296 @@ const s = StyleSheet.create({
     color: '#FFFFFF',
   },
 });
+
+// -----------------------------------------------------------------------------
+// HCE NFC embedded sub-views
+// -----------------------------------------------------------------------------
+
+const PIN_LENGTH = 4;
+
+function NfcBody({
+  phase,
+  amount,
+  submitPin,
+  submitStepUp,
+  retry,
+  retryWrite,
+  cancel,
+}: {
+  phase: TapCardPhase;
+  amount: string;
+  submitPin: (pin: string) => Promise<void>;
+  submitStepUp: (token: string) => Promise<void>;
+  retry: () => void;
+  retryWrite: () => void;
+  cancel: () => void;
+}) {
+  switch (phase.kind) {
+    case 'scanning':
+    case 'reading':
+      return <ScanningView amount={amount} />;
+    case 'resolving':
+      return <SpinnerView label={`Authorizing… · ${formatNgn(amount)}`} />;
+    case 'charging-none':
+    case 'charging-pin':
+    case 'charging-step-up':
+      return <SpinnerView label={`Charging card… · ${formatNgn(amount)}`} />;
+    case 'pin-required':
+      return <PinView onSubmit={submitPin} />;
+    case 'step-up-required':
+      return (
+        <StepUpQR
+          url={phase.stepUpUrl}
+          token={phase.stepUpToken}
+          onGranted={submitStepUp}
+          onDeniedOrExpired={() => undefined}
+        />
+      );
+    case 'step-up-polling':
+      return <SpinnerView label={`Verifying… · ${formatNgn(amount)}`} />;
+    case 'writing':
+      return <WritingView label="Tap the card once more to finalize" amount={amount} />;
+    case 'write-retry':
+      return (
+        <WriteRetryView
+          error={phase.error}
+          onRetry={retryWrite}
+          onSkip={cancel}
+        />
+      );
+    case 'settled':
+      return <SettledView amount={phase.response.amount} onDone={cancel} />;
+    case 'processing':
+      return (
+        <ProcessingView
+          amount={phase.response.amount}
+          onDone={cancel}
+        />
+      );
+    case 'failed':
+      return (
+        <FailedView
+          error={phase.error}
+          onRetry={retry}
+          onCancel={cancel}
+        />
+      );
+  }
+}
+
+function ScanningView({ amount }: { amount: string }) {
+  const scale = useSharedValue(0.9);
+  useEffect(() => {
+    scale.value = withRepeat(
+      withTiming(1.12, { duration: 1500, easing: Easing.inOut(Easing.ease) }),
+      -1,
+      true,
+    );
+    return () => cancelAnimation(scale);
+  }, [scale]);
+
+  const ringStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+    opacity: 0.6,
+  }));
+
+  return (
+    <View className="flex-1 items-center justify-center px-6 gap-8">
+      <View className="items-center justify-center" style={{ width: 220, height: 220 }}>
+        {/* Pulsing Ripple Rings */}
+        <Animated.View
+          style={[
+            {
+              position: 'absolute',
+              width: 190,
+              height: 190,
+              borderRadius: 95,
+              borderWidth: 2,
+              borderColor: '#0065F5',
+            },
+            ringStyle,
+          ]}
+        />
+        <View className="h-32 w-32 rounded-full bg-brand-blue/15 items-center justify-center">
+          <Icon xml={Icons.IconContactlessCard} width={64} height={88} />
+        </View>
+      </View>
+      <View className="items-center gap-2">
+        <Text variant="titleMedium" className="text-center">
+          Hold the card · {formatNgn(amount)}
+        </Text>
+        <Text variant="bodyMuted" className="text-center">
+          Place the Tapp Card against the back of your phone.
+        </Text>
+      </View>
+    </View>
+  );
+}
+
+function SpinnerView({ label }: { label: string }) {
+  return (
+    <View className="flex-1 items-center justify-center px-6 gap-4">
+      <ActivityIndicator color="#0065F5" />
+      <Text variant="bodyMuted" className="text-center">{label}</Text>
+    </View>
+  );
+}
+
+function PinView({ onSubmit }: { onSubmit: (pin: string) => Promise<void> }) {
+  const [pin, setPin] = useState('');
+  const [errorTick, setErrorTick] = useState(0);
+  const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (pin.length !== PIN_LENGTH || submitting) return;
+    let cancelled = false;
+    const captured = pin;
+    setSubmitting(true);
+    (async () => {
+      try {
+        await onSubmit(captured);
+      } finally {
+        if (!cancelled) {
+          setPin('');
+          setErrorTick((t) => t + 1);
+          setSubmitting(false);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [pin, onSubmit, submitting]);
+
+  return (
+    <View className="flex-1 px-6 pt-2">
+      <View className="items-center gap-8 mt-4">
+        <View className="items-center gap-3">
+          <Text variant="titleMedium" className="text-center">Enter Zoracle PIN</Text>
+          <Text variant="bodyMuted" className="text-center">
+            Hand the phone to the cardholder.
+          </Text>
+        </View>
+        <PinDots filled={pin.length} length={PIN_LENGTH} errorTick={errorTick} />
+      </View>
+      <View className="flex-1 justify-center">
+        <PinPad
+          disabled={submitting}
+          onPressDigit={(d) => setPin((p) => (p.length < PIN_LENGTH ? p + d : p))}
+          onPressBackspace={() => setPin((p) => p.slice(0, -1))}
+        />
+      </View>
+    </View>
+  );
+}
+
+function WritingView({ label, amount }: { label: string; amount: string }) {
+  return (
+    <View className="flex-1 items-center justify-center px-6 gap-6">
+      <View className="h-24 w-24 rounded-full bg-brand-blue/15 items-center justify-center">
+        <Icon xml={Icons.IconContactlessCard} width={52} height={72} />
+      </View>
+      <Text variant="titleMedium" className="text-center">
+        Payment received · {formatNgn(amount)}
+      </Text>
+      <Text variant="bodyMuted" className="text-center">{label}</Text>
+      <ActivityIndicator color="#0065F5" />
+    </View>
+  );
+}
+
+function WriteRetryView({
+  error,
+  onRetry,
+  onSkip,
+}: {
+  error: string;
+  onRetry: () => void;
+  onSkip: () => void;
+}) {
+  return (
+    <View className="flex-1 items-center justify-center px-6 gap-6">
+      <Text variant="titleMedium" className="text-center">
+        Tap the card once more
+      </Text>
+      <Text variant="bodyMuted" className="text-center">{error}</Text>
+      <Text variant="caption" className="text-center">
+        The payment was charged — this step keeps the card in sync for the
+        next merchant.
+      </Text>
+      <View className="w-full gap-3 mt-4">
+        <Button label="Tap again" onPress={onRetry} />
+        <Button label="Skip — cardholder will sync later" variant="ghost" onPress={onSkip} />
+      </View>
+    </View>
+  );
+}
+
+function SettledView({ amount, onDone }: { amount: string; onDone: () => void }) {
+  return (
+    <View className="flex-1 items-center justify-center px-6 gap-6">
+      <Icon xml={Icons.IconSuccessBadge} size={96} />
+      <Text variant="titleMedium" className="text-center">Payment received</Text>
+      <Text
+        variant="amount"
+        className="text-center"
+      >
+        {formatNgn(amount)}
+      </Text>
+      <View className="w-full mt-4">
+        <Button label="Done" onPress={onDone} />
+      </View>
+    </View>
+  );
+}
+
+function ProcessingView({
+  amount,
+  onDone,
+}: {
+  amount: string;
+  onDone: () => void;
+}) {
+  return (
+    <View className="flex-1 items-center justify-center px-6 gap-6">
+      <ActivityIndicator color="#0065F5" />
+      <Text variant="titleMedium" className="text-center">Settling…</Text>
+      <Text
+        variant="amount"
+        className="text-center text-4xl"
+      >
+        {formatNgn(amount)}
+      </Text>
+      <Text variant="bodyMuted" className="text-center">
+        The card was charged. Settlement is finishing — you can leave this
+        screen.
+      </Text>
+      <View className="w-full mt-4">
+        <Button label="Done" variant="secondary" onPress={onDone} />
+      </View>
+    </View>
+  );
+}
+
+function FailedView({
+  error,
+  onRetry,
+  onCancel,
+}: {
+  error: string;
+  onRetry: () => void;
+  onCancel: () => void;
+}) {
+  return (
+    <View className="flex-1 items-center justify-center px-6 gap-6">
+      <Text variant="titleMedium" className="text-danger text-center">
+        Couldn&apos;t charge the card
+      </Text>
+      <Text variant="bodyMuted" className="text-center">{error}</Text>
+      <View className="w-full gap-3 mt-4">
+        <Button label="Try again" onPress={onRetry} />
+        <Button label="Use a different method" variant="secondary" onPress={onCancel} />
+      </View>
+    </View>
+  );
+}

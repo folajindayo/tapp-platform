@@ -57,6 +57,7 @@ interface UseTapCardArgs {
   amount: string;
   currency?: string;
   memo?: string;
+  enabled?: boolean;
 }
 
 interface SessionState {
@@ -67,7 +68,7 @@ interface SessionState {
   cardPassword: string; // set during read; rotated server-side per debit
 }
 
-export function useTapCard({ amount, currency = 'NGN', memo }: UseTapCardArgs) {
+export function useTapCard({ amount, currency = 'NGN', memo, enabled = true }: UseTapCardArgs) {
   const [phase, setPhase] = useState<TapCardPhase>({ kind: 'scanning' });
   const sessionRef = useRef<SessionState>({
     K: null,
@@ -313,7 +314,19 @@ export function useTapCard({ amount, currency = 'NGN', memo }: UseTapCardArgs) {
   // Lifecycle
   // ---------------------------------------------------------------------------
   useEffect(() => {
-    void beginRead();
+    if (enabled) {
+      cancelledRef.current = false;
+      setPhase({ kind: 'scanning' });
+      void beginRead();
+    } else {
+      cancelledRef.current = true;
+      void NfcManager.cancelTechnologyRequest().catch(() => undefined);
+      const s = sessionRef.current;
+      if (s.K) {
+        s.K.fill(0);
+        s.K = null;
+      }
+    }
     return () => {
       cancelledRef.current = true;
       void NfcManager.cancelTechnologyRequest().catch(() => undefined);
@@ -324,7 +337,7 @@ export function useTapCard({ amount, currency = 'NGN', memo }: UseTapCardArgs) {
         s.K = null;
       }
     };
-  }, [beginRead]);
+  }, [beginRead, enabled]);
 
   const cancel = useCallback(() => {
     cancelledRef.current = true;
