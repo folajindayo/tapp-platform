@@ -43,7 +43,11 @@ export default function DashboardScreen() {
 
   // Today's running totals. Rails accepts ?period=today so we don't
   // have to hand-roll the aggregate client-side.
-  const todayStatsQuery = useQuery({
+  const {
+    data: todayStatsData,
+    isLoading: todayStatsLoading,
+    refetch: refetchTodayStats,
+  } = useQuery({
     queryKey: ['sender', 'stats', 'today'],
     queryFn: () => ordersApi.stats('today'),
     enabled: isAuthenticated,
@@ -53,17 +57,17 @@ export default function DashboardScreen() {
   useFocusEffect(
     useCallback(() => {
       setAmountStr('');
-      void todayStatsQuery.refetch();
-    }, [todayStatsQuery])
+      void refetchTodayStats();
+    }, [refetchTodayStats])
   );
 
   const today = useMemo(() => {
-    const s = todayStatsQuery.data;
+    const s = todayStatsData;
     return {
       volume: Number.parseFloat(s?.totalOrderVolume ?? '0') || 0,
       count: s?.totalOrders ?? 0,
     };
-  }, [todayStatsQuery.data]);
+  }, [todayStatsData]);
 
   const display = useMemo(() => formatAmountForDisplay(amountStr), [amountStr]);
   const amountValid = Number.parseFloat(amountStr || '0') > 0;
@@ -139,7 +143,7 @@ export default function DashboardScreen() {
           onPress={() => router.push('/(app)/transactions')}
           style={({ pressed }) => [s.todayPill, pressed && s.todayPillPressed]}
         >
-          {todayStatsQuery.isLoading ? (
+          {todayStatsLoading ? (
             <ActivityIndicator size="small" color={PAL.brand} />
           ) : (
             <Text style={s.todayText}>
