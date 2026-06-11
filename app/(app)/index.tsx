@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -50,9 +50,12 @@ export default function DashboardScreen() {
     refetchOnWindowFocus: true,
   });
 
-  useFocusEffect(() => {
-    void todayStatsQuery.refetch();
-  });
+  useFocusEffect(
+    useCallback(() => {
+      setAmountStr('');
+      void todayStatsQuery.refetch();
+    }, [todayStatsQuery])
+  );
 
   const today = useMemo(() => {
     const s = todayStatsQuery.data;
@@ -191,7 +194,8 @@ export default function DashboardScreen() {
         <Button
           label={amountValid ? `Accept ${formatNgn(amountStr)}` : 'Accept payment'}
           variant="primary"
-          disabled={!amountValid}
+          disabled={!amountValid || usdcValue === null}
+          loading={rateQuery.isFetching}
           onPress={() => router.push(`/(app)/accept?${queryParams}`)}
           trailingIcon={<ArrowRight size={18} color="#FFFFFF" />}
           className="rounded-[16px]"
