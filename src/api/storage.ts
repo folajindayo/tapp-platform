@@ -58,7 +58,7 @@ async function loadOrCreateEncryptionKey(): Promise<string | null> {
     });
     return key;
   } catch (err) {
-    console.warn('[storage] secure-store unavailable, MMKV will run unencrypted', err);
+    if (__DEV__) console.warn('[storage] secure-store unavailable, MMKV will run unencrypted', err);
     return null;
   }
 }
@@ -91,7 +91,7 @@ export async function initStorage(): Promise<void> {
     mmkvReady = true;
     if (__DEV__) console.log('[storage] MMKV ready (encrypted:', !!key, ')');
   } catch (err) {
-    console.warn('[storage] MMKV unavailable — using in-memory fallback', err);
+    if (__DEV__) console.warn('[storage] MMKV unavailable — using in-memory fallback', err);
   }
 }
 

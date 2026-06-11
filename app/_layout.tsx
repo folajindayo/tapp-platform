@@ -1,8 +1,16 @@
 import '../global.css';
 import '@/ui/loadStyles';
 
+if (!__DEV__) {
+  console.log = () => {};
+  console.info = () => {};
+  console.warn = () => {};
+  console.error = () => {};
+  console.debug = () => {};
+}
+
 import { useEffect } from 'react';
-import { ActivityIndicator, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Image, StyleSheet, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -57,7 +65,7 @@ export default function RootLayout() {
     'OpenSans-Bold':               OpenSans_700Bold,
   });
 
-  if (!fontsLoaded && !fontError) return null;
+  if (!fontsLoaded && !fontError) return <LoadingOverlay />;
 
   return (
     <QueryClientProvider client={queryClient}>
@@ -127,9 +135,11 @@ function LoadingOverlay() {
   return (
     <View style={styles.loadingRoot} pointerEvents="none">
       <View style={styles.loadingInner}>
-        <View style={styles.loadingBadge}>
-          <ActivityIndicator size="large" color="#3B82F6" />
-        </View>
+        <Image
+          source={require('../assets/logo.png')}
+          style={styles.logo}
+          resizeMode="contain"
+        />
         <View style={styles.loadingDots}>
           <View style={[styles.dot, { opacity: 1 }]} />
           <View style={[styles.dot, { opacity: 0.5 }]} />
@@ -166,13 +176,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 32,
   },
-  loadingBadge: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    backgroundColor: 'rgba(59, 130, 246, 0.12)',
-    alignItems: 'center',
-    justifyContent: 'center',
+  logo: {
+    width: 96,
+    height: 96,
   },
   loadingDots: {
     flexDirection: 'row',

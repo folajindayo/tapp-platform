@@ -76,7 +76,7 @@ export default function SignUpScreen() {
       }
     },
     onError: (err) => {
-      console.error("Sign up failed:", err);
+      if (__DEV__) console.error("Sign up failed:", err);
       const msg = (err?.message ?? "").toLowerCase();
       if (msg.includes("early access request is still pending") || msg.includes("early access")) {
         setEarlyAccessVisible(true);

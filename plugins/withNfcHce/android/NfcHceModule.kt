@@ -29,7 +29,7 @@ class NfcHceModule(reactContext: ReactApplicationContext) :
     val pm = appContext.packageManager
     val hasHce = pm.hasSystemFeature(PackageManager.FEATURE_NFC_HOST_CARD_EMULATION)
     val hasNfc = pm.hasSystemFeature(PackageManager.FEATURE_NFC) ||
-      (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && pm.hasSystemFeature(PackageManager.FEATURE_NFC_ANY))
+      (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && pm.hasSystemFeature("android.hardware.nfc.any"))
     promise.resolve(hasHce && hasNfc && NfcAdapter.getDefaultAdapter(appContext) != null)
   }
 
