@@ -102,6 +102,11 @@ export default function ResyncPage() {
           </p>
         </div>
         {error ? <InputError message={error} /> : null}
+        {error && /no Tapp payload|payload looks wrong/i.test(error) ? (
+          <Link href="/cards/relink" className="w-full">
+            <Button>Repair card instead</Button>
+          </Link>
+        ) : null}
         <Button
           onClick={go}
           loading={phase === "fetching" || phase === "writing"}

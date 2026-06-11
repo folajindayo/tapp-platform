@@ -105,6 +105,14 @@ export interface CardLinkCompleteRequest {
   step_up_threshold_subunit:   number;
 }
 
+export interface CardRelinkRequest {
+  card_uid_hash:    string; // hex sha256 of factory UID — must match the live card
+  linking_proof:    string; // hex(HMAC(K', "linking-anchor-v1")) — fresh K
+  pin_verifier:     string; // hex(HMAC(K,  "tapp-card-verifier-v1"))
+  card_password:    string; // hex of 4-byte NTAG215 PWD
+  current_token_ct: string; // hex of the fresh rotation token
+}
+
 export interface CardSummary {
   id: string;
   status: "issued" | "claimed" | "live" | "revoked" | "locked";
@@ -160,6 +168,19 @@ export const cardsApi = {
       "/v1/cards/link/complete",
       { body, token: jwt },
     ),
+
+  /**
+   * Re-provision the SAME physical card after a torn write destroyed
+   * its NDEF payload (resync can't run without K from the card). Runs
+   * the full ceremony again — fresh K/PIN/token/password — but the
+   * on-chain cap and its balance are untouched. The server accepts it
+   * only when the chip's UID hash matches the live card's.
+   */
+  relink: (body: CardRelinkRequest, jwt: string) =>
+    request<{ card_id: string }>("POST", "/v1/cards/me/relink", {
+      body,
+      token: jwt,
+    }),
 
   /** Dashboard summary for the signed-in cardholder. */
   me: (jwt: string) =>
