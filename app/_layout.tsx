@@ -10,7 +10,8 @@ if (!__DEV__) {
 }
 
 import { useEffect } from 'react';
-import { ActivityIndicator, Image, StyleSheet, View } from 'react-native';
+import * as Updates from 'expo-updates';
+import { ActivityIndicator, AppState, Image, StyleSheet, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -32,7 +33,7 @@ import {
 import * as SplashScreen from 'expo-splash-screen';
 import { useAuthStore } from '@/auth/store';
 import { useOnboardingState, type OnboardingStep } from '@/auth/useOnboardingState';
-import { ToastContainer } from '@/ui';
+import { toast, ToastContainer } from '@/ui';
 
 void SplashScreen.preventAutoHideAsync();
 
@@ -47,6 +48,57 @@ const queryClient = new QueryClient({
 });
 
 export default function RootLayout() {
+  const { isUpdatePending } = Updates.useUpdates();
+
+  // 1. Automatically reload when an update is downloaded/pending
+  useEffect(() => {
+    if (isUpdatePending) {
+      toast.success('New update downloaded! Reloading app...');
+      const timer = setTimeout(() => {
+        void Updates.reloadAsync();
+      }, 2000);
+      return () => clearTimeout(timer);
+    }
+  }, [isUpdatePending]);
+
+  // Helper: check and download updates
+  const checkAndFetchUpdate = async () => {
+    if (__DEV__) return;
+    try {
+      const update = await Updates.checkForUpdateAsync();
+      if (update.isAvailable) {
+        toast.info('Downloading new app version...');
+        await Updates.fetchUpdateAsync();
+      }
+    } catch (e) {
+      console.warn('[Updates] Check failed:', e);
+    }
+  };
+
+  // 2. Active checks: Check for updates when app comes to the foreground
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (nextState) => {
+      if (nextState === 'active') {
+        void checkAndFetchUpdate();
+      }
+    });
+
+    return () => {
+      subscription.remove();
+    };
+  }, []);
+
+  // 3. Periodic checks: Check for updates every 15 minutes while active
+  useEffect(() => {
+    const interval = setInterval(() => {
+      void checkAndFetchUpdate();
+    }, 15 * 60 * 1000);
+
+    return () => {
+      clearInterval(interval);
+    };
+  }, []);
+
   // Boot sequence: initialize the secure-store backed MMKV instance and
   // hydrate the auth store before anything below renders. The Guard
   // gates protected screens on isHydrated.

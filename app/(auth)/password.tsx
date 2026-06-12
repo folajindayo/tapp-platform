@@ -9,7 +9,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Link, router, useLocalSearchParams } from "expo-router";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { ChevronLeft, Eye, EyeOff } from "lucide-react-native";
 import { authApi } from "@/api/endpoints";
 import type { ApiError } from "@/api/types";
@@ -32,6 +32,7 @@ const PAL = {
 } as const;
 
 export default function PasswordScreen() {
+  const queryClient = useQueryClient();
   const { email, verified } = useLocalSearchParams<{
     email?: string;
     verified?: string;
@@ -51,6 +52,7 @@ export default function PasswordScreen() {
   >({
     mutationFn: () => authApi.login({ email: email!, password }),
     onSuccess: (data) => {
+      queryClient.clear();
       // Session set — Guard will route to the correct step based on /me response.
       setSession(data.accessToken, data.refreshToken);
     },
