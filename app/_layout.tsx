@@ -117,7 +117,7 @@ function Guard() {
     if (target.group === 'onboarding' && currentGroup === 'onboarding') return;
 
     // ── Already on the right screen ──
-    if (target.group === currentGroup) return;
+    if (target.group === currentGroup && currentGroup !== 'auth') return;
 
     router.replace(target.route as never);
   }, [step, loading, segments, router, isHydrated]);

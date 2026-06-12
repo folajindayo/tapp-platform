@@ -120,9 +120,15 @@ export function getUser(): { id: string; email: string } | undefined {
 }
 
 export function setTokens(access: string, refresh: string, user?: { id: string; email: string }) {
-  storage.set(ACCESS, access);
-  storage.set(REFRESH, refresh);
-  if (user) storage.set(USER, JSON.stringify(user));
+  if (access) {
+    storage.set(ACCESS, access);
+  }
+  if (refresh) {
+    storage.set(REFRESH, refresh);
+  }
+  if (user) {
+    storage.set(USER, JSON.stringify(user));
+  }
   if (__DEV__) {
     const verify = storage.getString(ACCESS);
     console.log('[storage] setTokens — stored:', verify ? `${verify.slice(0, 12)}…` : 'WRITE FAILED');

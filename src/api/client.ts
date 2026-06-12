@@ -77,9 +77,11 @@ async function refreshAccessToken(): Promise<string | null> {
       })
       .then((res) => {
         const tokens = res.data.data;
+        const accessToken = tokens.accessToken ?? (tokens as any).access_token;
+        const refreshToken = tokens.refreshToken ?? (tokens as any).refresh_token;
         // user is not in the refresh response; keep whatever is stored
-        setTokens(tokens.accessToken, tokens.refreshToken, getUser());
-        return tokens.accessToken;
+        setTokens(accessToken, refreshToken, getUser());
+        return accessToken;
       })
       .catch(() => {
         // Refresh failed. Only sign out if the access token is truly gone
@@ -139,9 +141,7 @@ http.interceptors.response.use(
 // --- Helpers ---
 
 export function normalizeError(err: unknown): ApiError {
-  const ax = err as AxiosError<
-    ApiEnvelope<{ code?: string; detail?: string } | string>
-  >;
+  const ax = err as AxiosError<any>;
 
   if (__DEV__ && ax?.response) {
     console.error(
@@ -152,11 +152,11 @@ export function normalizeError(err: unknown): ApiError {
 
   const body = ax?.response?.data;
   if (body) {
-    const message = body.message ?? "Something went wrong.";
-    const errorData =
-      typeof body.data === "object" && body.data !== null ? body.data : {};
+    const railsError = body.error && typeof body.error === 'object' ? body.error : null;
+    const message = railsError?.message ?? body.message ?? "Something went wrong.";
+    const errorData = railsError ?? (typeof body.data === "object" && body.data !== null ? body.data : {});
     const code =
-      (errorData as { code?: string }).code ??
+      errorData.code ??
       `HTTP_${ax.response?.status ?? 0}`;
     return { code, message };
   }
@@ -185,7 +185,19 @@ export async function request<T>(config: AxiosRequestConfig): Promise<T> {
       );
     }
 
-    return res.data.data;
+    let data = res.data.data;
+    if (data && typeof data === 'object') {
+      const obj = data as any;
+      if (obj.access_token || obj.refresh_token) {
+        data = {
+          ...obj,
+          accessToken: obj.accessToken ?? obj.access_token,
+          refreshToken: obj.refreshToken ?? obj.refresh_token,
+        } as any;
+      }
+    }
+
+    return data;
   } catch (err) {
     throw normalizeError(err);
   }

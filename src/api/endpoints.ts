@@ -40,12 +40,23 @@ import type {
 
 // ---- Auth ----
 export const authApi = {
-  register: (body: RegisterRequest) =>
-    request<AuthTokens>({
+  register: (body: RegisterRequest) => {
+    const { firstName, lastName, ...rest } = body;
+    return request<AuthTokens>({
       method: "POST",
       url: "/v1/auth/register",
-      data: { ...body, currency: "NGN", scope: "sender", scopes: ["sender"] },
-    }),
+      data: {
+        ...rest,
+        firstName,
+        lastName,
+        first_name: firstName,
+        last_name: lastName,
+        currency: "NGN",
+        scope: "sender",
+        scopes: ["sender"],
+      },
+    });
+  },
   login: (body: LoginRequest) =>
     request<AuthTokens>({
       method: "POST",
@@ -67,8 +78,19 @@ export const authApi = {
   me: () => request<MeResponse>({ method: "GET", url: "/v1/me" }),
   // Update the authenticated user's first/last name. Email and scope
   // are intentionally not editable here.
-  updateMe: (body: { firstName?: string; lastName?: string }) =>
-    request<MeResponse>({ method: "PATCH", url: "/v1/me", data: body }),
+  updateMe: (body: { firstName?: string; lastName?: string }) => {
+    const { firstName, lastName } = body;
+    const data: Record<string, any> = {};
+    if (firstName !== undefined) {
+      data.firstName = firstName;
+      data.first_name = firstName;
+    }
+    if (lastName !== undefined) {
+      data.lastName = lastName;
+      data.last_name = lastName;
+    }
+    return request<MeResponse>({ method: "PATCH", url: "/v1/me", data });
+  },
   resetPasswordToken: (body: ResetPasswordTokenRequest) =>
     request<{ ok: true }>({
       method: "POST",
