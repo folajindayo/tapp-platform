@@ -8,6 +8,14 @@
     "scheme": "tappmerchant",
     "userInterfaceStyle": "dark",
     "newArchEnabled": true,
+    "updates": {
+      "url": "https://u.expo.dev/a079f2b2-1d78-4b31-995b-4e03232098ff",
+      "enabled": true,
+      "checkOnLaunch": "ALWAYS"
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
     "splash": {
       "image": "./assets/splash.png",
       "resizeMode": "contain",
@@ -25,7 +33,6 @@
       },
       "entitlements": {
         "com.apple.developer.nfc.readersession.formats": [
-          "NDEF",
           "TAG"
         ]
       }
@@ -58,7 +65,12 @@
           }
         }
       ],
-      "react-native-nfc-manager",
+      [
+        "react-native-nfc-manager",
+        {
+          "includeNdefEntitlement": false
+        }
+      ],
       "./plugins/withNfcHce",
       "./plugins/withIosNfc",
       "expo-asset",
@@ -70,8 +82,13 @@
       "typedRoutes": true
     },
     "extra": {
-      "apiBaseUrl": "https://reggie-undefinable-cash.ngrok-free.dev/",
-      "checkoutBaseUrl": "https://checkout.zoracle.xyz"
-    }
+      "router": {
+        "origin": false
+      },
+      "eas": {
+        "projectId": "a079f2b2-1d78-4b31-995b-4e03232098ff"
+      }
+    },
+    "owner": "zerocard"
   }
 }

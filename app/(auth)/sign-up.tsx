@@ -12,7 +12,7 @@ import {
 } from "react-native";
 import { Link, router } from "expo-router";
 import { Controller, useForm } from "react-hook-form";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { z } from "zod";
 import { Eye, EyeOff } from "lucide-react-native";
 import { authApi } from "@/api/endpoints";
@@ -51,6 +51,7 @@ const PAL = {
 } as const;
 
 export default function SignUpScreen() {
+  const queryClient = useQueryClient();
   const setSession = useAuthStore((s) => s.setSession);
   const [earlyAccessVisible, setEarlyAccessVisible] = useState(false);
 
@@ -66,6 +67,7 @@ export default function SignUpScreen() {
       // The Guard will resolve the correct next step (verify-email or onboarding)
       // based on the /me response.
       if (tokens?.accessToken) {
+        queryClient.clear();
         setSession(tokens.accessToken, tokens.refreshToken);
       } else {
         // Tokens absent — route to verify-email screen with password for auto-login

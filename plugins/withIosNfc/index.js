@@ -31,7 +31,6 @@ function withIosNfcEntitlements(config) {
         ? entitlements['com.apple.developer.nfc.readersession.formats']
         : [],
     );
-    formats.add('NDEF');
     formats.add('TAG');
     entitlements['com.apple.developer.nfc.readersession.formats'] = Array.from(formats);
 
