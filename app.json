@@ -76,7 +76,8 @@
       "expo-asset",
       "./plugins/withAndroidAutofillHighlight",
       "expo-font",
-      "expo-secure-store"
+      "expo-secure-store",
+      "./plugins/withDisableUserScriptSandboxing"
     ],
     "experiments": {
       "typedRoutes": true

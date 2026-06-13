@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Alert,
   Keyboard,
@@ -55,6 +55,19 @@ export default function SignUpScreen() {
   const setSession = useAuthStore((s) => s.setSession);
   const [earlyAccessVisible, setEarlyAccessVisible] = useState(false);
 
+  useEffect(() => {
+    let timer: NodeJS.Timeout;
+    if (earlyAccessVisible) {
+      timer = setTimeout(() => {
+        setEarlyAccessVisible(false);
+        router.replace("/(auth)/sign-in");
+      }, 12000);
+    }
+    return () => {
+      if (timer) clearTimeout(timer);
+    };
+  }, [earlyAccessVisible]);
+
   const { control, handleSubmit, formState } = useForm<FormValues>({
     defaultValues: { firstName: "", lastName: "", email: "", password: "" },
     mode: "onChange",
@@ -62,20 +75,10 @@ export default function SignUpScreen() {
 
   const mutation = useMutation<void, ApiError, FormValues>({
     mutationFn: async (values) => {
-      const tokens = await authApi.register(values);
-      // If the backend returns tokens on register, set the session immediately.
-      // The Guard will resolve the correct next step (verify-email or onboarding)
-      // based on the /me response.
-      if (tokens?.accessToken) {
-        queryClient.clear();
-        setSession(tokens.accessToken, tokens.refreshToken);
-      } else {
-        // Tokens absent — route to verify-email screen with password for auto-login
-        router.replace({
-          pathname: "/(auth)/verify-email",
-          params: { email: values.email, password: values.password },
-        });
-      }
+      await authApi.register(values);
+    },
+    onSuccess: () => {
+      setEarlyAccessVisible(true);
     },
     onError: (err) => {
       if (__DEV__) console.error("Sign up failed:", err);
@@ -209,7 +212,10 @@ export default function SignUpScreen() {
 
       <EarlyAccessModal
         visible={earlyAccessVisible}
-        onClose={() => setEarlyAccessVisible(false)}
+        onClose={() => {
+          setEarlyAccessVisible(false);
+          router.replace("/(auth)/sign-in");
+        }}
       />
     </Screen>
   );
