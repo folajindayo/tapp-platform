@@ -28,7 +28,7 @@ const NEXT_STORAGE_KEY = "tapp.signin.next.v1";
  * clear error rather than silently failing.
  */
 export function GoogleSignInButton({
-  nextHref = "/wallet",
+  nextHref = "/",
   label = "Continue with Google",
   loginHint,
 }: Props) {

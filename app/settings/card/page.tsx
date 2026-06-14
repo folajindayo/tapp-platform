@@ -167,7 +167,7 @@ function ResetCardButton() {
     try {
       await reclaimAndReset(session.jwt, setMsg);
       await qc.invalidateQueries({ queryKey: ["cards", "me"] });
-      router.replace("/wallet");
+      router.replace("/");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Reset failed — try again.");
       setBusy(false);

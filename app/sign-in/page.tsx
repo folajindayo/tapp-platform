@@ -28,7 +28,7 @@ export default function SignInPage() {
 function SignInBody() {
   const router = useRouter();
   const params = useSearchParams();
-  const nextHref = params.get("next") ?? "/wallet";
+  const nextHref = params.get("next") ?? "/";
   const emailHint = params.get("email") ?? undefined;
   const { hydrated, session, login } = useSession();
   
