@@ -2,7 +2,7 @@
   "name": "Tapp",
   "short_name": "Tapp",
   "description": "Tap, pay, done.",
-  "start_url": "/wallet",
+  "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "orientation": "portrait",

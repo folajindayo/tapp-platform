@@ -47,7 +47,7 @@ function Body() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!cardId) router.replace("/wallet");
+    if (!cardId) router.replace("/");
     if (hydrated && !session)
       router.replace(
         `/sign-in?next=/link/configure?card=${cardId ?? ""}`,

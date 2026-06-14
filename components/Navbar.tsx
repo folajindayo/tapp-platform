@@ -35,7 +35,7 @@ export function Navbar() {
         aria-label="Navbar"
         className="container mx-auto flex items-center justify-between p-4 text-neutral-900 dark:text-white lg:px-8"
       >
-        <Link href={isLoggedIn ? "/wallet" : "/"} className="flex items-center">
+        <Link href={isLoggedIn ? "/" : "/sign-in"} className="flex items-center">
           <Logo />
         </Link>
         <div className="flex items-center gap-3 text-sm">

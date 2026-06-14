@@ -158,7 +158,7 @@ function ClaimingState({
           <p className="text-sm text-neutral-900 dark:text-white">
             This card is already linked to your account.
           </p>
-          <a href="/wallet" className="w-full">
+          <a href="/" className="w-full">
             <Button variant="secondary">Go to wallet</Button>
           </a>
         </div>
@@ -173,7 +173,7 @@ function ClaimingState({
           Couldn&apos;t claim this card
         </h1>
         <p className="text-sm text-gray-500 dark:text-white/50">{error}</p>
-        <a href="/wallet" className="w-full">
+        <a href="/" className="w-full">
           <Button variant="secondary">Go to wallet</Button>
         </a>
       </div>
