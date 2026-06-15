@@ -15,6 +15,7 @@ import { ChevronLeft } from 'lucide-react-native';
 import { authApi } from '@/api/endpoints';
 import { useAuthStore } from '@/auth/store';
 import { Button, Icon, Icons, Text } from '@/ui';
+import { EarlyAccessModal } from '@/components/EarlyAccessModal';
 
 const CODE_LEN = 6;
 
@@ -50,6 +51,7 @@ export default function VerifyEmailScreen() {
   const [submitting, setSubmitting] = useState(false);
   const [resending, setResending] = useState(false);
   const [cooldown, setCooldown] = useState(0);
+  const [earlyAccessVisible, setEarlyAccessVisible] = useState(false);
   const inputRef = useRef<TextInput>(null);
 
   useEffect(() => {
@@ -92,20 +94,21 @@ export default function VerifyEmailScreen() {
           const loginData = await authApi.login({ email, password });
           useAuthStore.getState().setSession(loginData.accessToken, loginData.refreshToken);
         } catch (loginErr) {
-          // Fallback to password screen if login fails for some reason
-          router.replace({
-            pathname: '/(auth)/password',
-            params: { email, verified: 'true' },
-          });
+          const msg = ((loginErr as any)?.message ?? '').toLowerCase();
+          if (msg.includes('early access request is still pending') || msg.includes('early access')) {
+            setEarlyAccessVisible(true);
+          } else {
+            // Fallback to password screen if login fails for some reason
+            router.replace({
+              pathname: '/(auth)/password',
+              params: { email, verified: 'true' },
+            });
+          }
         }
       } else {
         // Unauthenticated path: user registered but couldn't log in until now.
-        // Route back to the password screen so they can sign in; a success
-        // banner will tell them their email is verified.
-        router.replace({
-          pathname: '/(auth)/password',
-          params: { email, verified: 'true' },
-        });
+        // Show the early access pending modal.
+        setEarlyAccessVisible(true);
       }
     } catch (err) {
       Alert.alert('Invalid code', (err as { message?: string })?.message ?? 'Try again');
@@ -217,6 +220,15 @@ export default function VerifyEmailScreen() {
           </Text>
         </Pressable>
       </ScrollView>
+      <EarlyAccessModal
+        visible={earlyAccessVisible}
+        title="Email Verified!"
+        description="Your email has been verified, but your early access request is still pending. Please reach out to an admin on Telegram to get your account approved."
+        onClose={() => {
+          setEarlyAccessVisible(false);
+          router.replace('/(auth)/sign-in');
+        }}
+      />
     </SafeAreaView>
   );
 }

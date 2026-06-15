@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import {
   Alert,
   Keyboard,
@@ -12,14 +12,12 @@ import {
 } from "react-native";
 import { Link, router } from "expo-router";
 import { Controller, useForm } from "react-hook-form";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation } from "@tanstack/react-query";
 import { z } from "zod";
 import { Eye, EyeOff } from "lucide-react-native";
 import { authApi } from "@/api/endpoints";
 import type { ApiError } from "@/api/types";
-import { useAuthStore } from "@/auth/store";
 import { Button, Icon, Icons, Screen, Text } from "@/ui";
-import { EarlyAccessModal } from "@/components/EarlyAccessModal";
 
 const schema = z.object({
   firstName: z.string().min(1, "Required"),
@@ -51,22 +49,7 @@ const PAL = {
 } as const;
 
 export default function SignUpScreen() {
-  const queryClient = useQueryClient();
-  const setSession = useAuthStore((s) => s.setSession);
-  const [earlyAccessVisible, setEarlyAccessVisible] = useState(false);
 
-  useEffect(() => {
-    let timer: NodeJS.Timeout;
-    if (earlyAccessVisible) {
-      timer = setTimeout(() => {
-        setEarlyAccessVisible(false);
-        router.replace("/(auth)/sign-in");
-      }, 12000);
-    }
-    return () => {
-      if (timer) clearTimeout(timer);
-    };
-  }, [earlyAccessVisible]);
 
   const { control, handleSubmit, formState } = useForm<FormValues>({
     defaultValues: { firstName: "", lastName: "", email: "", password: "" },
@@ -77,16 +60,14 @@ export default function SignUpScreen() {
     mutationFn: async (values) => {
       await authApi.register(values);
     },
-    onSuccess: () => {
-      setEarlyAccessVisible(true);
+    onSuccess: (_, variables) => {
+      router.push({
+        pathname: "/(auth)/verify-email",
+        params: { email: variables.email, password: variables.password },
+      });
     },
     onError: (err) => {
       if (__DEV__) console.error("Sign up failed:", err);
-      const msg = (err?.message ?? "").toLowerCase();
-      if (msg.includes("early access request is still pending") || msg.includes("early access")) {
-        setEarlyAccessVisible(true);
-        return;
-      }
       Alert.alert("Sign up failed", err.message ?? "Try again");
     },
   });
@@ -210,13 +191,7 @@ export default function SignUpScreen() {
         </ScrollView>
       </KeyboardAvoidingView>
 
-      <EarlyAccessModal
-        visible={earlyAccessVisible}
-        onClose={() => {
-          setEarlyAccessVisible(false);
-          router.replace("/(auth)/sign-in");
-        }}
-      />
+
     </Screen>
   );
 }

@@ -14,9 +14,16 @@ import { theme } from "@/ui/theme";
 interface EarlyAccessModalProps {
   visible: boolean;
   onClose: () => void;
+  title?: string;
+  description?: string;
 }
 
-export function EarlyAccessModal({ visible, onClose }: EarlyAccessModalProps) {
+export function EarlyAccessModal({
+  visible,
+  onClose,
+  title = "Early Access Awaiting Approval",
+  description = "Your early access request is still pending. Please reach out to an admin on Telegram to get your account approved.",
+}: EarlyAccessModalProps) {
   const contactAdmin = async () => {
     const url = "https://t.me/oxbryte";
     try {
@@ -53,11 +60,9 @@ export function EarlyAccessModal({ visible, onClose }: EarlyAccessModalProps) {
             <AlertCircle size={32} color={theme.colors.warning} />
           </View>
 
-          <Text style={s.title}>Early Access Awaiting Approval</Text>
+          <Text style={s.title}>{title}</Text>
           
-          <Text style={s.description}>
-            Your early access request is still pending. Please reach out to an admin on Telegram to get your account approved.
-          </Text>
+          <Text style={s.description}>{description}</Text>
 
           <View style={s.actions}>
             <Button
