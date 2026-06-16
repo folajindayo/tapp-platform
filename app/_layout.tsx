@@ -159,7 +159,7 @@ function Guard() {
     // ── Allow free navigation within the unauthenticated sign-in flow ──
     // sign-in → password → sign-up → forgot-password are all valid to visit
     // when target is sign-in; don't redirect mid-flow.
-    const signInScreens = new Set(['sign-in', 'password', 'sign-up', 'forgot-password', 'reset-password']);
+    const signInScreens = new Set(['sign-in', 'password', 'sign-up', 'forgot-password', 'reset-password', 'verify-email']);
     if (step === 'sign-in' && currentGroup === 'auth' && signInScreens.has(seg1)) return;
 
     // ── Allow verify-email only when that is the resolved target ──

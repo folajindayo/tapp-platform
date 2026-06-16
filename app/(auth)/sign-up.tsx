@@ -16,7 +16,8 @@ import { useMutation } from "@tanstack/react-query";
 import { z } from "zod";
 import { Eye, EyeOff } from "lucide-react-native";
 import { authApi } from "@/api/endpoints";
-import type { ApiError } from "@/api/types";
+import type { ApiError, AuthTokens } from "@/api/types";
+import { useAuthStore } from "@/auth/store";
 import { Button, Icon, Icons, Screen, Text } from "@/ui";
 
 const schema = z.object({
@@ -56,11 +57,12 @@ export default function SignUpScreen() {
     mode: "onChange",
   });
 
-  const mutation = useMutation<void, ApiError, FormValues>({
+  const mutation = useMutation<AuthTokens, ApiError, FormValues>({
     mutationFn: async (values) => {
-      await authApi.register(values);
+      return await authApi.register(values);
     },
-    onSuccess: (_, variables) => {
+    onSuccess: (data, variables) => {
+      useAuthStore.getState().setSession(data.accessToken, data.refreshToken);
       router.push({
         pathname: "/(auth)/verify-email",
         params: { email: variables.email, password: variables.password },
