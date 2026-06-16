@@ -9,7 +9,7 @@ if (!__DEV__) {
   console.debug = () => {};
 }
 
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import * as Updates from 'expo-updates';
 import { ActivityIndicator, AppState, Image, StyleSheet, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -133,11 +133,19 @@ export default function RootLayout() {
 
 function Guard() {
   const isHydrated = useAuthStore((s) => s.isHydrated);
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const segments = useSegments();
   const router = useRouter();
   const { step, loading } = useOnboardingState();
 
   const ready = isHydrated && !loading;
+
+  // Track whether the initial boot/splash sequence has completed.
+  // After the first `ready`, we never show the LoadingOverlay again
+  // so mid-session transitions (e.g. sign-up → verify-email) don't
+  // flash the loading screen.
+  const hasBooted = useRef(false);
+  if (ready && !hasBooted.current) hasBooted.current = true;
 
   useEffect(() => {
     if (ready) void SplashScreen.hideAsync();
@@ -158,9 +166,11 @@ function Guard() {
 
     // ── Allow free navigation within the unauthenticated sign-in flow ──
     // sign-in → password → sign-up → forgot-password are all valid to visit
-    // when target is sign-in; don't redirect mid-flow.
+    // ONLY when there is no active session. If the user has a session (just
+    // logged in) but /me failed, we must NOT return early — fall through so
+    // the router.replace below brings them to the correct screen.
     const signInScreens = new Set(['sign-in', 'password', 'sign-up', 'forgot-password', 'reset-password', 'verify-email']);
-    if (step === 'sign-in' && currentGroup === 'auth' && signInScreens.has(seg1)) return;
+    if (step === 'sign-in' && !isAuthenticated && currentGroup === 'auth' && signInScreens.has(seg1)) return;
 
     // ── Allow verify-email only when that is the resolved target ──
     if (step === 'verify-email' && currentGroup === 'auth' && seg1 === 'verify-email') return;
@@ -172,13 +182,13 @@ function Guard() {
     if (target.group === currentGroup && currentGroup !== 'auth') return;
 
     router.replace(target.route as never);
-  }, [step, loading, segments, router, isHydrated]);
+  }, [step, loading, segments, router, isHydrated, isAuthenticated]);
 
   return (
     <View style={{ flex: 1 }}>
       <Slot />
       <ToastContainer />
-      {!ready && <LoadingOverlay />}
+      {!hasBooted.current && <LoadingOverlay />}
     </View>
   );
 }

@@ -34,16 +34,14 @@ const PAL = {
 } as const;
 
 export default function VerifyEmailScreen() {
-  const { email: paramEmail, password } = useLocalSearchParams<{
+  const { email: paramEmail } = useLocalSearchParams<{
     email?: string;
     password?: string;
   }>();
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const storeEmail = useAuthStore((s) => s.user?.email);
 
-  // Email is available from the auth store for authenticated users (signed in
-  // via password), or from route params for unauthenticated users (just
-  // registered but email not yet verified).
+  // Email from auth store (authenticated path) or route params (just registered).
   const email = storeEmail ?? paramEmail ?? '';
 
   const queryClient = useQueryClient();
@@ -51,19 +49,25 @@ export default function VerifyEmailScreen() {
   const [submitting, setSubmitting] = useState(false);
   const [resending, setResending] = useState(false);
   const [cooldown, setCooldown] = useState(0);
-  const [earlyAccessVisible, setEarlyAccessVisible] = useState(false);
+
+  // Verified success modal state
+  const [verifiedVisible, setVerifiedVisible] = useState(false);
+  const [redirectCountdown, setRedirectCountdown] = useState(10);
+
   const inputRef = useRef<TextInput>(null);
 
   useEffect(() => {
     inputRef.current?.focus();
   }, []);
 
+  // Resend cooldown timer
   useEffect(() => {
     if (cooldown <= 0) return;
     const t = setInterval(() => setCooldown((c) => Math.max(0, c - 1)), 1000);
     return () => clearInterval(t);
   }, [cooldown]);
 
+  // Auto-submit when 6 digits entered
   useEffect(() => {
     if (code.length === CODE_LEN) {
       Keyboard.dismiss();
@@ -72,44 +76,46 @@ export default function VerifyEmailScreen() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [code]);
 
+  // 10-second auto-redirect countdown once verified modal is visible
+  useEffect(() => {
+    if (!verifiedVisible) return;
+    setRedirectCountdown(10);
+    const interval = setInterval(() => {
+      setRedirectCountdown((c) => {
+        if (c <= 1) {
+          clearInterval(interval);
+          goToSignIn();
+          return 0;
+        }
+        return c - 1;
+      });
+    }, 1000);
+    return () => clearInterval(interval);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [verifiedVisible]);
+
+  function goToSignIn() {
+    router.replace('/(auth)/sign-in');
+  }
+
   async function submit(token: string) {
     if (submitting) return;
     setSubmitting(true);
     try {
-      // Rails requires both fields — the (token, email) pair scopes the
-      // verification row uniquely so codes can't collide across users.
       if (!email) {
         Alert.alert('Email missing', 'Please go back and re-enter your email.');
         return;
       }
+
       await authApi.confirmAccount({ token, email });
 
       if (isAuthenticated) {
-        // Authenticated path: invalidate /me so the Guard sees the updated
-        // is_email_verified flag and advances to the next onboarding step.
+        // Refresh /me so the Guard sees is_email_verified = true
         await queryClient.invalidateQueries({ queryKey: ['auth', 'me'] });
-      } else if (password) {
-        // Unauthenticated path with password: login automatically!
-        try {
-          const loginData = await authApi.login({ email, password });
-          useAuthStore.getState().setSession(loginData.accessToken, loginData.refreshToken);
-        } catch (loginErr) {
-          const msg = ((loginErr as any)?.message ?? '').toLowerCase();
-          if (msg.includes('early access request is still pending') || msg.includes('early access')) {
-            setEarlyAccessVisible(true);
-          } else {
-            // Fallback to password screen if login fails for some reason
-            router.replace({
-              pathname: '/(auth)/password',
-              params: { email, verified: 'true' },
-            });
-          }
-        }
-      } else {
-        // Unauthenticated path: user registered but couldn't log in until now.
-        // Show the early access pending modal.
-        setEarlyAccessVisible(true);
       }
+
+      // Always show the verified success modal
+      setVerifiedVisible(true);
     } catch (err) {
       Alert.alert('Invalid code', (err as { message?: string })?.message ?? 'Try again');
       setCode('');
@@ -220,14 +226,13 @@ export default function VerifyEmailScreen() {
           </Text>
         </Pressable>
       </ScrollView>
+
+      {/* Email verified — shown after successful OTP. Auto-redirects to sign-in. */}
       <EarlyAccessModal
-        visible={earlyAccessVisible}
+        visible={verifiedVisible}
         title="Email Verified!"
-        description="Your email has been verified, but your early access request is still pending. Please reach out to an admin on Telegram to get your account approved."
-        onClose={() => {
-          setEarlyAccessVisible(false);
-          router.replace('/(auth)/sign-in');
-        }}
+        description={`Your email has been successfully verified. Sign in to continue setting up your account.\n\nRedirecting to sign in in ${redirectCountdown}s…`}
+        onClose={goToSignIn}
       />
     </SafeAreaView>
   );

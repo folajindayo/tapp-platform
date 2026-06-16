@@ -64,18 +64,7 @@ export default function PasswordScreen() {
         return;
       }
 
-      if (msg.includes("do not match") || msg.includes("not found")) {
-        // No account with this email → offer to sign up.
-        // router.push({ pathname: '/(auth)/sign-up', params: { email } });
-        return;
-      }
-
-      // if (msg.includes('not verified') || msg.includes('verify')) {
-      //   // Account exists but email not verified — route to verify-email.
-      //   router.push({ pathname: '/(auth)/verify-email', params: { email } });
-      //   return;
-      // }
-
+      // Show a visible error for wrong password / account not found
       setError(err?.message ?? "Could not sign in. Try again.");
     },
   });
@@ -195,7 +184,10 @@ export default function PasswordScreen() {
 
       <EarlyAccessModal
         visible={earlyAccessVisible}
-        onClose={() => setEarlyAccessVisible(false)}
+        onClose={() => {
+          setEarlyAccessVisible(false);
+          router.replace('/(auth)/sign-in');
+        }}
       />
     </SafeAreaView>
   );
