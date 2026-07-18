@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import {
   PiQrCodeBold,
   PiArrowDownLeftBold,
-  PiPaperPlaneTiltBold,
+  PiBankBold,
   PiArrowsLeftRightBold,
   PiWarningOctagonFill,
 } from "react-icons/pi";
@@ -105,25 +105,25 @@ export default function WalletPage() {
                 <Button
                   variant="primary"
                   leadingIcon={<PiQrCodeBold className="text-base" />}
-                  className="px-2"
+                  className="px-1 text-xs sm:text-sm [&>span]:whitespace-nowrap"
                 >
                   Pay
                 </Button>
               </Link>
-              <Link href="/send" className="block w-full">
+              <Link href="/cash-out" className="block w-full">
                 <Button
                   variant="secondary"
-                  leadingIcon={<PiPaperPlaneTiltBold className="text-base" />}
-                  className="px-2"
+                  leadingIcon={<PiBankBold className="text-base" />}
+                  className="px-1 text-xs sm:text-sm [&>span]:whitespace-nowrap"
                 >
-                  Send
+                  Cash out
                 </Button>
               </Link>
               <Button
                 variant="secondary"
                 onClick={() => setSwapOpen(true)}
                 leadingIcon={<PiArrowsLeftRightBold className="text-base" />}
-                className="px-2"
+                className="px-1 text-xs sm:text-sm [&>span]:whitespace-nowrap"
               >
                 Swap
               </Button>
@@ -131,7 +131,7 @@ export default function WalletPage() {
                 <Button
                   variant="secondary"
                   leadingIcon={<PiArrowDownLeftBold className="text-base" />}
-                  className="px-2"
+                  className="px-1 text-xs sm:text-sm [&>span]:whitespace-nowrap"
                 >
                   Receive
                 </Button>

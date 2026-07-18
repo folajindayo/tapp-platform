@@ -310,13 +310,16 @@ export async function executeZkLoginTx(
       transactionBlock: finalTxBytes,
     });
     const status = dryRun.effects.status;
-    console.log("[zkLogin] dry-run result", {
+    const details = {
       status: status.status,
       error: status.error,
       gasUsed: dryRun.effects.gasUsed,
-    });
+    };
+    console.log("[zkLogin] dry-run result", details);
     if (status.status !== "success") {
-      throw new Error(`dry-run failed: ${status.error ?? "unknown Sui execution error"}`);
+      throw new Error(
+        `dry-run failed: ${status.error ?? "unknown Sui execution error"} ${JSON.stringify(details)}`,
+      );
     }
   });
 

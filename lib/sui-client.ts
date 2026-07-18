@@ -100,13 +100,21 @@ function withRpcFallback(primary: SuiClient, fallback: SuiClient): SuiClient {
 
 let _client: SuiClient | null = null;
 let _executeClient: SuiClient | null = null;
-export function suiReadClient(): SuiClient {
-  if (_client) return _client;
+let _publicClient: SuiClient | null = null;
 
-  const publicClient = new SuiClient({
+function suiPublicClient(): SuiClient {
+  if (_publicClient) return _publicClient;
+  _publicClient = new SuiClient({
     network: NETWORK,
     url: getFullnodeUrl(NETWORK),
   });
+  return _publicClient;
+}
+
+export function suiReadClient(): SuiClient {
+  if (_client) return _client;
+
+  const publicClient = suiPublicClient();
 
   // Only opt into Shinami's Node Service as the primary RPC when a
   // dedicated, frontend-safe Node-only key is configured. This is
@@ -181,6 +189,98 @@ export async function fetchAllCoins(
   coinType: string,
 ): Promise<{ coinObjectId: string; version: string; digest: string; balance: string; coinType: string }[]> {
   const client = suiReadClient();
+  const all = await fetchAllCoinsFromClient(client, address, coinType);
+  const objectTotal = all.reduce(
+    (sum, coin) => sum + BigInt(coin.balance),
+    BigInt(0),
+  );
+  const balance = await client.getBalance({ owner: address, coinType });
+  let indexedTotal = BigInt(balance.totalBalance);
+  const publicClient = suiPublicClient();
+  let publicBalanceCheckFailed = false;
+  if (client !== publicClient) {
+    try {
+      const publicBalance = await publicClient.getBalance({ owner: address, coinType });
+      const publicIndexedTotal = BigInt(publicBalance.totalBalance);
+      if (publicIndexedTotal > indexedTotal) indexedTotal = publicIndexedTotal;
+    } catch {
+      publicBalanceCheckFailed = true;
+    }
+  }
+  if (objectTotal >= indexedTotal) {
+    if (publicBalanceCheckFailed) {
+      const apiCoins = await fetchPublicCoinsViaApi(address, coinType).catch(() => null);
+      if (apiCoins && coinTotal(apiCoins.coins) > objectTotal) return apiCoins.coins;
+    }
+    return all;
+  }
+
+  const publicAll = await fetchAllCoinsFromClient(publicClient, address, coinType).catch(
+    () => null,
+  );
+  if (!publicAll) {
+    const apiCoins = await fetchPublicCoinsViaApi(address, coinType).catch(() => null);
+    if (apiCoins && coinTotal(apiCoins.coins) > objectTotal) return apiCoins.coins;
+    return all;
+  }
+  const publicTotal = publicAll.reduce(
+    (sum, coin) => sum + BigInt(coin.balance),
+    BigInt(0),
+  );
+  if (publicTotal > objectTotal) return publicAll;
+  return all;
+}
+
+function coinTotal(
+  coins: { balance: string }[],
+): bigint {
+  return coins.reduce((sum, coin) => sum + BigInt(coin.balance), BigInt(0));
+}
+
+async function fetchPublicCoinsViaApi(
+  address: string,
+  coinType: string,
+): Promise<{
+  totalBalance: string;
+  coins: {
+    coinObjectId: string;
+    version: string;
+    digest: string;
+    balance: string;
+    coinType: string;
+  }[];
+}> {
+  if (typeof window === "undefined") {
+    throw new Error("same-origin coin fallback is only available in the browser");
+  }
+  const res = await fetch(
+    `/api/sui/coins?owner=${encodeURIComponent(address)}&coinType=${encodeURIComponent(coinType)}`,
+    { headers: { Accept: "application/json" } },
+  );
+  const json = (await res.json()) as {
+    data?: {
+      totalBalance: string;
+      coins: {
+        coinObjectId: string;
+        version: string;
+        digest: string;
+        balance: string;
+        coinType: string;
+      }[];
+    };
+    error?: string;
+  };
+  if (!res.ok || !json.data) {
+    throw new Error(json.error ?? "Could not fetch public Sui coins");
+  }
+  return json.data;
+}
+
+async function fetchAllCoinsFromClient(
+  client: SuiClient,
+  address: string,
+  coinType: string,
+): Promise<{ coinObjectId: string; version: string; digest: string; balance: string; coinType: string }[]> {
   const all: { coinObjectId: string; version: string; digest: string; balance: string; coinType: string }[] = [];
   let cursor: string | null | undefined = undefined;
   do {
