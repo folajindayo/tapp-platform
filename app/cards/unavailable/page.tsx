@@ -35,7 +35,7 @@ async function Body({
             {copy.body}
           </p>
         </div>
-        <Link href="/wallet" className="w-full">
+        <Link href="/" className="w-full">
           <Button variant="secondary">Go to wallet</Button>
         </Link>
       </div>

@@ -286,7 +286,7 @@ export default function SendPage() {
             <Link href="/history" className="flex-1">
               <Button variant="secondary">See activity</Button>
             </Link>
-            <Link href="/wallet" className="flex-1">
+            <Link href="/" className="flex-1">
               <Button>Done</Button>
             </Link>
           </div>
@@ -505,7 +505,7 @@ export default function SendPage() {
 
         {(phase === "compose" || phase === "error") && (
           <div className="flex gap-3">
-            <Link href="/wallet" className="flex-1">
+            <Link href="/" className="flex-1">
               <Button variant="secondary">Cancel</Button>
             </Link>
             <div className="flex-1">

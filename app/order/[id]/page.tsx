@@ -249,7 +249,7 @@ export default function OrderPage({ params }: { params: Promise<{ id: string }> 
           <p className="text-sm text-gray-500 dark:text-white/50">
             This order link is invalid or no longer active.
           </p>
-          <Link href="/wallet" className="w-full">
+          <Link href="/" className="w-full">
             <Button variant="secondary">Back to wallet</Button>
           </Link>
         </div>
@@ -296,7 +296,7 @@ export default function OrderPage({ params }: { params: Promise<{ id: string }> 
             ) : null}
           </div>
           <div className="flex w-full gap-3">
-            <Link href="/wallet" className="flex-1">
+            <Link href="/" className="flex-1">
               <Button>Done</Button>
             </Link>
           </div>
@@ -315,7 +315,7 @@ export default function OrderPage({ params }: { params: Promise<{ id: string }> 
           <p className="text-sm text-gray-500 dark:text-white/50">
             Ask the merchant to generate a new one.
           </p>
-          <Link href="/wallet" className="w-full">
+          <Link href="/" className="w-full">
             <Button variant="secondary">Back to wallet</Button>
           </Link>
         </div>
@@ -337,7 +337,7 @@ export default function OrderPage({ params }: { params: Promise<{ id: string }> 
               <span className="mt-3 block break-all font-mono text-[11px]">{digest}</span>
             ) : null}
           </p>
-          <Link href="/wallet" className="w-full">
+          <Link href="/" className="w-full">
             <Button variant="secondary">Back to wallet</Button>
           </Link>
         </div>
@@ -352,7 +352,7 @@ export default function OrderPage({ params }: { params: Promise<{ id: string }> 
         className="grid gap-6 py-10 text-sm text-neutral-900 dark:text-white"
       >
         <Link
-          href="/wallet"
+          href="/"
           className="inline-flex w-fit items-center gap-1 text-xs font-medium text-gray-500 transition-colors hover:text-neutral-900 dark:text-white/50 dark:hover:text-white"
         >
           <PiArrowLeftBold /> Cancel
@@ -552,7 +552,7 @@ export default function OrderPage({ params }: { params: Promise<{ id: string }> 
 
         {phase === "review" || phase === "error" ? (
           <div className="flex gap-3">
-            <Link href="/wallet" className="flex-1">
+            <Link href="/" className="flex-1">
               <Button variant="secondary">Cancel</Button>
             </Link>
             <div className="flex-1">

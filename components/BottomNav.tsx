@@ -25,7 +25,7 @@ interface Tab {
 }
 
 const TABS: Tab[] = [
-  { href: "/wallet",        label: "Wallet",   icon: PiWalletFill,                match: (p) => p === "/wallet" },
+  { href: "/",              label: "Wallet",   icon: PiWalletFill,                match: (p) => p === "/" },
   { href: "/history",       label: "Activity", icon: PiClockCounterClockwiseBold, match: (p) => p === "/history" || p.startsWith("/tx/") },
   { href: "/pay",           label: "Pay",      icon: PiQrCodeBold,                match: (p) => p === "/pay" || p.startsWith("/order/"), prominent: true },
   { href: "/send",          label: "Send",     icon: PiPaperPlaneTiltBold,        match: (p) => p === "/send" },
@@ -34,7 +34,7 @@ const TABS: Tab[] = [
 ];
 
 export function shouldShowBottomNav(pathname: string): boolean {
-  if (pathname === "/" || pathname.startsWith("/sign-in")) return false;
+  if (pathname.startsWith("/sign-in")) return false;
   if (pathname.startsWith("/link")) return false;
   if (pathname.startsWith("/order/")) return false;
   if (pathname.startsWith("/cards/")) return false;

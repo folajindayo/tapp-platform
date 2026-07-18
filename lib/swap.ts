@@ -56,6 +56,30 @@ async function getSdk(sender: string) {
   return sdk;
 }
 
+interface CachedQuote {
+  quote: SwapQuote;
+  timestamp: number;
+}
+const quoteCache = new Map<string, CachedQuote>();
+const QUOTE_CACHE_TTL = 15_000; // 15 seconds cache
+
+/** Synchronously check the cache for a quote to avoid triggering a loading state if possible. */
+export function getCachedQuote(
+  direction: SwapDirection,
+  amountInBase: bigint,
+): SwapQuote | null {
+  if (amountInBase <= BigInt(0)) {
+    return { amountInBase, amountOutBase: BigInt(0), feeBase: BigInt(0), isExceed: false };
+  }
+  const cacheKey = `${direction}_${amountInBase.toString()}`;
+  const now = Date.now();
+  const cached = quoteCache.get(cacheKey);
+  if (cached && now - cached.timestamp < QUOTE_CACHE_TTL) {
+    return cached.quote;
+  }
+  return null;
+}
+
 /** Estimate the output (base units of the output coin) for an input amount. */
 export async function quoteSwap(
   direction: SwapDirection,
@@ -64,6 +88,12 @@ export async function quoteSwap(
   if (amountInBase <= BigInt(0)) {
     return { amountInBase, amountOutBase: BigInt(0), feeBase: BigInt(0), isExceed: false };
   }
+  
+  const cached = getCachedQuote(direction, amountInBase);
+  if (cached) {
+    return cached;
+  }
+
   const sdk = await getSdk(senderOrThrow());
   const pool = await sdk.Pool.getPool(POOL_ID);
   const pre = await sdk.Swap.preSwap({
@@ -77,12 +107,18 @@ export async function quoteSwap(
     coin_type_a: USDC_COIN_TYPE,
     coin_type_b: SUI_COIN_TYPE,
   });
-  return {
+
+  const quote: SwapQuote = {
     amountInBase,
     amountOutBase: BigInt(pre.estimated_amount_out),
     feeBase: BigInt(pre.estimated_fee_amount),
     isExceed: pre.is_exceed,
   };
+
+  const cacheKey = `${direction}_${amountInBase.toString()}`;
+  quoteCache.set(cacheKey, { quote, timestamp: Date.now() });
+
+  return quote;
 }
 
 /** Execute the swap and send the proceeds (+ any change) back to the holder. */

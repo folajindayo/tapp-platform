@@ -48,7 +48,7 @@ export default function TopUpPage() {
       const { Transaction } = await import("@mysten/sui/transactions");
 
       // top_up moves real USDC into the cap. Amount is USDC (6 decimals).
-      const amountMicro = BigInt(Math.round(amount * 1_000_000));
+      const amountMicro = BigInt(Math.round(numericAmount * 1_000_000));
       const owner = zk.readSession()?.suiAddress;
       if (!owner) throw new Error("No wallet address — please sign in again.");
       const { data: coins } = await zk.suiClient().getCoins({ owner, coinType: usdcType });

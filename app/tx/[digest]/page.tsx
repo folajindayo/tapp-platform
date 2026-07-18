@@ -201,7 +201,7 @@ export default function TxPage({
           ]}
         />
 
-        <Link href="/wallet" className="w-full">
+        <Link href="/" className="w-full">
           <Button variant="secondary">Back to wallet</Button>
         </Link>
       </AnimatedComponent>

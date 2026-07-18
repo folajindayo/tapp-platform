@@ -54,7 +54,7 @@ export default function SettingsPage() {
         className="grid gap-6 py-10 text-sm text-neutral-900 dark:text-white"
       >
         <Link
-          href="/wallet"
+          href="/"
           className="inline-flex w-fit items-center gap-1 text-xs font-medium text-gray-500 transition-colors hover:text-neutral-900 dark:text-white/50 dark:hover:text-white"
         >
           <PiArrowLeftBold /> Back to wallet

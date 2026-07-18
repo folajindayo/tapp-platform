@@ -158,7 +158,7 @@ function Body() {
           <p className="text-sm text-gray-500 dark:text-white/50">
             You can return to the merchant — they&apos;ll see the green light.
           </p>
-          <Link href="/wallet" className="w-full">
+          <Link href="/" className="w-full">
             <Button>Back to wallet</Button>
           </Link>
         </AnimatedComponent>
@@ -183,7 +183,7 @@ function Body() {
                 {error ?? "We couldn't verify this payment request."}
               </p>
             </div>
-            <Link href="/wallet" className="w-full mt-4">
+            <Link href="/" className="w-full mt-4">
               <Button variant="secondary">Go to wallet</Button>
             </Link>
           </>
@@ -231,7 +231,7 @@ function Body() {
               Approve with Face ID / Touch ID
             </Button>
             <Link
-              href="/wallet"
+              href="/"
               className="text-sm text-gray-500 hover:text-neutral-900 dark:text-white/50 dark:hover:text-white"
             >
               Cancel
