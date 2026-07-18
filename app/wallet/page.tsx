@@ -1,18 +1,14 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
-  PiQrCodeBold,
-  PiArrowDownLeftBold,
   PiBankBold,
-  PiArrowsLeftRightBold,
   PiWarningOctagonFill,
 } from "react-icons/pi";
 import { Screen } from "@/components/ui/Screen";
 import { Button } from "@/components/ui/Button";
-import { SwapModal } from "@/components/ui/SwapModal";
 import { BalanceHero } from "@/components/ui/BalanceHero";
 import { ActivityList } from "@/components/ui/ActivityList";
 import { InfoBanner } from "@/components/ui/InfoBanner";
@@ -32,7 +28,6 @@ export default function WalletPage() {
   const { hydrated, session } = useSession();
   const wallet = useWallet();
   const history = useWalletHistory();
-  const [swapOpen, setSwapOpen] = useState(false);
 
   useEffect(() => {
     if (hydrated && !session) router.replace("/sign-in?next=/wallet");
@@ -100,43 +95,15 @@ export default function WalletPage() {
               />
             </div>
 
-            <div className="grid grid-cols-4 gap-2">
-              <Link href="/pay" className="block w-full">
-                <Button
-                  variant="primary"
-                  leadingIcon={<PiQrCodeBold className="text-base" />}
-                  className="px-1 text-xs sm:text-sm [&>span]:whitespace-nowrap"
-                >
-                  Pay
-                </Button>
-              </Link>
-              <Link href="/cash-out" className="block w-full">
-                <Button
-                  variant="secondary"
-                  leadingIcon={<PiBankBold className="text-base" />}
-                  className="px-1 text-xs sm:text-sm [&>span]:whitespace-nowrap"
-                >
-                  Cash out
-                </Button>
-              </Link>
+            <Link href="/cash-out" className="block w-full">
               <Button
-                variant="secondary"
-                onClick={() => setSwapOpen(true)}
-                leadingIcon={<PiArrowsLeftRightBold className="text-base" />}
-                className="px-1 text-xs sm:text-sm [&>span]:whitespace-nowrap"
+                variant="primary"
+                leadingIcon={<PiBankBold className="text-base" />}
+                className="w-full"
               >
-                Swap
+                Cash out
               </Button>
-              <Link href="/deposit" className="block w-full">
-                <Button
-                  variant="secondary"
-                  leadingIcon={<PiArrowDownLeftBold className="text-base" />}
-                  className="px-1 text-xs sm:text-sm [&>span]:whitespace-nowrap"
-                >
-                  Receive
-                </Button>
-              </Link>
-            </div>
+            </Link>
 
             {!wallet.data.has_linked_card && <NoCardBanner />}
 
@@ -199,14 +166,6 @@ export default function WalletPage() {
         </CrossFade>
       </AnimatedComponent>
 
-      <SwapModal
-        open={swapOpen}
-        onClose={() => setSwapOpen(false)}
-        onSwapped={() => {
-          wallet.refetch();
-          history.refetch();
-        }}
-      />
     </Screen>
   );
 }
