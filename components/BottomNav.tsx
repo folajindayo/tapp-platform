@@ -7,7 +7,7 @@ import {
   PiWalletFill,
   PiClockCounterClockwiseBold,
   PiQrCodeBold,
-  PiPaperPlaneTiltBold,
+  PiBankBold,
   PiCreditCardBold,
   PiGearSixBold,
 } from "react-icons/pi";
@@ -28,7 +28,7 @@ const TABS: Tab[] = [
   { href: "/",              label: "Wallet",   icon: PiWalletFill,                match: (p) => p === "/" },
   { href: "/history",       label: "Activity", icon: PiClockCounterClockwiseBold, match: (p) => p === "/history" || p.startsWith("/tx/") },
   { href: "/pay",           label: "Pay",      icon: PiQrCodeBold,                match: (p) => p === "/pay" || p.startsWith("/order/"), prominent: true },
-  { href: "/send",          label: "Send",     icon: PiPaperPlaneTiltBold,        match: (p) => p === "/send" },
+  { href: "/cash-out",      label: "Cash out", icon: PiBankBold,                  match: (p) => p === "/cash-out" || p === "/cashout" },
   { href: "/settings/card", label: "Card",     icon: PiCreditCardBold,            match: (p) => p === "/settings/card" || p.startsWith("/settings/limits") },
   { href: "/settings",      label: "Settings", icon: PiGearSixBold,               match: (p) => (p === "/settings" || p.startsWith("/settings/")) && !p.startsWith("/settings/card") && !p.startsWith("/settings/limits") },
 ];
@@ -38,8 +38,6 @@ export function shouldShowBottomNav(pathname: string): boolean {
   if (pathname.startsWith("/link")) return false;
   if (pathname.startsWith("/order/")) return false;
   if (pathname.startsWith("/cards/")) return false;
-  if (pathname === "/cash-out") return false;
-  if (pathname === "/cashout") return false;
   return true;
 }
 
