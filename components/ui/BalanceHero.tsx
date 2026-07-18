@@ -34,6 +34,7 @@ export function BalanceHero({
   // NGN equivalent follows from the unified total.
   const totalSubunit = combinedUsdcSubunit(usdcSubunit, suiMist, suiUsdcRate);
   const totalFloat = totalSubunit / 1_000_000;
+  const includesSuiValue = suiMist > 0 && suiUsdcRate > 0;
   return (
     <div className={cn("grid gap-1", className)}>
       <p className="text-xs font-medium uppercase tracking-wider text-gray-400 dark:text-white/30">
@@ -52,6 +53,12 @@ export function BalanceHero({
       <p className="text-sm text-gray-500 dark:text-white/50">
         ≈ {formatNgnFromUsdc(totalSubunit, ngnRate)}
       </p>
+      {includesSuiValue ? (
+        <p className="text-xs text-gray-400 dark:text-white/40">
+          Available USDC: {formatUsdc(usdcSubunit)} | SUI:{" "}
+          {(suiMist / 1_000_000_000).toFixed(4)}
+        </p>
+      ) : null}
     </div>
   );
 }

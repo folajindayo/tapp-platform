@@ -232,9 +232,42 @@ button {
   cursor: pointer;
 }
 
+.cashout-confetti-piece {
+  position: absolute;
+  top: -24px;
+  display: block;
+  border-radius: 2px;
+  opacity: 0;
+  transform: translate3d(0, -24px, 0) rotate(0deg);
+  animation: cashout-confetti-drop 1.3s cubic-bezier(0.16, 0.8, 0.32, 1) forwards;
+  box-shadow: 0 0 12px rgb(255 255 255 / 0.18);
+}
+
+@keyframes cashout-confetti-drop {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, -24px, 0) rotate(0deg) scale(0.8);
+  }
+  12% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate3d(var(--cashout-confetti-drift), 280px, 0)
+      rotate(var(--cashout-confetti-rotate))
+      scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cashout-confetti-piece {
+    animation: none;
+    opacity: 0;
+  }
+}
+
 /* Prevent Headless UI from injecting padding-right when scroll locking, which shifts/clips layouts on mobile viewports */
 html,
 body {
   padding-right: 0px !important;
 }
-
