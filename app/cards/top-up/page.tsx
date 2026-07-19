@@ -51,27 +51,114 @@ export default function TopUpPage() {
       const amountMicro = BigInt(Math.round(numericAmount * 1_000_000));
       const owner = zk.readSession()?.suiAddress;
       if (!owner) throw new Error("No wallet address — please sign in again.");
-      const { data: coins } = await zk.suiClient().getCoins({ owner, coinType: usdcType });
-      const total = coins.reduce((s, c) => s + BigInt(c.balance), BigInt(0));
-      if (total < amountMicro) {
-        throw new Error(
-          `Not enough USDC to top up $${amount} — your wallet has $${(Number(total) / 1e6).toFixed(2)}. Swap some SUI → USDC first.`,
-        );
-      }
-      const coinIds = coins.map((c) => c.coinObjectId);
+      const { fetchAllCoins, fetchSuiMist } = await import("@/lib/sui-client");
+      const { walletApi, USDC_COIN_TYPE, SUI_COIN_TYPE } = await import("@/lib/wallet");
+      const { calculatePaymentPlan } = await import("@/lib/payment-plan");
 
-      const result = await zk.executeZkLoginTx((tx: InstanceType<typeof Transaction>) => {
-        const primary = tx.object(coinIds[0]);
-        if (coinIds.length > 1) {
-          tx.mergeCoins(primary, coinIds.slice(1).map((id) => tx.object(id)));
+      // 1. Fetch user USDC coins (paginated + retry for indexer lag)
+      let coins: { coinObjectId: string; balance: string }[] = [];
+      let totalUsdc = BigInt(0);
+      const MAX_ATTEMPTS = 4;
+      const DELAY_MS = 1500;
+
+      for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+        const allCoins = await fetchAllCoins(owner, usdcType);
+        coins = allCoins.filter((c) => BigInt(c.balance) > BigInt(0));
+        totalUsdc = coins.reduce((s, c) => s + BigInt(c.balance), BigInt(0));
+        
+        if (totalUsdc >= amountMicro) {
+          break;
         }
-        const [funding] = tx.splitCoins(primary, [tx.pure.u64(amountMicro)]);
+        if (attempt < MAX_ATTEMPTS) {
+          await new Promise((r) => setTimeout(r, DELAY_MS));
+        }
+      }
+
+      let result;
+
+      if (totalUsdc >= amountMicro) {
+        // Option A: Standard USDC top-up (Sponsorable by gas-station)
+        const coinIds = coins.map((c) => c.coinObjectId);
+        result = await zk.executeZkLoginTx((tx: InstanceType<typeof Transaction>) => {
+          const primary = tx.object(coinIds[0]);
+          if (coinIds.length > 1) {
+            tx.mergeCoins(primary, coinIds.slice(1).map((id) => tx.object(id)));
+          }
+          const [funding] = tx.splitCoins(primary, [tx.pure.u64(amountMicro)]);
+          tx.moveCall({
+            target: `${packageId}::tapp_card::top_up`,
+            typeArguments: [usdcType],
+            arguments: [tx.object(capId), funding],
+          });
+        });
+      } else {
+        // Option B: Combined SUI + USDC top-up (Requires self-sponsor for swap payload)
+        const suiMist = await fetchSuiMist(owner);
+        const walletState = await walletApi.me(session.jwt, session.email, owner);
+        const suiUsdcRate = walletState.sui_usdc_rate;
+
+        const plan = calculatePaymentPlan(
+          Number(amountMicro),
+          Number(totalUsdc),
+          suiMist,
+          suiUsdcRate
+        );
+
+        if (!plan || plan.path !== "combined") {
+          throw new Error(
+            `Not enough USDC or SUI to top up $${amount} — your wallet has $${(Number(totalUsdc) / 1e6).toFixed(2)} USDC and ${(suiMist / 1e9).toFixed(4)} SUI. Swap some assets or load your wallet first.`
+          );
+        }
+
+        // Initialize Cetus SDK for mainnet swap
+        const { CetusClmmSDK, clmmMainnet } = await import("@cetusprotocol/sui-clmm-sdk");
+        const sdk = new CetusClmmSDK(clmmMainnet);
+        sdk.setSenderAddress(owner);
+
+        const swapRes = await sdk.Swap.createSwapWithoutTransferCoinsPayload({
+          pool_id: "0xb8d7d9e66a60c239e7a60110efcf8de6c705580ed924d0dde141f4a0e2c90105", // SUI/USDC 0.25% pool
+          a2b: false, // B to A swap (SUI -> USDC)
+          by_amount_in: true,
+          amount: plan.suiNeededMist.toString(),
+          amount_limit: plan.shortfallUsdcSubunit.toString(),
+          coin_type_a: USDC_COIN_TYPE,
+          coin_type_b: SUI_COIN_TYPE,
+        });
+
+        const tx = swapRes.tx;
+        const coin_ab_s = swapRes.coin_ab_s; // coin_ab_s[0] is Coin A (USDC), coin_ab_s[1] is Coin B (SUI)
+
+        // Transfer remaining SUI from the swap back to the user's wallet
+        tx.transferObjects([coin_ab_s[1]], tx.pure.address(owner));
+
+        let primaryUsdc: any = null;
+        if (coins.length > 0) {
+          const inputs = coins.map((c) => tx.object(c.coinObjectId));
+          primaryUsdc = inputs[0];
+          if (inputs.length > 1) {
+            tx.mergeCoins(primaryUsdc, inputs.slice(1));
+          }
+          tx.mergeCoins(primaryUsdc, [coin_ab_s[0]]);
+        } else {
+          primaryUsdc = coin_ab_s[0];
+        }
+
+        // Split the exact top-up amount from the combined USDC pool
+        const [funding] = tx.splitCoins(primaryUsdc, [tx.pure.u64(amountMicro)]);
+        
         tx.moveCall({
           target: `${packageId}::tapp_card::top_up`,
           typeArguments: [usdcType],
           arguments: [tx.object(capId), funding],
         });
-      });
+
+        // Transfer remaining USDC change back to sender if they had no USDC coins initially
+        if (coins.length === 0) {
+          tx.transferObjects([primaryUsdc], tx.pure.address(owner));
+        }
+
+        result = await zk.executeZkLoginTx(tx, { selfSponsor: true });
+      }
       console.info("top-up digest:", result.digest);
       setPhase("done");
     } catch (err) {

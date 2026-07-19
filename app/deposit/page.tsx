@@ -80,6 +80,10 @@ export default function DepositPage() {
                   eyeRadius={12}
                   bgColor="#F9FAFB"
                   size={200}
+                  logoImage="/tapp-logo.svg"
+                  logoWidth={35}
+                  logoHeight={35}
+                  logoPadding={3}
                 />
               </div>
               <p className="break-all text-center font-mono text-xs text-neutral-900 dark:text-white/80">

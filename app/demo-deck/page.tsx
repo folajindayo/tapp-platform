@@ -1,7 +1,10 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
+import dynamic from "next/dynamic";
+
+const QRCode = dynamic(() => import("react-qrcode-logo").then((mod) => mod.QRCode), { ssr: false });
 import {
   PiArrowRightBold,
   PiBankBold,
@@ -20,6 +23,46 @@ import {
   PiVideoCameraBold,
 } from "react-icons/pi";
 import type { IconType } from "react-icons";
+import { TappMark } from "@/components/ui/Logo";
+
+const CreditCardIcon = ({ className }: { className?: string }) => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    xmlSpace="preserve"
+    viewBox="0 0 24 24"
+    id="credit-card"
+    className={className}
+    fill="currentColor"
+  >
+    <g id="Layer_2">
+      <path
+        d="M8,14H7c-0.55225,0-1,0.44727-1,1s0.44775,1,1,1h1c0.55225,0,1-0.44727,1-1S8.55225,14,8,14z"
+        fill="currentColor"
+      />
+      <path
+        d="M17.78467,4.62402c-3.78516-0.83008-7.78564-0.83008-11.56885,0C4.53369,4.99121,3.18506,6.14844,2.69678,7.64453    c-0.93018,2.84961-0.93018,5.86133,0,8.71094c0.48828,1.49609,1.83691,2.65332,3.51855,3.02051    C8.10742,19.79102,10.05371,19.99805,12,19.99805s3.89258-0.20703,5.78467-0.62207    c1.68213-0.36719,3.03027-1.52441,3.51855-3.02051c0.93018-2.84961,0.93018-5.86133,0-8.71094    C20.81494,6.14844,19.46631,4.99121,17.78467,4.62402z M6.64307,6.57715C8.39551,6.19336,10.19727,6.00195,12,6.00195    c1.80225,0,3.60498,0.19238,5.35742,0.5752c0.99219,0.2168,1.77539,0.86426,2.04443,1.68848    C19.48126,8.50885,19.54669,8.75433,19.61029,9H4.38971c0.0636-0.24567,0.12903-0.49115,0.20844-0.73438    C4.86719,7.44141,5.65039,6.79395,6.64307,6.57715z M19.40186,15.73438c-0.26904,0.82422-1.05225,1.47168-2.04443,1.68848    h-0.00049c-3.50439,0.76758-7.20898,0.76562-10.71436,0c-0.99219-0.2168-1.77539-0.86426-2.04443-1.68848    C4.09332,14.18829,3.9101,12.58685,4.04413,11h15.91174C20.0899,12.58685,19.90668,14.18829,19.40186,15.73438z"
+        fill="currentColor"
+      />
+    </g>
+  </svg>
+);
+
+const BankIcon = ({ className }: { className?: string }) => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    xmlSpace="preserve"
+    viewBox="0 0 24 24"
+    id="bank"
+    className={className}
+    fill="currentColor"
+  >
+    <path
+      id="Layer_2"
+      d="M21.940002 7.702393c-.019409-.061218-.042725-.117004-.072998-.172485-.029846-.055298-.063721-.105103-.104126-.154541-.044067-.053833-.091553-.09967-.145752-.14325-.026428-.021362-.042114-.051025-.071228-.070007-.230469-.149902-5.679688-3.692871-8.817383-4.947754-.46875-.1875-.988281-.1875-1.457031 0-3.161133 1.26416-6.145508 2.941406-8.871094 4.98584-.01886.01416-.027588.0354-.045166.050598-.053711.046204-.096069.09906-.138916.155518-.037476.0495-.074341.096252-.101562.150818-.02771.055054-.043152.11322-.060425.173584-.019165.067322-.03595.13208-.04071.201843C2.011963 7.956055 2 7.976074 2 8c0 .039856.018127.073669.022644.112305.007751.068542.01825.133789.040466.200317.022095.066223.052795.124451.087585.183655.019653.033752.025452.071838.0495.103821.014282.019104.035889.028015.05127.045776C2.296936 8.698608 2.34906 8.740173 2.404541 8.782471 2.454468 8.820435 2.50177 8.857727 2.557007 8.885254c.055115.02771.113342.043091.173706.060364C2.797668 8.9646 2.861938 8.981384 2.931335 8.986145 2.955261 8.987854 2.975647 9 3 9h18c.000549 0 .000916-.000305.001465-.000305.119019-.000305.234924-.028503.346191-.069885.02301-.008606.045349-.015564.067505-.025757.101196-.046204.195007-.1073.277283-.186951.014771-.014221.025269-.031006.039124-.046082.036804-.040161.075623-.077942.106323-.125122.016296-.024963.017883-.053833.031677-.079651.03186-.059143.05426-.119873.073792-.185364.019714-.066223.034241-.129944.039856-.197571C21.985718 8.054443 22 8.029541 22 8c0-.034546-.016235-.063782-.019653-.097412C21.97345 7.833435 21.960938 7.768616 21.940002 7.702393zM11.986328 4.071777C13.519287 4.684692 15.722717 5.933594 17.499512 7H6.261597C8.089722 5.862671 10.002808 4.872131 11.986328 4.071777zM6 10c-.552734 0-1 .447754-1 1v6.999512H4c-.552734 0-1 .447754-1 1s.447266 1 1 1h1.997559C5.998413 19.999512 5.999146 20 6 20s.001587-.000488.002441-.000488h5.995117C11.998413 19.999512 11.999146 20 12 20s.001587-.000488.002441-.000488h5.995117C17.998413 19.999512 17.999146 20 18 20s.001587-.000488.002441-.000488H20c.552734 0 1-.447754 1-1s-.447266-1-1-1h-1V11c0-.552246-.447266-1-1-1s-1 .447754-1 1v6.999512h-4V11c0-.552246-.447266-1-1-1s-1 .447754-1 1v6.999512H7V11C7 10.447754 6.552734 10 6 10z"
+      fill="currentColor"
+    />
+  </svg>
+);
 
 const slides = [
   {
@@ -30,12 +73,12 @@ const slides = [
   {
     kicker: "Problem",
     title: "Fragmented twice.",
-    note: "There are over 50 blockchains today and trillions of dollars sitting on them. But here's the uncomfortable truth: almost none of that money can be spent in the real world. You can hold it, trade it, bridge it between chains — but you can't walk into a store and use it. Only few chains have rails to real-world local currency, and the few that exist are fragmented, region-locked, and clunky. So money is fragmented twice: scattered across chains, and cut off from real life.",
+    note: "Trillions of dollars sit on 50+ blockchains, yet almost none can be spent in the real world. Existing fiat rails are clunky, fragmented, and region-locked. Money remains scattered across chains and cut off from everyday life.",
   },
   {
     kicker: "Solution",
     title: "Rails settles. Tapp spends.",
-    note: "We fix both. We built Rails — the settlement layer that connects any chain to real-world local currency. It's the missing infrastructure between the 50-plus chains and the corner store. Then, on top of Rails, we built Tapp — a card that lets anyone spend their on-chain money at any merchant, instantly. The user taps. The merchant gets paid in their own local currency — and never touches crypto. We take everything that doesn't matter — chains, tokens, bridges, FX — and abstract it down to the one thing that does: spending.",
+    note: "We fix both: Rails connects any blockchain directly to local currency, and Tapp lets users tap-to-pay instantly. Merchants are paid in local fiat without touching crypto—abstracting all Web3 complexity down to spending.",
   },
   {
     kicker: "Demo",
@@ -45,7 +88,7 @@ const slides = [
   {
     kicker: "Why Sui",
     title: "Sui is the payments home base.",
-    note: "Fast, cheap, built for volume, and the right launchpad through Overflow.",
+    note: "Live on Sui, major EVMs, and Starknet, but Sui is home. The tech is a step up—fast, cheap, and built for volume—and Overflow is our launchpad to scale.",
   },
   {
     kicker: "Traction",
@@ -53,9 +96,24 @@ const slides = [
     note: "Not a prototype. Merchants are onboarded and businesses are integrating Rails.",
   },
   {
+    kicker: "Testimonials",
+    title: "Real-world feedback.",
+    note: "Early merchant offramp speed validation, consumer tap payment clips, and integration proof.",
+  },
+  {
+    kicker: "Team",
+    title: "The team built for this.",
+    note: "Ex-Coinbase, ex-Base, Zerocard core team, hardware engineers, and Sui devs who built Zoracle ($1.5M+ volume) and dev tools.",
+  },
+  {
     kicker: "Revenue",
     title: "We earn when real value moves.",
     note: "Close by handing off to the live merchant-phone demo.",
+  },
+  {
+    kicker: "Thank You",
+    title: "Tap into the future.",
+    note: "Thank you! Scan to test the Tapp PWA, or reach out to labs@zoracle.xyz.",
   },
 ];
 
@@ -107,8 +165,14 @@ export default function DemoDeckPage() {
         return <SuiSlide />;
       case 5:
         return <TractionSlide />;
-      default:
+      case 6:
+        return <TestimonialSlide />;
+      case 7:
+        return <TeamSlide />;
+      case 8:
         return <CloseSlide />;
+      default:
+        return <ThankYouMosaic />;
     }
   }, [index]);
 
@@ -179,6 +243,156 @@ export default function DemoDeckPage() {
   );
 }
 
+function FallingFlags() {
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !containerRef.current) return;
+
+    let isCancelled = false;
+    let engine: any;
+    let runner: any;
+    let animationFrameId: number;
+    let spawnTimer: NodeJS.Timeout;
+    let MatterInstance: any = null;
+
+    import("matter-js").then((Matter) => {
+      if (isCancelled || !containerRef.current) return;
+      MatterInstance = Matter;
+
+      const { Engine, Runner, Bodies, Composite, Body } = Matter;
+
+      // Adjust dimensions based on the card bounding rect
+      const width = containerRef.current.clientWidth || 180;
+      const height = containerRef.current.clientHeight || 150;
+
+      // Create engine with low gravity for a nice floating fall feel
+      engine = Engine.create({
+        gravity: { y: 0.2 }
+      });
+
+      runner = Runner.create();
+      Runner.run(runner, engine);
+
+      // Boundaries (floor and side walls)
+      const wallThickness = 100;
+      const floor = Bodies.rectangle(
+        width / 2, 
+        height + wallThickness / 2, 
+        width + 200, 
+        wallThickness, 
+        { isStatic: true }
+      );
+      const leftWall = Bodies.rectangle(
+        -wallThickness / 2, 
+        height / 2, 
+        wallThickness, 
+        height + 200, 
+        { isStatic: true }
+      );
+      const rightWall = Bodies.rectangle(
+        width + wallThickness / 2, 
+        height / 2, 
+        wallThickness, 
+        height + 200, 
+        { isStatic: true }
+      );
+
+      Composite.add(engine.world, [floor, leftWall, rightWall]);
+
+      const flagList = ["ng", "us", "eu", "gb", "ke", "ae", "ca", "jp"];
+      const spawnedElements: { body: any; element: HTMLDivElement }[] = [];
+      let flagIndex = 0;
+
+      const spawnFlag = () => {
+        if (isCancelled || !containerRef.current || spawnedElements.length >= 10) return;
+
+        const el = document.createElement("div");
+        el.className = "absolute rounded-full overflow-hidden border border-black/15 bg-white shadow-md pointer-events-none";
+        
+        // Large circles as requested (48px diameter)
+        const diameter = 48;
+        el.style.width = `${diameter}px`;
+        el.style.height = `${diameter}px`;
+        el.style.left = "0px";
+        el.style.top = "0px";
+        el.style.transformOrigin = "center";
+
+        const img = document.createElement("img");
+        const code = flagList[flagIndex % flagList.length];
+        flagIndex++;
+        img.src = `https://flagcdn.com/w80/${code}.png`;
+        img.className = "w-full h-full object-cover scale-110";
+        el.appendChild(img);
+
+        containerRef.current.appendChild(el);
+
+        const radius = diameter / 2;
+        const startX = Math.random() * (width - diameter) + radius;
+        const body = Bodies.circle(startX, -radius - 10, radius, {
+          restitution: 0.65, // high bounce
+          friction: 0.05,
+          density: 0.01,
+        });
+
+        // Push slight initial forces
+        Body.setVelocity(body, { x: (Math.random() - 0.5) * 1.5, y: 0.8 });
+        Body.setAngularVelocity(body, (Math.random() - 0.5) * 0.08);
+
+        Composite.add(engine.world, body);
+        spawnedElements.push({ body, element: el });
+      };
+
+      // Spawn initial flags
+      for (let i = 0; i < 3; i++) {
+        setTimeout(spawnFlag, i * 400);
+      }
+
+      spawnTimer = setInterval(spawnFlag, 1400);
+
+      // Animation synchronization loop
+      const updateSync = () => {
+        if (isCancelled) return;
+
+        spawnedElements.forEach(({ body, element }) => {
+          const { x, y } = body.position;
+          const angle = body.angle;
+          const diameter = 48;
+          const radius = diameter / 2;
+          const tx = x - radius;
+          const ty = y - radius;
+
+          element.style.transform = `translate3d(${tx}px, ${ty}px, 0) rotate(${angle}rad)`;
+        });
+
+        animationFrameId = requestAnimationFrame(updateSync);
+      };
+
+      updateSync();
+    });
+
+    return () => {
+      isCancelled = true;
+      clearInterval(spawnTimer);
+      cancelAnimationFrame(animationFrameId);
+      if (engine && MatterInstance) {
+        MatterInstance.Composite.clear(engine.world, false);
+        MatterInstance.Engine.clear(engine);
+      }
+      if (containerRef.current) {
+        containerRef.current.innerHTML = "";
+      }
+    };
+  }, []);
+
+  return (
+    <div 
+      ref={containerRef} 
+      className="absolute right-0 top-0 bottom-0 w-[45%] overflow-hidden pointer-events-none"
+    />
+  );
+}
+
 function OpeningMosaic() {
   return (
     <div className="deck-mosaic grid w-full max-w-7xl grid-cols-6 grid-rows-4 gap-2 md:h-[63vh]">
@@ -186,13 +400,17 @@ function OpeningMosaic() {
         <ChainRoll />
       </Tile>
       <Tile className="col-span-3 row-span-2 bg-[#f0ede5] text-[#111]">
-        <div className="max-w-xl text-[clamp(2.7rem,6vw,6rem)] font-black uppercase leading-[0.86]">
+        <div className="max-w-xl text-[clamp(2.4rem,4.8vw,4.8rem)] font-black uppercase leading-[0.88]">
           Sui settles every chain <span className="bg-[#c8ff45] px-2">to local currency</span>
         </div>
         <FloatingCard className="right-8 top-8 rotate-6" />
       </Tile>
       <Tile className="col-span-2 row-span-2 bg-[#84a17d] text-[#10140f] relative">
         <PhoneMockup />
+      </Tile>
+      {/* Tapp Logo Tile to fill the 1x1 gap in Row 1, Column 2 */}
+      <Tile className="col-span-1 row-span-1 bg-black flex items-center justify-center p-0">
+        <TappMark className="text-[90px]" />
       </Tile>
       <Tile className="col-span-2 row-span-1 bg-[#9f8dc3] text-[#16121f]">
         <div className="text-[clamp(1.9rem,3.2vw,3.35rem)] font-black uppercase leading-[0.88]">
@@ -206,6 +424,7 @@ function OpeningMosaic() {
       <Tile className="col-span-2 row-span-1 bg-[#e9a0a2] text-[#1b1112]">
         <LineStore />
         <p className="mt-auto text-xl font-black">merchant gets local currency</p>
+        <FallingFlags />
       </Tile>
       <Tile className="col-span-4 row-span-1 bg-[#d9d1bc] text-[#17130d]">
         <div className="deck-marquee my-auto text-[clamp(2rem,4.2vw,4.8rem)] font-black uppercase leading-none">
@@ -241,18 +460,24 @@ await client.signAndExecute({
 
 const problemCol1 = [
   { name: "Sui", logo: "/demo-deck/logos/sui.svg" },
+  { name: "Base", logo: "/demo-deck/logos/base.svg" },
+  { name: "Ethereum", logo: "/demo-deck/logos/ethereum.svg" },
   { name: "Polygon", logo: "/demo-deck/logos/polygon.svg" },
   { name: "Starknet", logo: "/demo-deck/logos/starknet.svg" },
-  { name: "Base", logo: "/demo-deck/logos/base.svg" },
-  { name: "Circle", logo: "/demo-deck/logos/circle.svg" },
-];
-
-const problemCol2 = [
-  { name: "Ethereum", logo: "/demo-deck/logos/ethereum.svg" },
   { name: "Arbitrum", logo: "/demo-deck/logos/arbitrum.svg" },
   { name: "Optimism", logo: "/demo-deck/logos/optimism.svg" },
   { name: "Avalanche", logo: "/demo-deck/logos/avalanche.svg" },
-  { name: "Circle", logo: "/demo-deck/logos/circle.svg" },
+];
+
+const problemCol2 = [
+  { name: "USD", logo: "https://flagcdn.com/80x60/us.png" },
+  { name: "NGN", logo: "https://flagcdn.com/80x60/ng.png" },
+  { name: "EUR", logo: "https://flagcdn.com/80x60/eu.png" },
+  { name: "GBP", logo: "https://flagcdn.com/80x60/gb.png" },
+  { name: "KES", logo: "https://flagcdn.com/80x60/ke.png" },
+  { name: "JPY", logo: "https://flagcdn.com/80x60/jp.png" },
+  { name: "CAD", logo: "https://flagcdn.com/80x60/ca.png" },
+  { name: "AED", logo: "https://flagcdn.com/80x60/ae.png" },
 ];
 
 function ProblemSlide() {
@@ -358,8 +583,8 @@ function SolutionSlide() {
           transition={{ type: "spring", stiffness: 300, damping: 20 }}
         >
           <div className="flex justify-between items-start">
-            <div className="grid size-14 place-items-center rounded-2xl bg-black text-3xl text-white">
-              <PiBankBold />
+            <div className="grid size-14 place-items-center rounded-2xl bg-black text-white">
+              <BankIcon className="size-7" />
             </div>
             <span className="rounded-full bg-[#c8ff45] px-3 py-1 text-xs font-black uppercase tracking-wider text-[#111]">
               Infrastructure
@@ -379,8 +604,8 @@ function SolutionSlide() {
           transition={{ type: "spring", stiffness: 300, damping: 20 }}
         >
           <div className="flex justify-between items-start">
-            <div className="grid size-14 place-items-center rounded-2xl bg-[#c8ff45] text-3xl text-[#111]">
-              <PiCreditCardBold />
+            <div className="grid size-14 place-items-center rounded-2xl bg-[#c8ff45] text-[#111]">
+              <CreditCardIcon className="size-7" />
             </div>
             <span className="rounded-full bg-white/15 px-3 py-1 text-xs font-black uppercase tracking-wider text-white/80">
               Consumer / UX
@@ -415,10 +640,10 @@ function SuiSlide() {
   return (
     <TwoColumn title="Sui is the settlement layer for every chain we support.">
       <div className="grid grid-cols-2 gap-3">
-        <StatCard value="fast" label="finality feel" tone="blue" />
-        <StatCard value="cheap" label="everyday spend" tone="lime" />
-        <StatCard value="volume" label="payment throughput" tone="violet" />
-        <StatCard value="home" label="Overflow launchpad" tone="rose" />
+        <StatCard value="Instant" label="Sub-second tap-to-pay" tone="blue" />
+        <StatCard value="< $0.01" label="Everyday spend fees" tone="lime" />
+        <StatCard value="Scalable" label="Built for transaction volume" tone="violet" />
+        <StatCard value="Overflow" label="Launchpad to real scale" tone="rose" />
       </div>
       <div className="rounded-[2rem] bg-[#dfeffd] p-6 text-[#0b1720] h-full flex flex-col justify-between">
         <div className="flex items-center justify-between gap-4">
@@ -452,21 +677,91 @@ function TractionSlide() {
         <StatCard value="100+" label="daily customers through one partner" tone="blue" />
         <StatCard value="next" label="restaurants and stores" tone="rose" />
       </div>
-      <div className="grid gap-3 h-full">
-        <MediaSlot
-          icon={PiImageSquareBold}
-          title="Merchant screenshots"
-          copy="Drop phone screenshots, POS receipts, or merchant dashboard captures here."
-          aspect="thin"
-        />
-        <MediaSlot
-          icon={PiVideoCameraBold}
-          title="Integration proof video"
-          copy="Reserved for short clips from business onboarding or settlement confirmation."
-          aspect="thin"
-        />
+      <div className="relative overflow-hidden rounded-[2rem] border border-white/10 bg-[#121212] h-full flex items-center justify-center">
+        <div className="absolute inset-0 deck-grid opacity-25" />
+        <PhoneMockup className="w-80 top-[50%]" />
       </div>
     </TwoColumn>
+  );
+}
+
+function TestimonialSlide() {
+  return (
+    <div className="relative flex flex-col justify-between h-[63vh] w-full max-w-7xl rounded-[2rem] bg-[#f0ede5] p-6 text-[#111] md:p-8 overflow-hidden select-none">
+      <div>
+        <h1 className="text-[clamp(2.5rem,5vw,5rem)] font-black uppercase tracking-tight leading-[0.9]">
+          Real-world feedback<span className="text-[#c8ff45]">.</span>
+        </h1>
+        <p className="mt-1.5 text-xs md:text-sm font-bold text-[#111]/60">
+          What merchants and early adopters say about Tapp.
+        </p>
+      </div>
+
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mt-6 flex-1 min-h-0 items-stretch">
+        {/* Video 1: 1.MOV */}
+        <div className="relative overflow-hidden rounded-[2rem] border border-black/10 bg-[#121212] flex flex-col justify-between p-3 h-full min-h-0">
+          <div className="absolute inset-0 deck-grid opacity-10" />
+          <div className="relative flex-1 min-h-0 w-full rounded-2xl overflow-hidden bg-black/60 flex items-center justify-center">
+            <video
+              src="/1.MOV"
+              className="w-full h-full object-cover"
+              controls
+              playsInline
+              preload="metadata"
+            />
+          </div>
+          <div className="mt-2 text-center shrink-0">
+            <h3 className="text-xs font-black uppercase text-[#f8f3e8]">Video 1</h3>
+            <p className="text-[10px] text-white/50 font-medium">Merchant Settlement</p>
+          </div>
+        </div>
+
+        {/* Video 2: 2.mp4 */}
+        <div className="relative overflow-hidden rounded-[2rem] border border-black/10 bg-[#121212] flex flex-col justify-between p-3 h-full min-h-0">
+          <div className="absolute inset-0 deck-grid opacity-10" />
+          <div className="relative flex-1 min-h-0 w-full rounded-2xl overflow-hidden bg-black/60 flex items-center justify-center">
+            <video
+              src="/2.mp4"
+              className="w-full h-full object-cover"
+              controls
+              playsInline
+              preload="metadata"
+            />
+          </div>
+          <div className="mt-2 text-center shrink-0">
+            <h3 className="text-xs font-black uppercase text-[#f8f3e8]">Video 2</h3>
+            <p className="text-[10px] text-white/50 font-medium">Everyday Tap Pay</p>
+          </div>
+        </div>
+
+        {/* Video 3: 3.mp4 */}
+        <div className="relative overflow-hidden rounded-[2rem] border border-black/10 bg-[#121212] flex flex-col justify-between p-3 h-full min-h-0">
+          <div className="absolute inset-0 deck-grid opacity-10" />
+          <div className="relative flex-1 min-h-0 w-full rounded-2xl overflow-hidden bg-black/60 flex items-center justify-center">
+            <video
+              src="/3.mp4"
+              className="w-full h-full object-cover"
+              controls
+              playsInline
+              preload="metadata"
+            />
+          </div>
+          <div className="mt-2 text-center shrink-0">
+            <h3 className="text-xs font-black uppercase text-[#f8f3e8]">Video 3</h3>
+            <p className="text-[10px] text-white/50 font-medium">Integration Flow</p>
+          </div>
+        </div>
+        
+        {/* Telegram Chat Screenshot Slot */}
+        <div className="relative overflow-hidden rounded-[2rem] border border-black/10 bg-[#0e1621] flex flex-col justify-start items-center h-full min-h-0">
+          <img
+            src="/demo-deck/feedback.png"
+            className="w-full h-auto object-top select-none"
+            alt="Telegram Feedback screenshot"
+          />
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -487,12 +782,10 @@ function CloseSlide() {
           <FlowNode icon={PiBankBold} title="Settlement fee" copy="When merchants get paid" />
         </div>
       </div>
-      <MediaSlot
-        icon={PiPlayBold}
-        title="Live demo handoff"
-        copy="Place the merchant-phone video here, or keep it as a blank stage cue for the live demo."
-        aspect="tall"
-      />
+      <div className="relative overflow-hidden rounded-[2rem] border border-white/10 bg-[#121212] h-full flex items-center justify-center">
+        <div className="absolute inset-0 deck-grid opacity-25" />
+        <PhoneMockup className="w-80 top-[50%]" />
+      </div>
     </div>
   );
 }
@@ -510,7 +803,7 @@ function TwoColumn({
         <h1 className="text-[clamp(2rem,4.5vw,4.5rem)] font-black uppercase leading-[0.9]">
           {title}
         </h1>
-        <div className="mt-4 flex-1 flex flex-col justify-center">{children[0]}</div>
+        <div className="mt-4 flex-1 flex flex-col justify-end">{children[0]}</div>
       </div>
       <div className="h-full overflow-hidden">{children[1]}</div>
     </div>
@@ -672,11 +965,11 @@ function MediaSlot({
   );
 }
 
-function PhoneMockup() {
+function PhoneMockup({ className }: { className?: string }) {
   return (
     <motion.img
       src="/demo-deck/tapp_interface_actual.png"
-      className="absolute left-1/2 top-[66%] -translate-x-1/2 -translate-y-1/2 w-56 rounded-2xl shadow-2xl z-10 select-none"
+      className={`absolute left-1/2 -translate-x-1/2 -translate-y-1/2 rounded-2xl shadow-2xl z-10 select-none ${className ?? "w-56 top-[66%]"}`}
       alt="Tapp interface screenshot"
     />
   );
@@ -727,5 +1020,129 @@ function DeckButton({
     >
       <Icon />
     </button>
+  );
+}
+
+function TeamSlide() {
+  return (
+    <div className="relative flex flex-col justify-between h-[63vh] w-full max-w-7xl rounded-[2rem] bg-[#f0ede5] p-6 text-[#111] md:p-8 overflow-hidden select-none">
+      <div>
+        <h1 className="text-[clamp(2.5rem,5vw,5rem)] font-black uppercase tracking-tight leading-[0.9]">
+          We've done this before<span className="text-[#c8ff45]">.</span>
+        </h1>
+        <p className="mt-1.5 text-xs md:text-sm font-bold text-[#111]/60">
+          Veterans bridging blockchains and real-world local commerce.
+        </p>
+      </div>
+
+      <div className="grid lg:grid-cols-[1.25fr_0.75fr] gap-6 mt-4 flex-1 min-h-0 items-center">
+        {/* Left side: clean, well-spaced 2x2 grid of credentials */}
+        <div className="grid grid-cols-2 gap-3 h-full max-h-[36vh]">
+          <StatCard value="ex-Coinbase" label="& ex-Base builders" tone="lime" />
+          <StatCard value="Zerocard" label="active core team" tone="violet" />
+          <StatCard value="$1.5M+" label="volume via Zoracle" tone="blue" />
+          <StatCard value="Hardware" label="NFC & Sui Dev tools" tone="rose" />
+        </div>
+
+        {/* Right side: dark description card */}
+        <div className="flex flex-col justify-between rounded-3xl bg-black border border-white/10 p-5 text-[#f8f3e8] h-full max-h-[36vh]">
+          <div className="overflow-y-auto pr-1">
+            <p className="text-[10px] font-black uppercase tracking-[0.25em] text-[#c8ff45]">
+              track record
+            </p>
+            <p className="mt-2 text-[12.5px] font-bold text-white/70 leading-relaxed">
+              Our team brings together veterans from Coinbase and Base, alongside the core team behind Zerocard, experienced hardware engineers, and native Sui developers. We built Zoracle, a breakout product that processed over $1.5M in transaction volume, in addition to shipping several critical developer tools for the ecosystem.
+            </p>
+          </div>
+          <div className="border-t border-white/10 pt-3 flex items-center gap-3 mt-2 shrink-0">
+            <div className="flex -space-x-2.5">
+              <div className="size-7 rounded-full bg-[#c8ff45] text-black text-[9px] font-bold grid place-items-center border-2 border-black">CB</div>
+              <div className="size-7 rounded-full bg-[#84a17d] text-white text-[9px] font-bold grid place-items-center border-2 border-black">ZC</div>
+              <div className="size-7 rounded-full bg-[#9f8dc3] text-white text-[9px] font-bold grid place-items-center border-2 border-black">HW</div>
+            </div>
+            <div className="text-[10px] font-bold text-white/50 leading-tight">
+              Engineers from Coinbase, Base, Zerocard, and the Sui community.
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ThankYouMosaic() {
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  return (
+    <div className="relative flex flex-col items-center justify-between h-[63vh] w-full max-w-7xl rounded-[2rem] bg-[#f0ede5] p-6 text-[#111] md:p-8">
+      <div className="mt-2 text-center">
+        <h1 className="text-[clamp(2.5rem,5vw,5rem)] font-black uppercase tracking-tight leading-none">
+          Thank You<span className="text-[#c8ff45]">.</span>
+        </h1>
+        <p className="mt-2 text-sm md:text-base font-bold text-[#111]/60">
+          Tap into the future of payments. Scan to test the Tapp PWA.
+        </p>
+      </div>
+
+      {/* QR Code Container */}
+      <div className="relative my-4">
+        <div className="flex items-center justify-center rounded-3xl border border-black/10 bg-white p-5">
+          {isMounted ? (
+            <QRCode
+              value="https://usetapp.xyz"
+              size={180}
+              bgColor="#ffffff"
+              fgColor="#111111"
+              qrStyle="dots"
+              logoImage="/tapp-logo.svg"
+              logoWidth={35}
+              logoHeight={35}
+              logoPadding={3}
+            />
+          ) : (
+            <div className="size-[180px] bg-gray-100 rounded-xl animate-pulse" />
+          )}
+        </div>
+      </div>
+
+      {/* Footer Info Columns */}
+      <div className="w-full grid grid-cols-3 gap-4 border-t border-black/10 pt-6">
+        <div className="flex flex-col items-center">
+          <span className="text-[10px] font-black uppercase tracking-[0.25em] text-[#111]/50">Website</span>
+          <a
+            href="https://usetapp.xyz"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-1 text-xs md:text-sm font-black text-[#111] hover:underline"
+          >
+            usetapp.xyz
+          </a>
+        </div>
+        <div className="flex flex-col items-center border-x border-black/10">
+          <span className="text-[10px] font-black uppercase tracking-[0.25em] text-[#111]/50">Integrate</span>
+          <a
+            href="https://docs.usetapp.xyz"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-1 text-xs md:text-sm font-black text-[#111] hover:underline"
+          >
+            docs.usetapp.xyz
+          </a>
+        </div>
+        <div className="flex flex-col items-center">
+          <span className="text-[10px] font-black uppercase tracking-[0.25em] text-[#111]/50">Contact</span>
+          <a
+            href="mailto:labs@zoracle.xyz"
+            className="mt-1 text-xs md:text-sm font-black text-[#111] hover:underline"
+          >
+            labs@zoracle.xyz
+          </a>
+        </div>
+      </div>
+    </div>
   );
 }
