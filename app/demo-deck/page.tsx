@@ -625,12 +625,13 @@ function SolutionSlide() {
 
 function ProductDemoSlide() {
   return (
-    <div className="grid w-full max-w-7xl h-[63vh] items-stretch">
-      <MediaSlot
-        icon={PiMonitorPlayBold}
-        title="Product usage video"
-        copy="Reserved for the live Tapp flow: user taps, Rails settles, merchant sees paid."
-        aspect="wide"
+    <div className="w-full max-w-7xl h-[63vh] relative rounded-[2rem] overflow-hidden border border-white/10 bg-[#121212] flex items-center justify-center">
+      <video
+        src="/demo video.mp4"
+        className="w-full h-full object-cover scale-[1.7]"
+        controls
+        playsInline
+        preload="auto"
       />
     </div>
   );
