@@ -628,7 +628,7 @@ function ProductDemoSlide() {
     <div className="w-full max-w-7xl h-[63vh] relative rounded-[2rem] overflow-hidden border border-white/10 bg-[#121212] flex items-center justify-center">
       <video
         src="/demo video.mp4"
-        className="w-full h-full object-cover scale-[1.7]"
+        className="w-full h-full object-cover"
         controls
         playsInline
         preload="auto"
