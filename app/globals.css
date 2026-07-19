@@ -232,6 +232,63 @@ button {
   cursor: pointer;
 }
 
+.deck-root {
+  font-family: var(--font-dm-sans, var(--font-sans));
+}
+
+.deck-grid {
+  background-image:
+    linear-gradient(rgb(255 255 255 / 0.1) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(255 255 255 / 0.1) 1px, transparent 1px);
+  background-size: 34px 34px;
+}
+
+.deck-marquee {
+  animation: deck-marquee 16s linear infinite;
+  white-space: nowrap;
+}
+
+.deck-mosaic {
+  animation: deck-enter 0.75s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.deck-chain-roll {
+  animation: deck-chain-roll 14s linear infinite;
+}
+
+.deck-chain-roll:hover {
+  animation-play-state: paused;
+}
+
+@keyframes deck-marquee {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-38%);
+  }
+}
+
+@keyframes deck-chain-roll {
+  from {
+    transform: translateY(0);
+  }
+  to {
+    transform: translateY(-50%);
+  }
+}
+
+@keyframes deck-enter {
+  from {
+    opacity: 0;
+    transform: scale(0.96) rotate(-0.5deg);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) rotate(0);
+  }
+}
+
 .cashout-confetti-piece {
   position: absolute;
   top: -24px;

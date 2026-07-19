@@ -3,6 +3,7 @@
 import { Navbar } from "@/components/Navbar";
 import { Preloader } from "@/components/ui/Preloader";
 import { Disclaimer } from "@/components/ui/Disclaimer";
+import { usePathname } from "next/navigation";
 
 /**
  * Route-aware chrome shell. Every route (including root `/` since it is
@@ -10,6 +11,10 @@ import { Disclaimer } from "@/components/ui/Disclaimer";
  * mobile column, white preloader flash, disclaimer modal).
  */
 export function AppShell({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname() ?? "";
+
+  if (pathname.startsWith("/demo-deck")) return <>{children}</>;
+
   return (
     <>
       <Preloader />
