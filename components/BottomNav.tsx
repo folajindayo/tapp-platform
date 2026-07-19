@@ -34,6 +34,7 @@ const TABS: Tab[] = [
 ];
 
 export function shouldShowBottomNav(pathname: string): boolean {
+  if (pathname.startsWith("/demo-deck")) return false;
   if (pathname.startsWith("/sign-in")) return false;
   if (pathname.startsWith("/link")) return false;
   if (pathname.startsWith("/order/")) return false;
