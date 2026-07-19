@@ -1045,26 +1045,13 @@ function TeamSlide() {
           <StatCard value="Hardware" label="NFC & Sui Dev tools" tone="rose" />
         </div>
 
-        {/* Right side: dark description card */}
-        <div className="flex flex-col justify-between rounded-3xl bg-black border border-white/10 p-5 text-[#f8f3e8] h-full max-h-[36vh]">
-          <div className="overflow-y-auto pr-1">
-            <p className="text-[10px] font-black uppercase tracking-[0.25em] text-[#c8ff45]">
-              track record
-            </p>
-            <p className="mt-2 text-[12.5px] font-bold text-white/70 leading-relaxed">
-              Our team brings together veterans from Coinbase and Base, alongside the core team behind Zerocard, experienced hardware engineers, and native Sui developers. We built Zoracle, a breakout product that processed over $1.5M in transaction volume, in addition to shipping several critical developer tools for the ecosystem.
-            </p>
-          </div>
-          <div className="border-t border-white/10 pt-3 flex items-center gap-3 mt-2 shrink-0">
-            <div className="flex -space-x-2.5">
-              <div className="size-7 rounded-full bg-[#c8ff45] text-black text-[9px] font-bold grid place-items-center border-2 border-black">CB</div>
-              <div className="size-7 rounded-full bg-[#84a17d] text-white text-[9px] font-bold grid place-items-center border-2 border-black">ZC</div>
-              <div className="size-7 rounded-full bg-[#9f8dc3] text-white text-[9px] font-bold grid place-items-center border-2 border-black">HW</div>
-            </div>
-            <div className="text-[10px] font-bold text-white/50 leading-tight">
-              Engineers from Coinbase, Base, Zerocard, and the Sui community.
-            </div>
-          </div>
+        {/* Right side: dark verification card */}
+        <div className="flex flex-col justify-center items-center rounded-3xl bg-black border border-white/10 p-2 overflow-hidden h-full max-h-[36vh]">
+          <img 
+            src="/demo-deck/based-africa.png" 
+            className="w-full h-full object-contain rounded-2xl" 
+            alt="Base Africa Zoracle $1.5M+ Volume Milestone Post"
+          />
         </div>
       </div>
     </div>
