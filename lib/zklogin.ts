@@ -269,59 +269,99 @@ export async function executeZkLoginTx(
   //   with just that signature.
   let finalTxBytes: Uint8Array;
   let sponsorSignature: string | null = null;
+  let usedSelfSponsor = !!opts.selfSponsor;
 
-  if (opts.selfSponsor) {
-    finalTxBytes = await tag("tx-build-full", () => tx.build({ client }));
-  } else {
-    const kindBytes = await tag("tx-build-kind", () =>
-      tx.build({ client, onlyTransactionKind: true }),
-    );
-    const kindB64 = Buffer.from(kindBytes).toString("base64");
-    const sponsored = await tag("sponsor-fetch", async () => {
-      const sponsorRes = await fetch("/api/gas-station/sponsor", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${railsToken}`,
-        },
-        body: JSON.stringify({ txBytes: kindB64, sender: session.suiAddress }),
-      });
-      if (!sponsorRes.ok) {
-        const errorText = await sponsorRes.text();
-        if (
-          sponsorRes.status === 401 ||
-          /invalid or expired token|token is expired/i.test(errorText)
-        ) {
-          throw new SessionExpiredError();
-        }
-        throw new Error(`Gas sponsorship failed: ${errorText}`);
-      }
-      return (await sponsorRes.json()) as {
-        sponsoredTxBytes: string;
-        sponsorSignature: string;
-      };
-    });
-    finalTxBytes = Uint8Array.from(Buffer.from(sponsored.sponsoredTxBytes, "base64"));
-    sponsorSignature = sponsored.sponsorSignature;
-  }
-
-  await tag("dry-run", async () => {
-    const dryRun = await client.dryRunTransactionBlock({
-      transactionBlock: finalTxBytes,
-    });
-    const status = dryRun.effects.status;
-    const details = {
-      status: status.status,
-      error: status.error,
-      gasUsed: dryRun.effects.gasUsed,
-    };
-    console.log("[zkLogin] dry-run result", details);
-    if (status.status !== "success") {
-      throw new Error(
-        `dry-run failed: ${status.error ?? "unknown Sui execution error"} ${JSON.stringify(details)}`,
+  try {
+    if (usedSelfSponsor) {
+      finalTxBytes = await tag("tx-build-full", () => tx.build({ client }));
+    } else {
+      const kindBytes = await tag("tx-build-kind", () =>
+        tx.build({ client, onlyTransactionKind: true }),
       );
+      const kindB64 = Buffer.from(kindBytes).toString("base64");
+      const sponsored = await tag("sponsor-fetch", async () => {
+        const sponsorRes = await fetch("/api/gas-station/sponsor", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${railsToken}`,
+          },
+          body: JSON.stringify({ txBytes: kindB64, sender: session.suiAddress }),
+        });
+        if (!sponsorRes.ok) {
+          const errorText = await sponsorRes.text();
+          if (
+            sponsorRes.status === 401 ||
+            /invalid or expired token|token is expired/i.test(errorText)
+          ) {
+            throw new SessionExpiredError();
+          }
+          throw new Error(`Gas sponsorship failed: ${errorText}`);
+        }
+        return (await sponsorRes.json()) as {
+          sponsoredTxBytes: string;
+          sponsorSignature: string;
+        };
+      });
+      finalTxBytes = Uint8Array.from(Buffer.from(sponsored.sponsoredTxBytes, "base64"));
+      sponsorSignature = sponsored.sponsorSignature;
     }
-  });
+
+    await tag("dry-run", async () => {
+      const dryRun = await client.dryRunTransactionBlock({
+        transactionBlock: finalTxBytes,
+      });
+      const status = dryRun.effects.status;
+      const details = {
+        status: status.status,
+        error: status.error,
+        gasUsed: dryRun.effects.gasUsed,
+      };
+      console.log("[zkLogin] dry-run result", details);
+      if (status.status !== "success") {
+        throw new Error(
+          `dry-run failed: ${status.error ?? "unknown Sui execution error"} ${JSON.stringify(details)}`,
+        );
+      }
+    });
+  } catch (err) {
+    if (!usedSelfSponsor) {
+      console.warn("[zkLogin] Sponsored dry-run failed, falling back to self-sponsor...", err);
+      try {
+        usedSelfSponsor = true;
+        sponsorSignature = null;
+        finalTxBytes = await tag("tx-build-full-fallback", () => tx.build({ client }));
+        await tag("dry-run-fallback", async () => {
+          const dryRun = await client.dryRunTransactionBlock({
+            transactionBlock: finalTxBytes,
+          });
+          const status = dryRun.effects.status;
+          const details = {
+            status: status.status,
+            error: status.error,
+            gasUsed: dryRun.effects.gasUsed,
+          };
+          console.log("[zkLogin] fallback dry-run result", details);
+          if (status.status !== "success") {
+            throw new Error(
+              `dry-run failed: ${status.error ?? "unknown Sui execution error"} ${JSON.stringify(details)}`,
+            );
+          }
+        });
+      } catch (fallbackErr) {
+        const msg = fallbackErr instanceof Error ? fallbackErr.message : String(fallbackErr);
+        if (msg.includes("GasBalanceTooLow") || msg.includes("InsufficientGas")) {
+          throw new Error(
+            "Gas station is currently out of service. Please deposit a small amount of SUI (e.g. 0.05 SUI) into your wallet to pay for transaction gas.",
+            { cause: fallbackErr }
+          );
+        }
+        throw fallbackErr;
+      }
+    } else {
+      throw err;
+    }
+  }
 
   const { signature: ephemeralSig } = await tag("sign-ephemeral", () =>
     ephemeralKp.signTransaction(finalTxBytes),
