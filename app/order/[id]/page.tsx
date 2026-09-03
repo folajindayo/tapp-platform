@@ -131,7 +131,7 @@ export default function OrderPage({ params }: { params: Promise<{ id: string }> 
       setTimeout(() => setPhase((p) => (p === "signing" ? "submitting" : p)), 600);
       const res = await walletApi.confirmOrder(session.jwt, order.data, {
         suiAddress:    session.suiAddress,
-        zkLoginReady:  session.zkLoginReady,
+        zkLoginReady:  !!session.zkLoginReady,
       }, paymentPlan ?? undefined);
       setDigest(res.digest);
       // We don't jump to "done" yet — Rails still has to bridge + settle.

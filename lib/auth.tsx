@@ -35,6 +35,7 @@ export interface Session {
   refreshJwt: string;
   email: string;
   scope: string;
+  evmAddress?: string;
   /**
    * Sui address bound to this session.
    *
@@ -56,7 +57,7 @@ export interface Session {
    * Components that need to sign Sui txs should gate on this flag and
    * surface a "complete sign-in for on-chain signing" CTA otherwise.
    */
-  zkLoginReady: boolean;
+  zkLoginReady?: boolean;
 }
 
 /**
@@ -186,6 +187,78 @@ export async function signInWithGoogleCredential(
     scope: body.data.scope,
     suiAddress: presetAddress || deriveSuiAddress(idToken),
     zkLoginReady: !!presetAddress,
+  };
+  if (typeof window !== "undefined") {
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(session));
+  }
+  return session;
+}
+
+export async function signInWithEmailAndPassword(
+  email: string,
+  pass: string,
+): Promise<Session> {
+  const res = await fetch(`${API_BASE}/v1/auth/login`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Client-Type": "web",
+      "ngrok-skip-browser-warning": "1",
+    },
+    body: JSON.stringify({ email, password: pass }),
+  });
+  const body = (await res.json()) as { status?: string; message?: string; data?: { accessToken: string; refreshToken: string; evmAddress?: string; scopes?: string[] } };
+  if (!res.ok || body.status !== "success" || !body.data) {
+    throw new Error(body.message || `Sign-in failed (${res.status})`);
+  }
+
+  const session: Session = {
+    jwt: body.data.accessToken,
+    refreshJwt: body.data.refreshToken,
+    email: email,
+    scope: (body.data.scopes || ["sender"]).join(" "),
+    evmAddress: body.data.evmAddress,
+    suiAddress: body.data.evmAddress || "",
+  };
+  if (typeof window !== "undefined") {
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(session));
+  }
+  return session;
+}
+
+export async function signUpWithEmailAndPassword(
+  email: string,
+  pass: string,
+  firstName = "Cardholder",
+  lastName = "User",
+): Promise<Session> {
+  const res = await fetch(`${API_BASE}/v1/auth/register`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Client-Type": "web",
+      "ngrok-skip-browser-warning": "1",
+    },
+    body: JSON.stringify({
+      email,
+      password: pass,
+      firstName,
+      lastName,
+      scopes: ["sender"],
+    }),
+  });
+  const body = (await res.json()) as { status?: string; message?: string; data?: { email: string; accessToken: string; refreshToken: string; evmAddress?: string } };
+  if (!res.ok || body.status !== "success" || !body.data) {
+    throw new Error(body.message || `Sign-up failed (${res.status})`);
+  }
+
+  const session: Session = {
+    jwt: body.data.accessToken,
+    refreshJwt: body.data.refreshToken,
+    email: body.data.email,
+    scope: "sender",
+    evmAddress: body.data.evmAddress,
+    suiAddress: body.data.evmAddress || "",
   };
   if (typeof window !== "undefined") {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(session));

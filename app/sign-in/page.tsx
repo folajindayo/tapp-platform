@@ -8,7 +8,11 @@ import {
   GoogleSignInButton,
   takeNextHref,
 } from "@/components/GoogleSignInButton";
-import { useSession, completeAuth } from "@/lib/auth";
+import {
+  useSession,
+  signInWithEmailAndPassword,
+  signUpWithEmailAndPassword,
+} from "@/lib/auth";
 import { InputError } from "@/components/ui/InputError";
 import {
   AnimatedComponent,
@@ -29,89 +33,159 @@ function SignInBody() {
   const router = useRouter();
   const params = useSearchParams();
   const nextHref = params.get("next") ?? "/";
-  const emailHint = params.get("email") ?? undefined;
   const { hydrated, session, login } = useSession();
-  
 
-  const [callbackError, setCallbackError] = useState<string | null>(null);
-  const [completing, setCompleting] = useState(false);
+  const [isSignUp, setIsSignUp] = useState(false);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [firstName, setFirstName] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const { idToken, error } = parseGoogleAuthFragment(window.location.hash);
-    if (error) {
-      setCallbackError(error);
-      window.history.replaceState(
-        null,
-        "",
-        window.location.pathname + window.location.search,
-      );
-      return;
-    }
-    if (!idToken) return;
-    setCompleting(true);
-    window.history.replaceState(
-      null,
-      "",
-      window.location.pathname + window.location.search,
-    );
-    (async () => {
-      try {
-        const session = await completeAuth(idToken);
-        login(session);
-        const target = takeNextHref() ?? nextHref;
-        router.replace(target);
-      } catch (err) {
-        setCallbackError(
-          err instanceof Error ? err.message : "Sign-in failed",
-        );
-        setCompleting(false);
-      }
-    })();
-  }, [login, router, nextHref]);
-
-  if (hydrated && session && !completing) {
+  if (hydrated && session) {
     router.replace(nextHref);
     return null;
   }
 
-  if (completing) {
-    return (
-      <Screen centered>
-        <div className="flex flex-col items-center gap-4 text-center">
-          <div className="loader" />
-          <p className="text-sm text-gray-500 dark:text-white/50">
-            Completing sign-in…
-          </p>
-        </div>
-      </Screen>
-    );
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    if (!email || !password) {
+      setError("Email and password are required");
+      return;
+    }
+    setLoading(true);
+    try {
+      let newSession;
+      if (isSignUp) {
+        newSession = await signUpWithEmailAndPassword(
+          email,
+          password,
+          firstName || "Cardholder",
+          "User",
+        );
+      } else {
+        newSession = await signInWithEmailAndPassword(email, password);
+      }
+      login(newSession);
+      router.replace(nextHref);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Authentication failed";
+      setError(msg);
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
     <Screen centered>
-      <div className="flex flex-col items-center gap-8 text-center">
+      <div className="flex w-full max-w-sm flex-col items-center gap-6 text-center">
         <AnimatedComponent variant={slideInOut}>
           <h1 className="text-2xl font-semibold tracking-tight text-neutral-900 dark:text-white">
-            Tap. Pay. Done.
+            Tapp Card
           </h1>
+          <p className="mt-1 text-sm text-gray-500 dark:text-white/50">
+            {isSignUp ? "Create your Tapp account" : "Sign in to your wallet"}
+          </p>
         </AnimatedComponent>
 
-        <AnimatedComponent
-          variant={slideInOut}
-          delay={0.15}
-          className="w-full space-y-3"
-        >
-          <GoogleSignInButton nextHref={nextHref} loginHint={emailHint} />
-          {callbackError ? <InputError message={callbackError} /> : null}
-          <Link
-            href="/link"
-            className="block text-center text-sm text-gray-500 transition-colors hover:text-neutral-900 dark:text-white/50 dark:hover:text-white"
+        {/* Tab switch */}
+        <div className="grid w-full grid-cols-2 p-1 bg-gray-100 dark:bg-white/5 rounded-2xl text-xs font-semibold">
+          <button
+            type="button"
+            onClick={() => {
+              setIsSignUp(false);
+              setError(null);
+            }}
+            className={`py-2 rounded-xl transition-all ${
+              !isSignUp
+                ? "bg-white text-neutral-900 shadow-sm dark:bg-white/15 dark:text-white"
+                : "text-gray-500 dark:text-white/40"
+            }`}
           >
-            I already tapped a card →
-          </Link>
-          <p className="pt-1 text-center text-[10px] text-gray-400 dark:text-white/30">
-            Powered by Sui · zkLogin secured
+            Sign In
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setIsSignUp(true);
+              setError(null);
+            }}
+            className={`py-2 rounded-xl transition-all ${
+              isSignUp
+                ? "bg-white text-neutral-900 shadow-sm dark:bg-white/15 dark:text-white"
+                : "text-gray-500 dark:text-white/40"
+            }`}
+          >
+            Create Account
+          </button>
+        </div>
+
+        <AnimatedComponent variant={slideInOut} delay={0.1} className="w-full">
+          <form onSubmit={handleSubmit} className="flex flex-col gap-3 text-left">
+            {isSignUp && (
+              <div>
+                <label className="block mb-1 text-xs font-medium text-gray-600 dark:text-white/70">
+                  Name
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Jane Doe"
+                  value={firstName}
+                  onChange={(e) => setFirstName(e.target.value)}
+                  className="w-full rounded-2xl border border-gray-200 bg-transparent px-4 py-3 text-sm text-neutral-900 dark:border-white/10 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+            )}
+
+            <div>
+              <label className="block mb-1 text-xs font-medium text-gray-600 dark:text-white/70">
+                Email
+              </label>
+              <input
+                type="email"
+                required
+                placeholder="name@example.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="w-full rounded-2xl border border-gray-200 bg-transparent px-4 py-3 text-sm text-neutral-900 dark:border-white/10 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+
+            <div>
+              <label className="block mb-1 text-xs font-medium text-gray-600 dark:text-white/70">
+                Password
+              </label>
+              <input
+                type="password"
+                required
+                placeholder="••••••••"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="w-full rounded-2xl border border-gray-200 bg-transparent px-4 py-3 text-sm text-neutral-900 dark:border-white/10 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+
+            {error && <InputError message={error} />}
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="mt-2 w-full rounded-2xl bg-blue-600 py-3 text-sm font-semibold text-white transition-all hover:bg-blue-700 disabled:opacity-50"
+            >
+              {loading
+                ? isSignUp
+                  ? "Creating Account…"
+                  : "Signing In…"
+                : isSignUp
+                ? "Create Account"
+                : "Sign In"}
+            </button>
+          </form>
+
+          <p className="pt-4 text-center text-[10px] text-gray-400 dark:text-white/30">
+            Base Mainnet Powered · Non-Custodial Encrypted
           </p>
         </AnimatedComponent>
       </div>
