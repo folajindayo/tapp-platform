@@ -67,6 +67,7 @@ const API_BASE =
 
 export interface WalletState {
   sui_address: string;
+  evm_address?: string;
   usdc_subunit: number;        // 10⁶ subunits per 1 USDC
   sui_mist:    number;         // 10⁹ MIST per 1 SUI (native)
   ngn_rate: number;            // NGN per USDC
@@ -197,8 +198,11 @@ async function mockWalletState(
   // balances. Real rates here keep the hero accurate while the
   // backend / on-chain hookup is being built.
   const rates = await fetchLiveRates();
+  const suiAddr = suiAddress || suiAddressFor(seed);
+  const evmAddr = "0x" + suiAddr.slice(2, 42);
   return {
-    sui_address:        suiAddress || suiAddressFor(seed),
+    sui_address:        suiAddr,
+    evm_address:        evmAddr,
     usdc_subunit:       72_500_000 + (h % 100_000_000),
     sui_mist:           (h % 5) * 1_000_000_000, // 0..4 SUI mock
     ngn_rate:           rates.ngn_per_usdc,
@@ -227,9 +231,11 @@ async function onchainWalletState(suiAddress: string, jwt?: string): Promise<Wal
   ]);
 
   const hasLinkedCard = !!card && card.status !== "revoked";
+  const evmAddr = "0x" + suiAddress.slice(2, 42);
 
   return {
     sui_address:       suiAddress,
+    evm_address:        evmAddr,
     usdc_subunit:      usdc,
     sui_mist:          sui,
     ngn_rate:          rates.ngn_per_usdc,
