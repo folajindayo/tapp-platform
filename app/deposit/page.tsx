@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { QRCode } from "react-qrcode-logo";
 import { HiOutlineDuplicate, HiCheck, HiOutlineShare } from "react-icons/hi";
@@ -12,22 +12,53 @@ import {
   slideInOut,
 } from "@/components/ui/AnimatedComponents";
 import { useSession } from "@/lib/auth";
-import { useWallet } from "@/lib/wallet";
+import { formatUsdc, useWallet } from "@/lib/wallet";
 
 export default function DepositPage() {
   const router = useRouter();
   const { hydrated, session } = useSession();
   const wallet = useWallet();
   const [copied, setCopied] = useState(false);
+  const [selectedNetwork, setSelectedNetwork] = useState<"base" | "sui">("base");
+  const initialBalanceRef = useRef<number | null>(null);
+  const [receivedDeposit, setReceivedDeposit] = useState<number | null>(null);
 
   useEffect(() => {
     if (hydrated && !session) router.replace("/sign-in?next=/deposit");
   }, [hydrated, session, router]);
 
-  async function copy() {
+  // Active polling every 3.5s while user is viewing the deposit page
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      wallet.refetch();
+    }, 3500);
+    return () => window.clearInterval(timer);
+  }, [wallet]);
+
+  // Detect incoming deposits in real-time
+  useEffect(() => {
     if (!wallet.data) return;
+    if (initialBalanceRef.current === null) {
+      initialBalanceRef.current = wallet.data.usdc_subunit;
+      return;
+    }
+    if (wallet.data.usdc_subunit > initialBalanceRef.current) {
+      const diff = wallet.data.usdc_subunit - initialBalanceRef.current;
+      setReceivedDeposit(diff);
+      initialBalanceRef.current = wallet.data.usdc_subunit;
+    }
+  }, [wallet.data]);
+
+  const depositAddress = wallet.data
+    ? selectedNetwork === "base"
+      ? (wallet.data.evm_address || wallet.data.sui_address)
+      : wallet.data.sui_address
+    : "";
+
+  async function copy() {
+    if (!depositAddress) return;
     try {
-      await navigator.clipboard.writeText(wallet.data.sui_address);
+      await navigator.clipboard.writeText(depositAddress);
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
     } catch {
@@ -36,12 +67,12 @@ export default function DepositPage() {
   }
 
   async function share() {
-    if (!wallet.data) return;
+    if (!depositAddress) return;
     if (typeof navigator !== "undefined" && "share" in navigator) {
       try {
         await navigator.share({
           title: "My Tapp wallet address",
-          text:  `Send USDC on Sui to: ${wallet.data.sui_address}`,
+          text: `Send USDC on ${selectedNetwork === "base" ? "Base" : "Sui"} to: ${depositAddress}`,
         });
       } catch {
         // user dismissed; fall back to copy
@@ -62,9 +93,55 @@ export default function DepositPage() {
         <div className="space-y-2">
           <h1 className="text-xl font-medium">Receive</h1>
           <p className="text-sm text-gray-500 dark:text-white/50">
-            Send USDC or SUI to the address below — funds land in your wallet
+            Send USDC on Base or Sui to the address below — funds land in your wallet
             usually within a minute.
           </p>
+        </div>
+
+        {receivedDeposit !== null && (
+          <div className="rounded-2xl border border-green-200 bg-green-50 p-4 text-green-900 dark:border-green-800/40 dark:bg-green-950/40 dark:text-green-300">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="font-semibold text-sm">Deposit Confirmed!</p>
+                <p className="text-xs text-green-700 dark:text-green-400">
+                  +{formatUsdc(receivedDeposit)} USDC has arrived in your wallet.
+                </p>
+              </div>
+              <Button
+                variant="primary"
+                onClick={() => router.push("/")}
+                className="py-1.5 px-3 text-xs bg-green-600 hover:bg-green-700"
+              >
+                View wallet
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {/* Network Selector Tabs */}
+        <div className="grid grid-cols-2 p-1 bg-gray-100 dark:bg-white/5 rounded-2xl text-xs font-semibold text-center select-none">
+          <button
+            type="button"
+            onClick={() => setSelectedNetwork("base")}
+            className={`py-2.5 rounded-xl transition-all ${
+              selectedNetwork === "base"
+                ? "bg-blue-600 text-white shadow-sm font-bold"
+                : "text-gray-500 dark:text-white/40 hover:text-neutral-900 dark:hover:text-white"
+            }`}
+          >
+            Base Network (USDC)
+          </button>
+          <button
+            type="button"
+            onClick={() => setSelectedNetwork("sui")}
+            className={`py-2.5 rounded-xl transition-all ${
+              selectedNetwork === "sui"
+                ? "bg-blue-600 text-white shadow-sm font-bold"
+                : "text-gray-500 dark:text-white/40 hover:text-neutral-900 dark:hover:text-white"
+            }`}
+          >
+            Sui Network (USDC/SUI)
+          </button>
         </div>
 
         {wallet.data ? (
@@ -75,7 +152,7 @@ export default function DepositPage() {
                 style={{ borderRadius: 16 }}
               >
                 <QRCode
-                  value={wallet.data.sui_address}
+                  value={depositAddress}
                   qrStyle="fluid"
                   eyeRadius={12}
                   bgColor="#F9FAFB"
@@ -87,7 +164,7 @@ export default function DepositPage() {
                 />
               </div>
               <p className="break-all text-center font-mono text-xs text-neutral-900 dark:text-white/80">
-                {wallet.data.sui_address}
+                {depositAddress}
               </p>
             </div>
 
@@ -116,12 +193,12 @@ export default function DepositPage() {
 
             <InfoBanner>
               <p className="font-medium text-neutral-900 dark:text-white">
-                Sui network only
+                {selectedNetwork === "base" ? "Base Mainnet USDC" : "Sui network only"}
               </p>
               <p className="mt-1 text-xs">
-                Send USDC or native SUI on the Sui network — other assets or
-                networks can be permanently lost. Always double-check before
-                sending.
+                {selectedNetwork === "base"
+                  ? "Send USDC on the Base Mainnet (EVM) network. Always double-check network and address before sending."
+                  : "Send USDC or native SUI on the Sui network — other assets or networks can be permanently lost."}
               </p>
             </InfoBanner>
           </>

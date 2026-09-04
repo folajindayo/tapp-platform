@@ -7,47 +7,28 @@ import {
   PiCheckCircleFill,
   PiPaperPlaneTiltBold,
   PiCoinBold,
+  PiArrowSquareOutBold,
 } from "react-icons/pi";
 import { Screen } from "@/components/ui/Screen";
 import { Button } from "@/components/ui/Button";
 import { InputError } from "@/components/ui/InputError";
-import { InfoBanner } from "@/components/ui/InfoBanner";
-import { TabButton, TabRow } from "@/components/ui/TabButton";
 import { ReceiptCard } from "@/components/ui/ReceiptCard";
 import {
   AnimatedComponent,
   slideInOut,
 } from "@/components/ui/AnimatedComponents";
-import { signOut, useSession } from "@/lib/auth";
+import { useSession } from "@/lib/auth";
 import {
   useWallet,
-  WALLET_MOCK,
   formatUsdc,
   formatNgnFromUsdc,
-  USDC_COIN_TYPE,
-  SUI_COIN_TYPE,
 } from "@/lib/wallet";
 import { useHaptic } from "@/lib/motion";
 
-type Asset = "USDC" | "SUI";
-
-const SUI_DECIMALS  = 9;
 const USDC_DECIMALS = 6;
 
-// Cushion held back when the user pays their own gas. 0.01 SUI covers
-// a Sui transfer with room to spare at current reference gas prices.
-// Used in Max-amount math + the minimum-balance check for self-sponsor.
-const SELF_GAS_RESERVATION_MIST = 10_000_000;
-
 /**
- * Withdraw / send-to-address. Composes a Sui PTB that transfers either
- * USDC or native SUI to an arbitrary Sui address, signs via zkLogin,
- * and submits.
- *
- * In mock mode (default) the sign step is simulated. Real mode kicks
- * in when `NEXT_PUBLIC_WALLET_MOCK=0` and the session has
- * `zkLoginReady=true` (i.e. the user signed in through the proper
- * OAuth-with-nonce flow so on-chain signatures will be accepted).
+ * Send Base USDC to any 0x EVM address.
  */
 export default function SendPage() {
   const router = useRouter();
@@ -57,55 +38,39 @@ export default function SendPage() {
 
   const [recipient, setRecipient] = useState("");
   const [amount, setAmount]       = useState("");
-  const [asset, setAsset]         = useState<Asset>("USDC");
-  const [selfSponsor, setSelfSponsor] = useState(false);
   const [phase, setPhase]         = useState<"compose" | "signing" | "submitting" | "done" | "error">("compose");
   const [error, setError]         = useState<string | null>(null);
   const [digest, setDigest]       = useState<string | null>(null);
-
-  const canSelfSponsor = (wallet.data?.sui_mist ?? 0) >= SELF_GAS_RESERVATION_MIST;
-  // If the user toggles self-sponsor on but later drops below the
-  // gas threshold (e.g. wallet refetch), silently un-toggle so the
-  // submit can't reach an unfundable state.
-  useEffect(() => {
-    if (selfSponsor && !canSelfSponsor) setSelfSponsor(false);
-  }, [selfSponsor, canSelfSponsor]);
 
   useEffect(() => {
     if (hydrated && !session) router.replace("/sign-in?next=/send");
   }, [hydrated, session, router]);
 
   const availableSubunit = useMemo(() => {
-    if (!wallet.data) return 0;
-    if (asset === "USDC") return wallet.data.usdc_subunit;
-    // Native SUI under self-sponsor: hold back gas so Max doesn't try
-    // to send the user's entire balance and leave nothing for gas.
-    if (selfSponsor) {
-      return Math.max(0, wallet.data.sui_mist - SELF_GAS_RESERVATION_MIST);
-    }
-    return wallet.data.sui_mist;
-  }, [wallet.data, asset, selfSponsor]);
+    return wallet.data?.usdc_subunit ?? 0;
+  }, [wallet.data]);
 
   const amountSubunit = useMemo(() => {
     const n = parseFloat(amount);
     if (!Number.isFinite(n) || n <= 0) return 0;
-    const decimals = asset === "USDC" ? USDC_DECIMALS : SUI_DECIMALS;
-    return Math.floor(n * 10 ** decimals);
-  }, [amount, asset]);
+    return Math.floor(n * 10 ** USDC_DECIMALS);
+  }, [amount]);
 
   const validation = useMemo(() => {
     if (!recipient) return null;
-    if (!isValidSuiAddress(recipient)) return "Recipient must be a valid Sui address (0x + 64 hex characters).";
-    if (recipient.toLowerCase() === wallet.data?.sui_address.toLowerCase()) return "You can't send to your own wallet.";
+    if (!isValidBaseAddress(recipient)) return "Recipient must be a valid Base address (0x followed by 40 hex characters).";
+    if (wallet.data?.evm_address && recipient.toLowerCase() === wallet.data.evm_address.toLowerCase()) {
+      return "You can't send to your own wallet address.";
+    }
     if (amountSubunit <= 0) return null;
-    if (amountSubunit > availableSubunit) return `Not enough ${asset} in your wallet.`;
+    if (amountSubunit > availableSubunit) return "Not enough USDC in your wallet.";
     return null;
-  }, [recipient, amountSubunit, availableSubunit, asset, wallet.data]);
+  }, [recipient, amountSubunit, availableSubunit, wallet.data]);
 
   async function submit() {
     if (!session) return;
-    if (!recipient || !isValidSuiAddress(recipient)) {
-      setError("Recipient address is required.");
+    if (!recipient || !isValidBaseAddress(recipient)) {
+      setError("Recipient address must be a valid Base address (0x + 40 hex chars).");
       return;
     }
     if (amountSubunit <= 0) {
@@ -113,145 +78,45 @@ export default function SendPage() {
       return;
     }
     if (amountSubunit > availableSubunit) {
-      setError(`Not enough ${asset} in your wallet.`);
+      setError("Not enough USDC in your wallet.");
       return;
     }
+
     setError(null);
     haptic.medium();
     setPhase("signing");
 
     try {
-      if (WALLET_MOCK) {
-        // Mock: simulate sign + submit, fabricate a digest.
-        await new Promise((r) => setTimeout(r, 700));
-        setPhase("submitting");
-        await new Promise((r) => setTimeout(r, 600));
-        setDigest("0xtx_mock_" + Date.now().toString(36));
-      } else if (!session.zkLoginReady) {
-        throw new Error(
-          "Your sign-in didn't complete the full zkLogin handshake — sign out and back in to enable on-chain sends.",
-        );
-      } else {
-        // Real path. Dynamic import keeps the heavy Sui+zkLogin code out
-        // of the bundle until the user actually sends.
-        const { executeZkLoginTx } = await import("@/lib/zklogin");
-        const { Transaction } = await import("@mysten/sui/transactions");
-        const { fetchAllCoins } = await import("@/lib/sui-client");
-        const result = await executeZkLoginTx(
-          async (tx: InstanceType<typeof Transaction>) => {
+      await new Promise((r) => setTimeout(r, 400));
+      setPhase("submitting");
 
-            // Fetch coins with retry — the Sui fullnode's coin index can
-            // lag behind the balance index after recent deposits. If we
-            // know the user has a balance (they passed the UI validation)
-            // but getCoins returns empty, wait and retry before failing.
-            async function getCoinsWithRetry(owner: string, coinType: string) {
-              const MAX_ATTEMPTS = 3;
-              const DELAY_MS = 2000;
-              for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
-                const coins = await fetchAllCoins(owner, coinType);
-                const nonZero = coins.filter((c) => BigInt(c.balance) > BigInt(0));
-                if (nonZero.length > 0) return nonZero;
-                if (attempt < MAX_ATTEMPTS) {
-                  console.warn(
-                    `[send] getCoins returned empty (attempt ${attempt}/${MAX_ATTEMPTS}), ` +
-                      `retrying in ${DELAY_MS}ms — likely indexer lag`,
-                  );
-                  await new Promise((r) => setTimeout(r, DELAY_MS));
-                }
-              }
-              return []; // still empty after retries
-            }
+      const res = await fetch("/api/send", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.jwt}`,
+        },
+        body: JSON.stringify({
+          recipient: recipient.trim(),
+          amountSubunit,
+          senderAddress: session.evmAddress || session.suiAddress,
+        }),
+      });
 
-            // Self-sponsor + native SUI: We must manually select SUI coins whose
-            // total balance covers both the transfer amount and the gas reservation fee,
-            // then set them as the explicit gas payment. This overrides the SDK's
-            // automatic gas selection (which only allocates coins covering the estimated
-            // execution fees and doesn't inspect custom splitCoins(tx.gas, ...) commands,
-            // causing dry-run to fail with InsufficientCoinBalance).
-            if (selfSponsor && asset === "SUI") {
-              const spendableCoins = await getCoinsWithRetry(session.suiAddress, "0x2::sui::SUI");
-              const requiredBalance = BigInt(amountSubunit) + BigInt(SELF_GAS_RESERVATION_MIST);
-              let accumulated = BigInt(0);
-              const selectedCoins: typeof spendableCoins = [];
-              for (const coin of spendableCoins) {
-                accumulated += BigInt(coin.balance);
-                selectedCoins.push(coin);
-                if (accumulated >= requiredBalance) {
-                  break;
-                }
-              }
-              if (selectedCoins.length === 0) {
-                throw new Error(
-                  "Your SUI is still being processed by the network. " +
-                    "Please wait a moment and try again."
-                );
-              }
-              if (accumulated < requiredBalance) {
-                throw new Error(
-                  `Insufficient spendable SUI for gas + withdraw. Required: ${
-                    (Number(requiredBalance) / 1e9).toFixed(4)
-                  } SUI, Available: ${(Number(accumulated) / 1e9).toFixed(4)} SUI`
-                );
-              }
-              tx.setGasPayment(
-                selectedCoins.map((c) => ({
-                  objectId: c.coinObjectId,
-                  version: c.version,
-                  digest: c.digest,
-                }))
-              );
-              const [out] = tx.splitCoins(tx.gas, [tx.pure.u64(BigInt(amountSubunit))]);
-              tx.transferObjects([out], tx.pure.address(recipient));
-              return;
-            }
-
-            // Other cases: pick coin objects owned by the sender, merge if
-            // many, split the requested amount off, transfer. For native
-            // SUI under Rails-sponsored tx we deliberately do NOT split
-            // from `tx.gas` — under sponsorship the gas coin is the
-            // sponsor's, so splitting from it would charge the sponsor for
-            // the value transfer, not just the fees.
-            const coinType = asset === "SUI" ? "0x2::sui::SUI" : USDC_COIN_TYPE;
-            const nonZeroCoins = await getCoinsWithRetry(session.suiAddress, coinType);
-            if (nonZeroCoins.length === 0) {
-              throw new Error(
-                `Your ${asset} is still being processed by the network. ` +
-                  "Please wait a moment and try again."
-              );
-            }
-            const inputs = nonZeroCoins.map((c) => tx.object(c.coinObjectId));
-            const primary = inputs[0];
-            if (inputs.length > 1) {
-              tx.mergeCoins(primary, inputs.slice(1));
-            }
-            const [out] = tx.splitCoins(primary, [tx.pure.u64(BigInt(amountSubunit))]);
-            tx.transferObjects([out], tx.pure.address(recipient));
-          },
-          { selfSponsor },
-        );
-
-        setPhase("submitting");
-        setDigest(result.digest);
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok || body.status !== "success" || !body.data?.digest) {
+        throw new Error(body.message || `Send failed (${res.status})`);
       }
+
+      setDigest(body.data.digest);
       setPhase("done");
       haptic.success();
-      // Optimistic refresh after a beat.
-      setTimeout(() => wallet.refetch(), 1500);
+      // Refetch balance after short beat
+      setTimeout(() => wallet.refetch(), 1200);
     } catch (err) {
-      // Surface the full error + first few stack frames in the visible
-      // banner so we can debug withdraw failures without DevTools.
-      // Remove the .stack splice once the cause is found.
       const msg = err instanceof Error ? err.message : String(err);
-      const stack =
-        err instanceof Error && err.stack
-          ? "\n" + err.stack.split("\n").slice(0, 4).join("\n")
-          : "";
-      const causeMsg =
-        err instanceof Error && err.cause instanceof Error
-          ? `\nCaused by: ${err.cause.message}`
-          : "";
-      console.error("[send] withdraw failed", err);
-      setError(msg + causeMsg + stack);
+      console.error("[send] transfer failed", err);
+      setError(msg);
       setPhase("error");
       haptic.error();
     }
@@ -274,13 +139,19 @@ export default function SendPage() {
               Sent
             </h1>
             <p className="text-sm text-gray-500 dark:text-white/50">
-              {amount} {asset} on its way to {shorten(recipient)}.
+              {amount} USDC on its way to {shorten(recipient)}.
             </p>
           </div>
           {digest ? (
-            <p className="break-all rounded-full bg-gray-50 px-3 py-1.5 font-mono text-[11px] text-gray-500 dark:bg-white/5 dark:text-white/50">
-              {digest}
-            </p>
+            <a
+              href={`https://basescan.org/tx/${digest}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 break-all rounded-full bg-gray-50 px-3 py-1.5 font-mono text-[11px] text-blue-600 hover:underline dark:bg-white/5 dark:text-blue-400"
+            >
+              <span>{shorten(digest)}</span>
+              <PiArrowSquareOutBold className="text-xs shrink-0" />
+            </a>
           ) : null}
           <div className="flex w-full gap-3">
             <Link href="/history" className="flex-1">
@@ -306,56 +177,35 @@ export default function SendPage() {
             <PiPaperPlaneTiltBold className="text-gray-400" /> Send
           </h1>
           <p className="text-[12px] text-gray-500 dark:text-white/50">
-            Withdraw {asset} on Sui to any address. Funds move on-chain.
+            Send USDC on Base to any address. Instant and low-fee.
           </p>
         </div>
 
         <div className="grid gap-4 rounded-3xl border border-gray-200 p-4 dark:border-white/10">
-          <div className="grid gap-2">
-            <label className="text-sm font-medium text-neutral-900 dark:text-white">
-              Asset
+          {/* Asset Indicator - Pure Base USDC */}
+          <div className="grid gap-1.5">
+            <label className="text-xs font-medium uppercase tracking-wider text-gray-400 dark:text-white/40">
+              Asset &amp; Network
             </label>
-            <TabRow>
-              <TabButton
-                active={asset === "USDC"}
-                onClick={() => setAsset("USDC")}
-              >
-                USDC (Sui)
-              </TabButton>
-              <TabButton
-                active={asset === "SUI"}
-                onClick={() => setAsset("SUI")}
-              >
-                SUI (native)
-              </TabButton>
-            </TabRow>
+            <div className="flex items-center justify-between rounded-2xl border border-blue-500/20 bg-blue-500/5 p-3 dark:border-blue-500/30 dark:bg-blue-500/10">
+              <div className="flex items-center gap-3">
+                <div className="flex size-9 items-center justify-center rounded-xl bg-blue-600 text-white font-bold text-sm shadow-sm">
+                  $
+                </div>
+                <div>
+                  <div className="flex items-center gap-1.5 font-semibold text-neutral-900 dark:text-white text-sm">
+                    USDC
+                    <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-medium text-blue-700 dark:bg-blue-900/50 dark:text-blue-300">
+                      Base
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-gray-500 dark:text-white/60">
+                    USD Coin on Base Mainnet
+                  </p>
+                </div>
+              </div>
+            </div>
           </div>
-
-          <label
-            className={`flex cursor-pointer items-start gap-3 rounded-xl border p-3 text-xs transition-colors ${
-              canSelfSponsor
-                ? "border-gray-200 hover:bg-gray-50 dark:border-white/10 dark:hover:bg-white/5"
-                : "cursor-not-allowed border-gray-100 opacity-50 dark:border-white/5"
-            }`}
-          >
-            <input
-              type="checkbox"
-              checked={selfSponsor}
-              disabled={!canSelfSponsor}
-              onChange={(e) => setSelfSponsor(e.target.checked)}
-              className="mt-0.5 size-4 accent-blue-600"
-            />
-            <span className="flex-1">
-              <span className="block font-medium text-neutral-900 dark:text-white">
-                Pay gas from my wallet
-              </span>
-              <span className="block text-gray-500 dark:text-white/50">
-                {canSelfSponsor
-                  ? "Skips the gas sponsor — uses ~0.01 SUI from your balance."
-                  : "Needs at least 0.01 SUI in your wallet. Currently below."}
-              </span>
-            </span>
-          </label>
 
           <div className="grid gap-2">
             <label
@@ -372,7 +222,7 @@ export default function SendPage() {
               spellCheck={false}
               value={recipient}
               onChange={(e) => setRecipient(e.target.value.trim())}
-              placeholder="0x…"
+              placeholder="0x… (Base EVM address)"
               className="w-full rounded-xl border border-gray-300 bg-white px-4 py-2 font-mono text-xs text-neutral-900 transition-all placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50 dark:border-white/20 dark:bg-neutral-900 dark:text-white/80 dark:placeholder:text-white/30"
             />
           </div>
@@ -388,8 +238,7 @@ export default function SendPage() {
               <button
                 type="button"
                 onClick={() => {
-                  const decimals = asset === "USDC" ? USDC_DECIMALS : SUI_DECIMALS;
-                  setAmount((availableSubunit / 10 ** decimals).toString());
+                  setAmount((availableSubunit / 10 ** USDC_DECIMALS).toString());
                 }}
                 className="text-xs font-medium text-blue-600 hover:text-blue-700 dark:text-blue-500"
               >
@@ -408,29 +257,32 @@ export default function SendPage() {
                 placeholder="0.00"
                 className="w-full rounded-xl border border-gray-300 bg-white px-4 py-2 pr-16 text-sm tabular-nums text-neutral-900 transition-all placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50 dark:border-white/20 dark:bg-neutral-900 dark:text-white/80 dark:placeholder:text-white/30"
               />
-              <span className="pointer-events-none absolute inset-y-0 right-4 flex items-center text-xs text-gray-400 dark:text-white/30">
-                {asset}
+              <span className="pointer-events-none absolute inset-y-0 right-4 flex items-center text-xs text-gray-400 dark:text-white/30 font-medium">
+                USDC
               </span>
             </div>
             <p className="text-xs text-gray-500 dark:text-white/50">
               <PiCoinBold className="-mt-0.5 mr-1 inline" />
               Available:{" "}
               <span className="font-medium tabular-nums">
-                {asset === "USDC"
-                  ? formatUsdc(availableSubunit) + " USDC"
-                  : (availableSubunit / 1e9).toFixed(4) + " SUI"}
+                {formatUsdc(availableSubunit)} USDC
               </span>
+              {wallet.data?.ngn_rate ? (
+                <span className="ml-1 text-gray-400 dark:text-white/40">
+                  (≈ {formatNgnFromUsdc(availableSubunit, wallet.data.ngn_rate)})
+                </span>
+              ) : null}
             </p>
           </div>
         </div>
 
-        {asset === "USDC" && amountSubunit > 0 && wallet.data ? (
+        {amountSubunit > 0 && wallet.data ? (
           <ReceiptCard
             rows={[
               {
                 label: "Amount",
                 value: (
-                  <span className="tabular-nums">
+                  <span className="tabular-nums font-medium">
                     {formatUsdc(amountSubunit)} USDC
                   </span>
                 ),
@@ -443,62 +295,20 @@ export default function SendPage() {
                   </span>
                 ),
               },
-              { label: "Network",  value: "Sui" },
+              { label: "Network",  value: "Base" },
               { label: "Recipient", value: <span className="font-mono text-xs">{shorten(recipient || "—")}</span> },
             ]}
           />
         ) : null}
 
         {validation ? <InputError message={validation} /> : null}
-        {error ? (
-          <div className="space-y-1">
-            <InputError message={error.split("\n")[0]} />
-            {error.includes("\n") ? (
-              <pre className="whitespace-pre-wrap break-words rounded-lg bg-red-50 px-3 py-2 font-mono text-[10px] leading-snug text-red-700 dark:bg-red-900/20 dark:text-red-300">
-                {error.split("\n").slice(1).join("\n")}
-              </pre>
-            ) : null}
-          </div>
-        ) : null}
-
-        {WALLET_MOCK ? (
-          <InfoBanner>
-            <p className="font-medium text-neutral-900 dark:text-white">
-              Mock mode
-            </p>
-            <p className="mt-1 text-xs">
-              No on-chain transaction is executed. Set{" "}
-              <span className="font-mono">NEXT_PUBLIC_WALLET_MOCK=0</span> and
-              sign in through the full Google flow to enable real sends.
-            </p>
-          </InfoBanner>
-        ) : !session.zkLoginReady ? (
-          <InfoBanner tone="warning">
-            <p className="font-medium text-neutral-900 dark:text-white">
-              Secure session expired or not ready
-            </p>
-            <p className="mt-1 text-xs">
-              To protect your wallet, on-chain sessions expire after 24 hours. Sign in again to authorize sending funds.
-            </p>
-            <Button
-              onClick={() => {
-                const email = session.email;
-                signOut();
-                router.replace(`/sign-in?next=/send&email=${encodeURIComponent(email)}`);
-              }}
-              className="mt-3 text-xs py-1.5 px-3"
-              fullWidth={false}
-            >
-              Sign in again
-            </Button>
-          </InfoBanner>
-        ) : null}
+        {error ? <InputError message={error} /> : null}
 
         {(phase === "signing" || phase === "submitting") && (
           <div className="flex flex-col items-center gap-2 py-2">
             <div className="loader" />
             <p className="text-xs text-gray-500 dark:text-white/50">
-              {phase === "signing" ? "Signing on Sui…" : "Submitting…"}
+              {phase === "signing" ? "Preparing transaction…" : "Broadcasting on Base…"}
             </p>
           </div>
         )}
@@ -511,9 +321,9 @@ export default function SendPage() {
             <div className="flex-1">
               <Button
                 onClick={submit}
-                disabled={!!validation || amountSubunit <= 0 || !recipient || !session.zkLoginReady}
+                disabled={!!validation || amountSubunit <= 0 || !recipient}
               >
-                Send
+                Send USDC
               </Button>
             </div>
           </div>
@@ -523,8 +333,8 @@ export default function SendPage() {
   );
 }
 
-function isValidSuiAddress(addr: string): boolean {
-  return /^0x[a-fA-F0-9]{64}$/.test(addr.trim());
+function isValidBaseAddress(addr: string): boolean {
+  return /^0x[a-fA-F0-9]{40}$/.test(addr.trim());
 }
 
 function shorten(addr: string): string {

@@ -30,7 +30,6 @@ import {
   orderStreamURL,
 } from "@/lib/wallet";
 import { useHaptic } from "@/lib/motion";
-import { SessionExpiredError } from "@/lib/zklogin";
 import { calculatePaymentPlan } from "@/lib/payment-plan";
 import { clientLogger } from "@/lib/client-logger";
 
@@ -131,7 +130,7 @@ export default function OrderPage({ params }: { params: Promise<{ id: string }> 
       setTimeout(() => setPhase((p) => (p === "signing" ? "submitting" : p)), 600);
       const res = await walletApi.confirmOrder(session.jwt, order.data, {
         suiAddress:    session.suiAddress,
-        zkLoginReady:  session.zkLoginReady,
+        zkLoginReady:  !!session.zkLoginReady,
       }, paymentPlan ?? undefined);
       setDigest(res.digest);
       // We don't jump to "done" yet — Rails still has to bridge + settle.
@@ -144,7 +143,7 @@ export default function OrderPage({ params }: { params: Promise<{ id: string }> 
       // Expired-JWT → sign out + back to /sign-in with this order as
       // the post-login redirect. Avoids surfacing raw Rails JSON to
       // the user and lets them resume the same payment after auth.
-      if (err instanceof SessionExpiredError || (err instanceof Error && /session has expired/i.test(err.message))) {
+      if (err instanceof Error && (/session.*expired/i.test(err.message) || /unauthorized/i.test(err.message))) {
         haptic.error();
         signOut();
         router.replace(`/sign-in?next=/order/${encodeURIComponent(id)}`);
@@ -398,32 +397,10 @@ export default function OrderPage({ params }: { params: Promise<{ id: string }> 
           rows={[
             { label: "Merchant",  value: toTitleCase(o.merchant_name) },
             ...(o.reference ? [{ label: "Reference", value: <span className="font-mono text-xs">{o.reference}</span> }] : []),
-            { label: "Network",   value: "Sui" },
+            { label: "Network",   value: "Base" },
             { label: "Token",     value: "USDC" },
           ]}
         />
-
-        {session && !session.zkLoginReady && (
-          <InfoBanner tone="warning">
-            <p className="font-medium text-neutral-900 dark:text-white">
-              Secure session expired or not ready
-            </p>
-            <p className="mt-1 text-xs">
-              To protect your wallet, on-chain sessions expire after 24 hours. Sign in again to authorize this payment.
-            </p>
-            <Button
-              onClick={() => {
-                const email = session.email;
-                signOut();
-                router.replace(`/sign-in?next=/order/${encodeURIComponent(id)}&email=${encodeURIComponent(email)}`);
-              }}
-              className="mt-3 text-xs py-1.5 px-3"
-              fullWidth={false}
-            >
-              Sign in again
-            </Button>
-          </InfoBanner>
-        )}
 
         {insufficient && (
           <InfoBanner tone="warning">
@@ -556,7 +533,7 @@ export default function OrderPage({ params }: { params: Promise<{ id: string }> 
               <Button variant="secondary">Cancel</Button>
             </Link>
             <div className="flex-1">
-              <Button onClick={confirm} disabled={insufficient || !session.zkLoginReady}>
+              <Button onClick={confirm} disabled={insufficient}>
                 Confirm &amp; pay
               </Button>
             </div>

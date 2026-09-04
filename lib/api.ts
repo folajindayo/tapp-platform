@@ -8,7 +8,7 @@
  *     don't call it from JS; the URL just opens in the address bar.
  */
 
-import { refreshAccessToken } from "./auth";
+import { refreshAccessToken, formatApiErrorMessage } from "./auth";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
 
@@ -69,9 +69,10 @@ async function request<T>(
         return request<T>(method, path, { body, token: fresh, signal }, true);
       }
     }
+    const rawMsg = formatApiErrorMessage(json, `Request failed (${res.status})`);
     throw new ApiError(
       res.status,
-      json.message ?? `Request failed (${res.status})`,
+      rawMsg,
       typeof json.data === "object" && json.data !== null && "code" in (json.data as Record<string, unknown>)
         ? String((json.data as Record<string, unknown>).code)
         : undefined,

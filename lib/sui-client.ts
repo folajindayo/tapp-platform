@@ -102,11 +102,17 @@ let _client: SuiClient | null = null;
 let _executeClient: SuiClient | null = null;
 let _publicClient: SuiClient | null = null;
 
+const SUI_RPC_URL =
+  process.env.NEXT_PUBLIC_SUI_RPC_URL ||
+  (NETWORK === "mainnet"
+    ? "https://sui-rpc.publicnode.com"
+    : getFullnodeUrl(NETWORK));
+
 function suiPublicClient(): SuiClient {
   if (_publicClient) return _publicClient;
   _publicClient = new SuiClient({
     network: NETWORK,
-    url: getFullnodeUrl(NETWORK),
+    url: SUI_RPC_URL,
   });
   return _publicClient;
 }

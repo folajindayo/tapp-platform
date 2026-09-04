@@ -37,7 +37,7 @@ export interface LinkState {
     daily: number;
     perTap: number;
     stepUp: number;
-    funding: number;
+    funding?: number;
     pin: string;
   }) => void;
   setCryptoMaterial: (m: {
@@ -75,7 +75,7 @@ export const useLinkStore = create<LinkState>((set) => ({
       dailyLimitSubunit: l.daily,
       perTapLimitSubunit: l.perTap,
       stepUpThresholdSubunit: l.stepUp,
-      fundingSubunit: l.funding,
+      fundingSubunit: l.funding ?? 0,
       pin: l.pin,
     }),
   setCryptoMaterial: (m) =>

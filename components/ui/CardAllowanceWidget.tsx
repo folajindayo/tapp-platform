@@ -28,9 +28,6 @@ export function CardAllowanceWidget({ card }: Props) {
           Card spending today
         </h3>
         <div className="flex items-center gap-2">
-          <span className="text-xs font-semibold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/40 px-2 py-0.5 rounded-full tabular-nums">
-            {formatUsdc(Number(card.on_chain_balance ?? 0))} USDC
-          </span>
           <Link
             href="/settings/limits"
             aria-label="Edit limits"
