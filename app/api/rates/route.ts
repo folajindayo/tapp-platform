@@ -196,39 +196,6 @@ async function fetchUsdcPerSui(): Promise<number> {
 }
 
 async function fetchSuiUsdcToBaseEfficiency(): Promise<number> {
-  // Quote 100 Sui USDC → Base USDC. Reference amount large enough to
-  // amortize fixed bridge fees but small enough to fit any sane LP
-  // depth. Efficiency = (Base USDC out) / (Sui USDC in) — typically
-  // 0.99x-ish (1% spread covers bridge + integrator fees + slippage).
-  const params = new URLSearchParams({
-    fromChain: SUI_CHAIN_ID,
-    toChain: BASE_CHAIN_ID,
-    fromToken: SUI_USDC_MAINNET,
-    toToken: BASE_USDC_MAINNET,
-    fromAmount: "100000000", // 100 USDC at 6 decimals
-    fromAddress: QUOTE_SENDER_SUI,
-    toAddress: QUOTE_RECIPIENT_BASE,
-    slippage: "0.005",
-  });
-  const url = `${LIFI_BASE}/quote?${params.toString()}`;
-  const res = await fetch(url, { headers: { Accept: "application/json" } });
-  if (!res.ok) throw new Error(`LiFi (bridge) ${res.status}`);
-  const json = (await res.json()) as {
-    estimate?: { toAmount?: string; fromAmount?: string };
-  };
-  const toAmount = json.estimate?.toAmount;
-  const fromAmount = json.estimate?.fromAmount;
-  if (!toAmount || !fromAmount) {
-    throw new Error("LiFi (bridge): missing estimate amounts");
-  }
-  const outSubunit = parseInt(toAmount, 10);
-  const inSubunit = parseInt(fromAmount, 10);
-  if (
-    !Number.isFinite(outSubunit) ||
-    !Number.isFinite(inSubunit) ||
-    inSubunit <= 0
-  ) {
-    throw new Error(`LiFi (bridge): invalid amounts ${fromAmount}/${toAmount}`);
-  }
-  return outSubunit / inSubunit;
+  // Native Base USDC settlement — no cross-chain bridge needed (100% efficiency)
+  return 1.0;
 }

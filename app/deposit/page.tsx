@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { QRCode } from "react-qrcode-logo";
 import { HiOutlineDuplicate, HiCheck, HiOutlineShare } from "react-icons/hi";
@@ -12,7 +12,7 @@ import {
   slideInOut,
 } from "@/components/ui/AnimatedComponents";
 import { useSession } from "@/lib/auth";
-import { useWallet } from "@/lib/wallet";
+import { formatUsdc, useWallet } from "@/lib/wallet";
 
 export default function DepositPage() {
   const router = useRouter();
@@ -20,10 +20,34 @@ export default function DepositPage() {
   const wallet = useWallet();
   const [copied, setCopied] = useState(false);
   const [selectedNetwork, setSelectedNetwork] = useState<"base" | "sui">("base");
+  const initialBalanceRef = useRef<number | null>(null);
+  const [receivedDeposit, setReceivedDeposit] = useState<number | null>(null);
 
   useEffect(() => {
     if (hydrated && !session) router.replace("/sign-in?next=/deposit");
   }, [hydrated, session, router]);
+
+  // Active polling every 3.5s while user is viewing the deposit page
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      wallet.refetch();
+    }, 3500);
+    return () => window.clearInterval(timer);
+  }, [wallet]);
+
+  // Detect incoming deposits in real-time
+  useEffect(() => {
+    if (!wallet.data) return;
+    if (initialBalanceRef.current === null) {
+      initialBalanceRef.current = wallet.data.usdc_subunit;
+      return;
+    }
+    if (wallet.data.usdc_subunit > initialBalanceRef.current) {
+      const diff = wallet.data.usdc_subunit - initialBalanceRef.current;
+      setReceivedDeposit(diff);
+      initialBalanceRef.current = wallet.data.usdc_subunit;
+    }
+  }, [wallet.data]);
 
   const depositAddress = wallet.data
     ? selectedNetwork === "base"
@@ -73,6 +97,26 @@ export default function DepositPage() {
             usually within a minute.
           </p>
         </div>
+
+        {receivedDeposit !== null && (
+          <div className="rounded-2xl border border-green-200 bg-green-50 p-4 text-green-900 dark:border-green-800/40 dark:bg-green-950/40 dark:text-green-300">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="font-semibold text-sm">Deposit Confirmed!</p>
+                <p className="text-xs text-green-700 dark:text-green-400">
+                  +{formatUsdc(receivedDeposit)} USDC has arrived in your wallet.
+                </p>
+              </div>
+              <Button
+                variant="primary"
+                onClick={() => router.push("/")}
+                className="py-1.5 px-3 text-xs bg-green-600 hover:bg-green-700"
+              >
+                View wallet
+              </Button>
+            </div>
+          </div>
+        )}
 
         {/* Network Selector Tabs */}
         <div className="grid grid-cols-2 p-1 bg-gray-100 dark:bg-white/5 rounded-2xl text-xs font-semibold text-center select-none">

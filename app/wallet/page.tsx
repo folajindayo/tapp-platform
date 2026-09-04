@@ -4,7 +4,9 @@ import { useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
-  PiBankBold,
+  PiQrCodeBold,
+  PiArrowDownLeftBold,
+  PiPaperPlaneTiltBold,
   PiWarningOctagonFill,
 } from "react-icons/pi";
 import { Screen } from "@/components/ui/Screen";
@@ -95,15 +97,35 @@ export default function WalletPage() {
               />
             </div>
 
-            <Link href="/cash-out" className="block w-full">
-              <Button
-                variant="primary"
-                leadingIcon={<PiBankBold className="text-base" />}
-                className="w-full"
-              >
-                Cash out
-              </Button>
-            </Link>
+            <div className="grid grid-cols-3 gap-2">
+              <Link href="/pay" className="block w-full">
+                <Button
+                  variant="primary"
+                  leadingIcon={<PiQrCodeBold className="text-base" />}
+                  className="px-2"
+                >
+                  Pay
+                </Button>
+              </Link>
+              <Link href="/send" className="block w-full">
+                <Button
+                  variant="secondary"
+                  leadingIcon={<PiPaperPlaneTiltBold className="text-base" />}
+                  className="px-2"
+                >
+                  Send
+                </Button>
+              </Link>
+              <Link href="/deposit" className="block w-full">
+                <Button
+                  variant="secondary"
+                  leadingIcon={<PiArrowDownLeftBold className="text-base" />}
+                  className="px-2"
+                >
+                  Receive
+                </Button>
+              </Link>
+            </div>
 
             {!wallet.data.has_linked_card && <NoCardBanner />}
 

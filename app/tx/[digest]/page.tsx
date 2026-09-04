@@ -33,7 +33,7 @@ import {
 const kindLabel: Record<string, string> = {
   pay: "Merchant payment",
   deposit: "Deposit received",
-  topup: "Card top up",
+  topup: "Deposit received",
   refund: "Refund received",
 };
 
@@ -176,7 +176,7 @@ export default function TxPage({
                 ]
               : []),
 
-            { label: "Network", value: "Sui" },
+            { label: "Network", value: t.digest.startsWith("0x") && t.digest.length === 66 ? "Base Mainnet" : "Sui" },
             {
               label: "Date",
               value: new Date(t.at).toLocaleString(undefined, {
@@ -188,7 +188,11 @@ export default function TxPage({
               label: "Digest",
               value: (
                 <a
-                  href={`https://suiscan.xyz/${process.env.NEXT_PUBLIC_SUI_NETWORK ?? "testnet"}/tx/${t.digest}`}
+                  href={
+                    t.digest.startsWith("0x") && t.digest.length === 66
+                      ? `https://basescan.org/tx/${t.digest}`
+                      : `https://suiscan.xyz/${process.env.NEXT_PUBLIC_SUI_NETWORK ?? "mainnet"}/tx/${t.digest}`
+                  }
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-flex items-center gap-1 font-mono text-xs text-blue-600 hover:underline dark:text-blue-400"

@@ -194,6 +194,30 @@ export async function signInWithGoogleCredential(
   return session;
 }
 
+export function formatApiErrorMessage(body: any, fallback: string): string {
+  if (Array.isArray(body?.data) && body.data.length > 0) {
+    const messages = body.data
+      .map((item: any) => {
+        if (item?.field && item?.message) {
+          return `${item.field}: ${item.message}`;
+        }
+        if (typeof item === "string") return item;
+        return item?.message || "";
+      })
+      .filter(Boolean);
+    if (messages.length > 0) {
+      return messages.join(". ");
+    }
+  }
+  if (typeof body?.data === "string" && body.data) {
+    return body.data;
+  }
+  if (body?.message && body.message !== "Failed to validate payload") {
+    return body.message;
+  }
+  return body?.message || fallback;
+}
+
 export async function signInWithEmailAndPassword(
   email: string,
   pass: string,
@@ -207,9 +231,13 @@ export async function signInWithEmailAndPassword(
     },
     body: JSON.stringify({ email, password: pass }),
   });
-  const body = (await res.json()) as { status?: string; message?: string; data?: { accessToken: string; refreshToken: string; evmAddress?: string; scopes?: string[] } };
-  if (!res.ok || body.status !== "success" || !body.data) {
-    throw new Error(body.message || `Sign-in failed (${res.status})`);
+  const body = (await res.json().catch(() => ({}))) as {
+    status?: string;
+    message?: string;
+    data?: any;
+  };
+  if (!res.ok || body.status !== "success" || !body.data || !body.data.accessToken) {
+    throw new Error(formatApiErrorMessage(body, `Sign-in failed (${res.status})`));
   }
 
   const session: Session = {
@@ -219,6 +247,7 @@ export async function signInWithEmailAndPassword(
     scope: (body.data.scopes || ["sender"]).join(" "),
     evmAddress: body.data.evmAddress,
     suiAddress: body.data.evmAddress || "",
+    zkLoginReady: true,
   };
   if (typeof window !== "undefined") {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(session));
@@ -247,9 +276,13 @@ export async function signUpWithEmailAndPassword(
       scopes: ["sender"],
     }),
   });
-  const body = (await res.json()) as { status?: string; message?: string; data?: { email: string; accessToken: string; refreshToken: string; evmAddress?: string } };
-  if (!res.ok || body.status !== "success" || !body.data) {
-    throw new Error(body.message || `Sign-up failed (${res.status})`);
+  const body = (await res.json().catch(() => ({}))) as {
+    status?: string;
+    message?: string;
+    data?: any;
+  };
+  if (!res.ok || body.status !== "success" || !body.data || !body.data.accessToken) {
+    throw new Error(formatApiErrorMessage(body, `Sign-up failed (${res.status})`));
   }
 
   const session: Session = {
@@ -259,11 +292,66 @@ export async function signUpWithEmailAndPassword(
     scope: "sender",
     evmAddress: body.data.evmAddress,
     suiAddress: body.data.evmAddress || "",
+    zkLoginReady: true,
   };
   if (typeof window !== "undefined") {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(session));
   }
   return session;
+}
+
+export async function requestPasswordReset(
+  email: string,
+): Promise<{ message: string; devOtp?: string }> {
+  const res = await fetch(`${API_BASE}/v1/auth/reset-password-token`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Client-Type": "web",
+      "ngrok-skip-browser-warning": "1",
+    },
+    body: JSON.stringify({ email }),
+  });
+  const body = (await res.json().catch(() => ({}))) as {
+    status?: string;
+    message?: string;
+    data?: any;
+  };
+  if (!res.ok || body.status !== "success") {
+    throw new Error(formatApiErrorMessage(body, "Failed to send reset password code"));
+  }
+  return {
+    message: body.message || "A reset code has been sent to your email",
+    devOtp: body.data?.devOtp,
+  };
+}
+
+export async function completePasswordReset(
+  email: string,
+  resetToken: string,
+  pass: string,
+): Promise<void> {
+  const res = await fetch(`${API_BASE}/v1/auth/reset-password`, {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+      "Client-Type": "web",
+      "ngrok-skip-browser-warning": "1",
+    },
+    body: JSON.stringify({
+      email,
+      resetToken,
+      password: pass,
+    }),
+  });
+  const body = (await res.json().catch(() => ({}))) as {
+    status?: string;
+    message?: string;
+    data?: any;
+  };
+  if (!res.ok || body.status !== "success") {
+    throw new Error(formatApiErrorMessage(body, "Failed to reset password"));
+  }
 }
 
 export function signOut(): void {
@@ -386,28 +474,8 @@ function readSession(): Session | null {
     if (!raw) return null;
     const parsed = JSON.parse(raw) as Session;
     
-    const WALLET_MOCK = process.env.NEXT_PUBLIC_WALLET_MOCK !== "0";
-    
-    // Check if the underlying zkLogin session is valid and not expired.
-    const zk = readZkLoginSession();
-    const isExpired = isZkLoginSessionExpired(zk);
-    const addressMatch = !!zk?.suiAddress && zk.suiAddress === parsed.suiAddress;
-    const zkValid = zk && !isExpired && addressMatch;
-    
-    if (typeof window !== "undefined") {
-      console.log("[zkLogin] readSession evaluation:", {
-        hasZkSession: !!zk,
-        isExpired,
-        addressMatch,
-        salt: zk?.salt,
-        zkAddress: zk?.suiAddress,
-        sessionAddress: parsed.suiAddress,
-        zkValid: !!zkValid,
-        walletMock: WALLET_MOCK,
-      });
-    }
-    
-    parsed.zkLoginReady = WALLET_MOCK ? true : !!zkValid;
+    // Authenticated session is active and ready on Base.
+    parsed.zkLoginReady = true;
     return parsed;
   } catch {
     return null;

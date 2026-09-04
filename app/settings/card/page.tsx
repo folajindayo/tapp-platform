@@ -22,11 +22,12 @@ import {
 import { useSession } from "@/lib/auth";
 import { cardsApi, type CardSummary } from "@/lib/api";
 import { formatNgn } from "@/lib/utils";
-import { formatUsdc } from "@/lib/wallet";
+import { formatUsdc, useWallet } from "@/lib/wallet";
 
 export default function SettingsCardPage() {
   const router = useRouter();
   const { hydrated, session } = useSession();
+  const wallet = useWallet();
 
   useEffect(() => {
     if (hydrated && !session) router.replace("/sign-in?next=/settings/card");
@@ -68,7 +69,10 @@ export default function SettingsCardPage() {
         ) : card.isError || !card.data ? (
           <NoCardState />
         ) : (
-          <CardDetail card={card.data} />
+          <CardDetail
+            card={card.data}
+            walletBalance={wallet.data?.usdc_subunit ?? 0}
+          />
         )}
       </AnimatedComponent>
     </Screen>
@@ -87,14 +91,22 @@ function NoCardState() {
           the activation link printed on the card.
         </p>
       </InfoBanner>
-      <Link href="/link" className="w-full">
-        <Button>Link a Tapp Card</Button>
-      </Link>
+      <div className="grid gap-2 w-full">
+        <Link href="/link" className="w-full">
+          <Button>Link a Tapp Card</Button>
+        </Link>
+      </div>
     </>
   );
 }
 
-function CardDetail({ card }: { card: CardSummary }) {
+function CardDetail({
+  card,
+  walletBalance,
+}: {
+  card: CardSummary;
+  walletBalance: number;
+}) {
   return (
     <>
       <div className="flex items-center justify-between">
@@ -106,7 +118,6 @@ function CardDetail({ card }: { card: CardSummary }) {
 
       <ReceiptCard
         rows={[
-          { label: "Card balance",       value: <span className="tabular-nums font-semibold text-blue-600 dark:text-blue-400">{formatUsdc(Number(card.on_chain_balance ?? "0"))} USDC</span> },
           { label: "Daily limit",       value: <span className="tabular-nums">{formatNgn(card.daily_limit_subunit / 100)}</span> },
           { label: "Per-tap limit",     value: <span className="tabular-nums">{formatNgn(card.per_tap_limit_subunit / 100)}</span> },
           { label: "Step-up above",     value: <span className="tabular-nums">{formatNgn(card.step_up_threshold_subunit / 100)}</span> },
@@ -122,17 +133,14 @@ function CardDetail({ card }: { card: CardSummary }) {
           </p>
           <p className="mt-1 text-xs">
             The last write was interrupted. Run a quick resync to keep
-            your balance accurate.
+            your card operational.
           </p>
         </InfoBanner>
       )}
 
       <div className="grid gap-3">
-        <Link href="/cards/top-up" className="block w-full">
-          <Button variant="primary">Top up</Button>
-        </Link>
         <Link href="/settings/limits" className="block w-full">
-          <Button variant="secondary">Edit limits</Button>
+          <Button variant="primary">Edit limits</Button>
         </Link>
         <Link href="/cards/resync" className="block w-full">
           <Button variant="secondary">Resync</Button>

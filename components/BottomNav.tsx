@@ -7,7 +7,6 @@ import {
   PiWalletFill,
   PiClockCounterClockwiseBold,
   PiQrCodeBold,
-  PiBankBold,
   PiCreditCardBold,
   PiGearSixBold,
 } from "react-icons/pi";
@@ -28,7 +27,6 @@ const TABS: Tab[] = [
   { href: "/",              label: "Wallet",   icon: PiWalletFill,                match: (p) => p === "/" },
   { href: "/history",       label: "Activity", icon: PiClockCounterClockwiseBold, match: (p) => p === "/history" || p.startsWith("/tx/") },
   { href: "/pay",           label: "Pay",      icon: PiQrCodeBold,                match: (p) => p === "/pay" || p.startsWith("/order/"), prominent: true },
-  { href: "/cash-out",      label: "Cash out", icon: PiBankBold,                  match: (p) => p === "/cash-out" || p === "/cashout" },
   { href: "/settings/card", label: "Card",     icon: PiCreditCardBold,            match: (p) => p === "/settings/card" || p.startsWith("/settings/limits") },
   { href: "/settings",      label: "Settings", icon: PiGearSixBold,               match: (p) => (p === "/settings" || p.startsWith("/settings/")) && !p.startsWith("/settings/card") && !p.startsWith("/settings/limits") },
 ];

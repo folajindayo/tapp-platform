@@ -166,7 +166,7 @@ function DoneState({ onNext }: { onNext: () => void }) {
           Card configured
         </h1>
         <p className="max-w-xs text-sm text-gray-500 dark:text-white/50">
-          Last step — confirm with Google to fund the card on-chain.
+          Last step — confirm to activate your card.
         </p>
       </div>
       <Button onClick={onNext}>Continue</Button>
