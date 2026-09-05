@@ -176,7 +176,7 @@ export default function TxPage({
                 ]
               : []),
 
-            { label: "Network", value: t.digest.startsWith("0x") && t.digest.length === 66 ? "Base Mainnet" : "Sui" },
+            { label: "Network", value: "Base Mainnet" },
             {
               label: "Date",
               value: new Date(t.at).toLocaleString(undefined, {
@@ -188,11 +188,7 @@ export default function TxPage({
               label: "Digest",
               value: (
                 <a
-                  href={
-                    t.digest.startsWith("0x") && t.digest.length === 66
-                      ? `https://basescan.org/tx/${t.digest}`
-                      : `https://suiscan.xyz/${process.env.NEXT_PUBLIC_SUI_NETWORK ?? "mainnet"}/tx/${t.digest}`
-                  }
+                  href={`https://basescan.org/tx/${t.digest}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-flex items-center gap-1 font-mono text-xs text-blue-600 hover:underline dark:text-blue-400"

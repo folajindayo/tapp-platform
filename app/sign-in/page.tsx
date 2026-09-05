@@ -12,6 +12,7 @@ import {
   PiArrowLeftBold,
   PiCheckCircleFill,
   PiShieldCheckFill,
+  PiSpinnerBold,
 } from "react-icons/pi";
 import { Screen } from "@/components/ui/Screen";
 import {
@@ -400,7 +401,7 @@ function SignInBody() {
               className="mt-2 flex w-full items-center justify-center rounded-2xl bg-blue-600 py-3.5 text-sm font-semibold text-white shadow-lg shadow-blue-500/25 transition-all hover:bg-blue-700 active:scale-[0.99] disabled:opacity-50"
             >
               {loading ? (
-                <div className="loader size-4 border-2 border-white border-t-transparent" />
+                <PiSpinnerBold className="size-5 animate-spin text-white" />
               ) : mode === "sign-in" ? (
                 "Sign In"
               ) : mode === "sign-up" ? (

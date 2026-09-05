@@ -19,7 +19,6 @@ export default function DepositPage() {
   const { hydrated, session } = useSession();
   const wallet = useWallet();
   const [copied, setCopied] = useState(false);
-  const [selectedNetwork, setSelectedNetwork] = useState<"base" | "sui">("base");
   const initialBalanceRef = useRef<number | null>(null);
   const [receivedDeposit, setReceivedDeposit] = useState<number | null>(null);
 
@@ -50,9 +49,7 @@ export default function DepositPage() {
   }, [wallet.data]);
 
   const depositAddress = wallet.data
-    ? selectedNetwork === "base"
-      ? (wallet.data.evm_address || wallet.data.sui_address)
-      : wallet.data.sui_address
+    ? (wallet.data.evm_address || wallet.data.sui_address)
     : "";
 
   async function copy() {
@@ -72,7 +69,7 @@ export default function DepositPage() {
       try {
         await navigator.share({
           title: "My Tapp wallet address",
-          text: `Send USDC on ${selectedNetwork === "base" ? "Base" : "Sui"} to: ${depositAddress}`,
+          text: `Send USDC on Base to: ${depositAddress}`,
         });
       } catch {
         // user dismissed; fall back to copy
@@ -93,7 +90,7 @@ export default function DepositPage() {
         <div className="space-y-2">
           <h1 className="text-xl font-medium">Receive</h1>
           <p className="text-sm text-gray-500 dark:text-white/50">
-            Send USDC on Base or Sui to the address below — funds land in your wallet
+            Send USDC on Base to the address below — funds land in your wallet
             usually within a minute.
           </p>
         </div>
@@ -118,30 +115,24 @@ export default function DepositPage() {
           </div>
         )}
 
-        {/* Network Selector Tabs */}
-        <div className="grid grid-cols-2 p-1 bg-gray-100 dark:bg-white/5 rounded-2xl text-xs font-semibold text-center select-none">
-          <button
-            type="button"
-            onClick={() => setSelectedNetwork("base")}
-            className={`py-2.5 rounded-xl transition-all ${
-              selectedNetwork === "base"
-                ? "bg-blue-600 text-white shadow-sm font-bold"
-                : "text-gray-500 dark:text-white/40 hover:text-neutral-900 dark:hover:text-white"
-            }`}
-          >
-            Base Network (USDC)
-          </button>
-          <button
-            type="button"
-            onClick={() => setSelectedNetwork("sui")}
-            className={`py-2.5 rounded-xl transition-all ${
-              selectedNetwork === "sui"
-                ? "bg-blue-600 text-white shadow-sm font-bold"
-                : "text-gray-500 dark:text-white/40 hover:text-neutral-900 dark:hover:text-white"
-            }`}
-          >
-            Sui Network (USDC/SUI)
-          </button>
+        {/* Network Indicator — Base USDC only */}
+        <div className="flex items-center justify-between rounded-2xl border border-blue-500/20 bg-blue-500/5 p-3 dark:border-blue-500/30 dark:bg-blue-500/10">
+          <div className="flex items-center gap-3">
+            <div className="flex size-9 items-center justify-center rounded-xl bg-blue-600 text-white font-bold text-sm shadow-sm">
+              $
+            </div>
+            <div>
+              <div className="flex items-center gap-1.5 font-semibold text-neutral-900 dark:text-white text-sm">
+                USDC
+                <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-medium text-blue-700 dark:bg-blue-900/50 dark:text-blue-300">
+                  Base
+                </span>
+              </div>
+              <p className="text-[11px] text-gray-500 dark:text-white/60">
+                USD Coin on Base Mainnet
+              </p>
+            </div>
+          </div>
         </div>
 
         {wallet.data ? (
@@ -193,12 +184,10 @@ export default function DepositPage() {
 
             <InfoBanner>
               <p className="font-medium text-neutral-900 dark:text-white">
-                {selectedNetwork === "base" ? "Base Mainnet USDC" : "Sui network only"}
+                Base Mainnet only
               </p>
               <p className="mt-1 text-xs">
-                {selectedNetwork === "base"
-                  ? "Send USDC on the Base Mainnet (EVM) network. Always double-check network and address before sending."
-                  : "Send USDC or native SUI on the Sui network — other assets or networks can be permanently lost."}
+                Only send USDC on the Base network to this address. Sending tokens on the wrong network may result in permanent loss.
               </p>
             </InfoBanner>
           </>

@@ -30,10 +30,12 @@ export default function SettingsPage() {
   const wallet = useWallet();
   const [copied, setCopied] = useState(false);
 
+  const displayAddress = wallet.data?.evm_address || wallet.data?.sui_address || "";
+
   const copyToClipboard = async () => {
-    if (!wallet.data?.sui_address) return;
+    if (!displayAddress) return;
     try {
-      await navigator.clipboard.writeText(wallet.data.sui_address);
+      await navigator.clipboard.writeText(displayAddress);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch (err) {
@@ -134,11 +136,10 @@ export default function SettingsPage() {
             className="cursor-pointer select-all break-all font-mono text-xs text-neutral-900 transition-colors hover:text-blue-600 dark:text-white/80 dark:hover:text-blue-400"
             title="Click to copy"
           >
-            {wallet.data ? wallet.data.sui_address : "—"}
+            {displayAddress || "—"}
           </p>
           <p className="text-xs text-gray-500 dark:text-white/50">
-            {wallet.data ? shortenAddress(wallet.data.sui_address) : ""} ·
-            {process.env.NEXT_PUBLIC_SUI_NETWORK === "mainnet" ? "Sui Mainnet" : "Sui Testnet"}
+            {displayAddress ? shortenAddress(displayAddress) : ""} · Base Mainnet
           </p>
         </div>
 
