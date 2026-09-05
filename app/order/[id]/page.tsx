@@ -408,8 +408,8 @@ export default function OrderPage({ params }: { params: Promise<{ id: string }> 
               Insufficient balance
             </p>
             <p className="mt-1 text-xs">
-              You do not have enough USDC or SUI in your wallet to cover this order and transaction fees.
-              Your balance is {wallet.data ? formatUsdc(wallet.data.usdc_subunit) : "0.00"} USDC and {wallet.data ? (wallet.data.sui_mist / 1_000_000_000).toFixed(2) : "0.00"} SUI.
+              You do not have enough USDC in your wallet to cover this order.
+              Your balance is {wallet.data ? formatUsdc(wallet.data.usdc_subunit) : "0.00"} USDC.
             </p>
             <Link href="/deposit" className="mt-3 inline-block">
               <Button
