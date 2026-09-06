@@ -1,0 +1,16 @@
+.git
+.github
+.vscode
+.idea
+*.md
+.env
+*.env
+main
+rails-sui
+*.log
+*.test
+*.out
+tmp
+bin
+contracts/*/build
+node_modules

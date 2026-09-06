@@ -1,0 +1,213 @@
+package crypto
+
+import (
+	"crypto/aes"
+	"crypto/cipher"
+	"crypto/rand"
+	"crypto/rsa"
+	"crypto/sha256"
+	"crypto/x509"
+	"encoding/hex"
+	"encoding/json"
+	"encoding/pem"
+	"fmt"
+	"io"
+	"strings"
+
+	"github.com/usezoracle/rails-sui/config"
+	"golang.org/x/crypto/bcrypt"
+)
+
+var authConf = config.AuthConfig()
+var _ = config.CryptoConfig // kept callable; package init validates it loads
+
+func getSecretKeyBytes() []byte {
+	sec := authConf.Secret
+	if len(sec) == 64 {
+		if b, err := hex.DecodeString(sec); err == nil && len(b) == 32 {
+			return b
+		}
+	}
+	if len(sec) == 16 || len(sec) == 24 || len(sec) == 32 {
+		return []byte(sec)
+	}
+	h := sha256.Sum256([]byte(sec))
+	return h[:]
+}
+
+// CheckPasswordHash is a function to compare provided password with the hashed password
+func CheckPasswordHash(password, hash string) bool {
+	err := bcrypt.CompareHashAndPassword([]byte(hash), []byte(password))
+	return err == nil
+}
+
+// EncryptPlain encrypts plaintext using AES encryption algorithm with Galois Counter Mode
+func EncryptPlain(plaintext []byte) ([]byte, error) {
+	block, err := aes.NewCipher(getSecretKeyBytes())
+	if err != nil {
+		return nil, err
+	}
+
+	// Create GCM with 12 byte nonce
+	gcm, err := cipher.NewGCM(block)
+	if err != nil {
+		return nil, err
+	}
+
+	// Generate random nonce
+	nonce := make([]byte, gcm.NonceSize())
+	if _, err = io.ReadFull(rand.Reader, nonce); err != nil {
+		return nil, err
+	}
+
+	// Encrypt and append nonce
+	ciphertext := gcm.Seal(nonce, nonce, plaintext, nil)
+
+	return ciphertext, nil
+}
+
+// DecryptPlain decrypts ciphertext using AES encryption algorithm with Galois Counter Mode
+func DecryptPlain(ciphertext []byte) ([]byte, error) {
+
+	block, err := aes.NewCipher(getSecretKeyBytes())
+	if err != nil {
+		return nil, err
+	}
+
+	// Create GCM with nonce
+	gcm, err := cipher.NewGCM(block)
+	if err != nil {
+		return nil, err
+	}
+
+	// Parse nonce from ciphertext
+	nonce, ciphertext := ciphertext[:gcm.NonceSize()], ciphertext[gcm.NonceSize():]
+
+	// Decrypt and return plaintext
+	plaintext, err := gcm.Open(nil, nonce, ciphertext, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return plaintext, nil
+}
+
+// EncryptJSON encrypts JSON serializable data using AES encryption algorithm with Galois Counter Mode
+func EncryptJSON(data interface{}) ([]byte, error) {
+
+	// Encode data to JSON
+	plaintext, err := json.Marshal(data)
+	if err != nil {
+		return nil, err
+	}
+
+	// Encrypt as normal
+	ciphertext, err := EncryptPlain(plaintext)
+	if err != nil {
+		return nil, err
+	}
+
+	return ciphertext, nil
+}
+
+// DecryptJSON decrypts JSON serializable data using AES encryption algorithm with Galois Counter Mode
+func DecryptJSON(ciphertext []byte) (interface{}, error) {
+
+	// Decrypt as normal
+	plaintext, err := DecryptPlain(ciphertext)
+	if err != nil {
+		return nil, err
+	}
+
+	// Decode JSON back to dynamic type
+	var data interface{}
+	if err := json.Unmarshal(plaintext, &data); err != nil {
+		return nil, err
+	}
+
+	return data, nil
+
+}
+
+// PublicKeyEncryptPlain encrypts plaintext using RSA 2048 encryption algorithm
+func PublicKeyEncryptPlain(plaintext []byte, publicKeyPEM string) ([]byte, error) {
+	publicKeyPEM = strings.ReplaceAll(publicKeyPEM, `\n`, "\n")
+	block, _ := pem.Decode([]byte(publicKeyPEM))
+	if block == nil {
+		return nil, fmt.Errorf("failed to parse PEM block")
+	}
+
+	pub, err := x509.ParsePKIXPublicKey(block.Bytes)
+	if err != nil {
+		return nil, err
+	}
+
+	var publicKey rsa.PublicKey
+
+	switch pub := pub.(type) {
+	case *rsa.PublicKey:
+		publicKey = *pub
+	default:
+		return nil, fmt.Errorf("unsupported key type")
+	}
+
+	encryptedData, err := rsa.EncryptPKCS1v15(rand.Reader, &publicKey, plaintext)
+	if err != nil {
+		return nil, err
+	}
+
+	return encryptedData, nil
+}
+
+// PublicKeyEncryptJSON encrypts JSON serializable data using RSA 2048 encryption algorithm
+func PublicKeyEncryptJSON(data interface{}, publicKeyPEM string) ([]byte, error) {
+
+	// Encode data to JSON
+	plaintext, err := json.Marshal(data)
+	if err != nil {
+		return nil, err
+	}
+
+	// Encrypt as normal
+	ciphertext, err := PublicKeyEncryptPlain(plaintext, publicKeyPEM)
+	if err != nil {
+		return nil, err
+	}
+
+	return ciphertext, nil
+}
+
+// PublicKeyDecryptPlain decrypts ciphertext using RSA 2048 encryption algorithm
+func PublicKeyDecryptPlain(ciphertext []byte, privateKeyPEM string) ([]byte, error) {
+	privateKeyPEM = strings.ReplaceAll(privateKeyPEM, `\n`, "\n")
+	privateKeyBlock, _ := pem.Decode([]byte(privateKeyPEM))
+	privateKey, err := x509.ParsePKCS1PrivateKey(privateKeyBlock.Bytes)
+	if err != nil {
+		return nil, err
+	}
+
+	decryptedData, err := rsa.DecryptPKCS1v15(rand.Reader, privateKey, ciphertext)
+	if err != nil {
+		return nil, err
+	}
+
+	return decryptedData, nil
+}
+
+// PublicKeyDecryptJSON decrypts JSON serializable data using RSA 2048 encryption algorithm
+func PublicKeyDecryptJSON(ciphertext []byte, privateKeyPEM string) (interface{}, error) {
+
+	// Decrypt as normal
+	plaintext, err := PublicKeyDecryptPlain(ciphertext, privateKeyPEM)
+	if err != nil {
+		return nil, err
+	}
+
+	// Decode JSON back to dynamic type
+	var data interface{}
+	if err := json.Unmarshal(plaintext, &data); err != nil {
+		return nil, err
+	}
+
+	return data, nil
+}
