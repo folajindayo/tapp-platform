@@ -1,0 +1,57 @@
+# Dependencies
+node_modules/
+.pnp.*
+.yarn/
+
+# Build output
+dist/
+build/
+.next/
+out/
+.turbo/
+*.tsbuildinfo
+
+# Compiled binaries. Three of these were committed to the source repos and
+# accounted for ~215MB of history; the import stripped them. Do not let them
+# back in -- a Go binary belongs in a release artifact, never in git.
+*.exe
+*.dll
+*.so
+*.dylib
+*.test
+*.apk
+*.aab
+*.ipa
+
+# Native build products (Expo prebuild regenerates these)
+android/
+ios/
+.expo/
+
+# Media. ~183MB of demo video was committed to the PWA. Large media belongs
+# in object storage with a URL in the repo, not in the history of a payments
+# service that every developer and CI job has to clone.
+*.mov
+*.MOV
+*.mp4
+*.avi
+*.webm
+
+# Secrets
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# Local databases and scratch
+*.db
+*.sqlite
+*.sqlite3
+tmp/
+scratch/
+
+# Editors / OS
+.DS_Store
+.idea/
+.vscode/
+*.swp
