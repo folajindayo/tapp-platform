@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 
 	"github.com/usezoracle/tapp/api/internal/ledger"
 	"github.com/usezoracle/tapp/api/internal/money"
@@ -90,7 +91,7 @@ func Returned(
 // queue of things leaving the system, when a payout to their bank is raised.
 func MerchantSettled(
 	ctx context.Context,
-	q ledger.Querier,
+	tx pgx.Tx,
 	merchant uuid.UUID,
 	amount money.Amount,
 	payoutID uuid.UUID,
@@ -100,14 +101,24 @@ func MerchantSettled(
 	}
 
 	c := amount.Currency()
-	r := newResolver(ctx, q)
+	r := newResolver(ctx, tx)
+
+	// A merchant cannot be paid out more than they are owed. Spending account
+	// first, then its lock, then everything else. See Tap.
 	owed := r.account(ledger.Merchant(merchant), ledger.KindMerchantPayable, c)
+	if r.err != nil {
+		return uuid.Nil, r.err
+	}
+	if err := ensureFunds(ctx, tx, owed, amount); err != nil {
+		return uuid.Nil, err
+	}
+
 	payable := r.account(ledger.System(), ledger.KindPayable, c)
 	if r.err != nil {
 		return uuid.Nil, r.err
 	}
 
-	return ledger.Post(ctx, q, ledger.Ref{
+	return ledger.Post(ctx, tx, ledger.Ref{
 		Type:    "merchant_payout",
 		ID:      &payoutID,
 		IdemKey: "merchant_payout:" + payoutID.String(),

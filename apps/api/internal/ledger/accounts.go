@@ -2,9 +2,11 @@ package ledger
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 
 	"github.com/usezoracle/tapp/api/internal/money"
 )
@@ -61,18 +63,43 @@ func AccountFor(ctx context.Context, q Querier, owner Owner, kind string, c mone
 		return uuid.Nil, err
 	}
 
+	// Read before writing, and this is not a micro-optimisation.
+	//
+	// The obvious implementation is a single INSERT ... ON CONFLICT DO UPDATE,
+	// which always returns the row. But DO UPDATE is a write, so it takes an
+	// exclusive row lock held to the end of the transaction -- on EVERY
+	// account the movement touches, including the shared system accounts. That
+	// means every tap on the platform would queue behind every other tap on
+	// the single `revenue` row, serialising the entire system through it.
+	//
+	// It also creates locks in whatever order each movement happens to resolve
+	// its accounts, which is how concurrent movements deadlock against each
+	// other. Locking is the job of movements.ensureFunds, which takes exactly
+	// one lock on the account actually being spent.
 	var id uuid.UUID
-	// ON CONFLICT ... DO UPDATE rather than DO NOTHING, because DO NOTHING
-	// returns no row and would need a second round trip on every call after
-	// the first.
 	err := q.QueryRow(ctx, `
+		SELECT id FROM ledger_accounts
+		 WHERE owner_id IS NOT DISTINCT FROM $1
+		   AND kind = $2::account_kind
+		   AND currency = $3::currency`,
+		owner.ID, kind, string(c)).Scan(&id)
+	if err == nil {
+		return id, nil
+	}
+	if !errors.Is(err, pgx.ErrNoRows) {
+		return uuid.Nil, fmt.Errorf("ledger: resolve %s/%s %s account: %w", owner.Kind, kind, c, err)
+	}
+
+	// First use of this account. ON CONFLICT covers the race where another
+	// transaction created it between the read and this insert.
+	err = q.QueryRow(ctx, `
 		INSERT INTO ledger_accounts (owner_id, owner_kind, kind, currency)
 		VALUES ($1, $2::owner_kind, $3::account_kind, $4::currency)
 		ON CONFLICT (owner_id, kind, currency) DO UPDATE SET kind = EXCLUDED.kind
 		RETURNING id`,
 		owner.ID, owner.Kind, kind, string(c)).Scan(&id)
 	if err != nil {
-		return uuid.Nil, fmt.Errorf("ledger: resolve %s/%s %s account: %w", owner.Kind, kind, c, err)
+		return uuid.Nil, fmt.Errorf("ledger: create %s/%s %s account: %w", owner.Kind, kind, c, err)
 	}
 	return id, nil
 }

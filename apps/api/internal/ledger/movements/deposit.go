@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 
 	"github.com/usezoracle/tapp/api/internal/ledger"
 	"github.com/usezoracle/tapp/api/internal/money"
@@ -62,7 +63,7 @@ func Deposit(
 // the credit, never by our own request having been accepted.
 func Withdraw(
 	ctx context.Context,
-	q ledger.Querier,
+	tx pgx.Tx,
 	user uuid.UUID,
 	amount money.Amount,
 	fee money.Amount,
@@ -80,8 +81,17 @@ func Withdraw(
 	}
 
 	c := amount.Currency()
-	r := newResolver(ctx, q)
+	r := newResolver(ctx, tx)
+
+	// Spending account first, then its lock, then everything else. See Tap.
 	from := r.account(ledger.User(user), ledger.KindAvailable, c)
+	if r.err != nil {
+		return uuid.Nil, r.err
+	}
+	if err := ensureFunds(ctx, tx, from, amount); err != nil {
+		return uuid.Nil, err
+	}
+
 	payable := r.account(ledger.System(), ledger.KindPayable, c)
 	revenue := r.account(ledger.System(), ledger.KindRevenue, c)
 	if r.err != nil {
@@ -96,7 +106,7 @@ func Withdraw(
 		entries = append(entries, ledger.Entry{AccountID: revenue, Amount: fee, Reason: "withdrawal.fee"})
 	}
 
-	return ledger.Post(ctx, q, ledger.Ref{
+	return ledger.Post(ctx, tx, ledger.Ref{
 		Type:    "withdrawal",
 		ID:      &withdrawalID,
 		IdemKey: "withdrawal:" + withdrawalID.String(),

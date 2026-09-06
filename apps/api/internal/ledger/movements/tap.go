@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 
 	"github.com/usezoracle/tapp/api/internal/ledger"
 	"github.com/usezoracle/tapp/api/internal/money"
@@ -25,12 +26,13 @@ import (
 // fabricated a transaction hash and returned "settled" -- a receipt for a
 // payment that never moved.
 //
-// Callers must pass a pgx.Tx, not the pool. A tap's limit check, nonce
-// consumption and ledger entries have to commit or fail together; a check that
-// commits separately from the movement it authorised is not a check.
+// It takes a pgx.Tx rather than a Querier so that the requirement is enforced
+// by the compiler instead of by a comment: the cardholder's balance check, the
+// nonce consumption and these entries have to commit or roll back together.
+// Use InTx.
 func Tap(
 	ctx context.Context,
-	q ledger.Querier,
+	tx pgx.Tx,
 	cardholder, merchant uuid.UUID,
 	amount money.Amount,
 	fee money.Amount,
@@ -54,8 +56,22 @@ func Tap(
 	}
 
 	c := amount.Currency()
-	r := newResolver(ctx, q)
+	r := newResolver(ctx, tx)
+
+	// The spending account is resolved and locked FIRST, before any other
+	// account is touched. Every movement takes exactly one lock and takes it
+	// first, so two movements can never hold one lock each and wait on the
+	// other's -- there is no ordering to get wrong because there is only ever
+	// one. Resolving the merchant and revenue accounts afterwards is a read on
+	// the common path and takes no lock at all.
 	from := r.account(ledger.User(cardholder), ledger.KindAvailable, c)
+	if r.err != nil {
+		return uuid.Nil, r.err
+	}
+	if err := ensureFunds(ctx, tx, from, amount); err != nil {
+		return uuid.Nil, err
+	}
+
 	owed := r.account(ledger.Merchant(merchant), ledger.KindMerchantPayable, c)
 	revenue := r.account(ledger.System(), ledger.KindRevenue, c)
 	if r.err != nil {
@@ -73,7 +89,7 @@ func Tap(
 	// The tap id is the idempotency key. A merchant app that retries a debit
 	// after a timeout -- which is exactly what it does, because it cannot tell
 	// a lost response from a declined one -- charges the cardholder once.
-	return ledger.Post(ctx, q, ledger.Ref{
+	return ledger.Post(ctx, tx, ledger.Ref{
 		Type:    "tap",
 		ID:      &tapID,
 		IdemKey: "tap:" + tapID.String(),

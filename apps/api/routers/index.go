@@ -12,6 +12,7 @@ import (
 	"github.com/usezoracle/tapp/api/controllers/lp"
 	"github.com/usezoracle/tapp/api/controllers/provider"
 	"github.com/usezoracle/tapp/api/controllers/sender"
+	apiv1 "github.com/usezoracle/tapp/api/internal/api/v1"
 	"github.com/usezoracle/tapp/api/routers/middleware"
 	u "github.com/usezoracle/tapp/api/utils"
 )
@@ -252,6 +253,11 @@ func cardsRoutes(route *gin.Engine) {
 	// all writes audited to admin_audit_logs.
 	adminConsole := route.Group("/v1/admin/")
 	adminConsole.Use(cards.AdminTokenMiddleware)
+
+	// The ledger's own health. Watch this: the per-currency zero-sum it checks
+	// is enforced by a database trigger, so it can only fail if something
+	// wrote around the ledger, and it answers non-2xx when it does.
+	adminConsole.GET("ledger/audit", apiv1.LedgerAudit)
 
 	txCtrl := adminCtrl.NewTransactionsController()
 	adminConsole.GET("transactions", txCtrl.GetTransactions)

@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 
 	"github.com/usezoracle/tapp/api/internal/ledger"
 	"github.com/usezoracle/tapp/api/internal/money"
@@ -48,7 +49,7 @@ type Conversion struct {
 // money simply gone, with nothing in the ledger relating the two halves.
 func Convert(
 	ctx context.Context,
-	q ledger.Querier,
+	tx pgx.Tx,
 	user uuid.UUID,
 	conv Conversion,
 ) (uuid.UUID, error) {
@@ -58,8 +59,20 @@ func Convert(
 
 	sold, bought := conv.Sold.Currency(), conv.Bought.Currency()
 
-	r := newResolver(ctx, q)
+	r := newResolver(ctx, tx)
+
+	// A conversion spends the sold currency, so the same lock-and-check
+	// applies -- without it a user could sell the same dollars twice by
+	// issuing two conversions at once. Sold account first, then its lock, then
+	// everything else. See Tap.
 	userSold := r.account(ledger.User(user), ledger.KindAvailable, sold)
+	if r.err != nil {
+		return uuid.Nil, r.err
+	}
+	if err := ensureFunds(ctx, tx, userSold, conv.Sold); err != nil {
+		return uuid.Nil, err
+	}
+
 	userBought := r.account(ledger.User(user), ledger.KindAvailable, bought)
 	posSold := r.account(ledger.System(), ledger.KindFXPosition, sold)
 	posBought := r.account(ledger.System(), ledger.KindFXPosition, bought)
@@ -88,7 +101,7 @@ func Convert(
 			AccountID: revenue, Amount: conv.Spread, Reason: "fx.spread"})
 	}
 
-	return ledger.Post(ctx, q, ledger.Ref{
+	return ledger.Post(ctx, tx, ledger.Ref{
 		Type:    "fx",
 		IdemKey: "fx:" + conv.QuoteID,
 	}, entries)

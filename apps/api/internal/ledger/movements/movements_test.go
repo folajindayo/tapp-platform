@@ -4,9 +4,11 @@ import (
 	"context"
 	"errors"
 	"os"
+	"sync"
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/usezoracle/tapp/api/internal/ledger"
@@ -35,6 +37,12 @@ func testPool(t *testing.T) *pgxpool.Pool {
 	}
 	t.Cleanup(pool.Close)
 	return pool
+}
+
+// spend runs a movement in its own transaction, the way every caller must.
+func spend(t *testing.T, pool *pgxpool.Pool, fn func(pgx.Tx) error) error {
+	t.Helper()
+	return InTx(context.Background(), pool, fn)
 }
 
 func balance(t *testing.T, pool *pgxpool.Pool, o ledger.Owner, kind string, c money.Currency) money.Amount {
@@ -97,7 +105,10 @@ func TestATapMovesValueFromCardholderToMerchant(t *testing.T) {
 	if _, err := Deposit(ctx, pool, cardholder, money.Naira(10_000), "bank", uuid.NewString()); err != nil {
 		t.Fatalf("Deposit: %v", err)
 	}
-	if _, err := Tap(ctx, pool, cardholder, merchant, amount, fee, uuid.New()); err != nil {
+	if err := spend(t, pool, func(tx pgx.Tx) error {
+		_, e := Tap(ctx, tx, cardholder, merchant, amount, fee, uuid.New())
+		return e
+	}); err != nil {
 		t.Fatalf("Tap: %v", err)
 	}
 
@@ -128,13 +139,16 @@ func TestARetriedTapChargesOnce(t *testing.T) {
 	if _, err := Deposit(ctx, pool, cardholder, money.Naira(1_000), "bank", uuid.NewString()); err != nil {
 		t.Fatalf("Deposit: %v", err)
 	}
-	if _, err := Tap(ctx, pool, cardholder, merchant, amount, money.Zero(money.NGN), tapID); err != nil {
+	tap := func() error {
+		return spend(t, pool, func(tx pgx.Tx) error {
+			_, e := Tap(ctx, tx, cardholder, merchant, amount, money.Zero(money.NGN), tapID)
+			return e
+		})
+	}
+	if err := tap(); err != nil {
 		t.Fatalf("first tap: %v", err)
 	}
-	err := func() error {
-		_, e := Tap(ctx, pool, cardholder, merchant, amount, money.Zero(money.NGN), tapID)
-		return e
-	}()
+	err := tap()
 	if !errors.Is(err, ledger.ErrDuplicate) {
 		t.Fatalf("retry returned %v, want ErrDuplicate", err)
 	}
@@ -160,7 +174,10 @@ func TestAReversalRestoresTheCardholderIncludingTheFee(t *testing.T) {
 		t.Fatalf("Deposit: %v", err)
 	}
 	revenueDelta := delta(t, pool, ledger.System(), ledger.KindRevenue, money.NGN, func() {
-		if _, err := Tap(ctx, pool, cardholder, merchant, amount, fee, tapID); err != nil {
+		if err := spend(t, pool, func(tx pgx.Tx) error {
+			_, e := Tap(ctx, tx, cardholder, merchant, amount, fee, tapID)
+			return e
+		}); err != nil {
 			t.Fatalf("Tap: %v", err)
 		}
 		if _, err := TapReversal(ctx, pool, cardholder, merchant, amount, fee, tapID, "goods_not_supplied"); err != nil {
@@ -192,11 +209,14 @@ func TestAConversionBooksTheSpreadAndTheExposure(t *testing.T) {
 
 	// $10 at ₦1,540, 0.5% spread: gross ₦15,400, spread ₦77, user gets ₦15,323.
 	convert := func() {
-		if _, err := Convert(ctx, pool, user, Conversion{
-			Sold:    money.Dollars(10),
-			Bought:  money.New(1_532_300, money.NGN),
-			Spread:  money.New(7_700, money.NGN),
-			QuoteID: uuid.NewString(),
+		if err := spend(t, pool, func(tx pgx.Tx) error {
+			_, e := Convert(ctx, tx, user, Conversion{
+				Sold:    money.Dollars(10),
+				Bought:  money.New(1_532_300, money.NGN),
+				Spread:  money.New(7_700, money.NGN),
+				QuoteID: uuid.NewString(),
+			})
+			return e
 		}); err != nil {
 			t.Fatalf("Convert: %v", err)
 		}
@@ -250,7 +270,11 @@ func TestAConversionRefusesWhatCannotBePriced(t *testing.T) {
 			Sold: money.Dollars(1), Bought: money.Naira(1500), Spread: money.New(-1, money.NGN), QuoteID: "q"},
 	} {
 		t.Run(name, func(t *testing.T) {
-			if _, err := Convert(ctx, pool, user, conv); err == nil {
+			err := spend(t, pool, func(tx pgx.Tx) error {
+				_, e := Convert(ctx, tx, user, conv)
+				return e
+			})
+			if err == nil {
 				t.Fatalf("%s was accepted", name)
 			}
 		})
@@ -271,7 +295,10 @@ func TestValueSitsInPayableUntilTheProviderConfirms(t *testing.T) {
 		t.Fatalf("Deposit: %v", err)
 	}
 	owed := delta(t, pool, ledger.System(), ledger.KindPayable, money.NGN, func() {
-		if _, err := Withdraw(ctx, pool, user, money.Naira(5_000), money.Naira(10), withdrawalID); err != nil {
+		if err := spend(t, pool, func(tx pgx.Tx) error {
+			_, e := Withdraw(ctx, tx, user, money.Naira(5_000), money.Naira(10), withdrawalID)
+			return e
+		}); err != nil {
 			t.Fatalf("Withdraw: %v", err)
 		}
 	})
@@ -313,7 +340,10 @@ func TestARefusedWithdrawalGoesBackToTheSender(t *testing.T) {
 	if _, err := Deposit(ctx, pool, user, money.Naira(2_000), "bank", uuid.NewString()); err != nil {
 		t.Fatalf("Deposit: %v", err)
 	}
-	if _, err := Withdraw(ctx, pool, user, money.Naira(2_000), money.Zero(money.NGN), withdrawalID); err != nil {
+	if err := spend(t, pool, func(tx pgx.Tx) error {
+		_, e := Withdraw(ctx, tx, user, money.Naira(2_000), money.Zero(money.NGN), withdrawalID)
+		return e
+	}); err != nil {
 		t.Fatalf("Withdraw: %v", err)
 	}
 	released := delta(t, pool, ledger.System(), ledger.KindPayable, money.NGN, func() {
@@ -327,5 +357,149 @@ func TestARefusedWithdrawalGoesBackToTheSender(t *testing.T) {
 	}
 	if released.Minor() != -200_000 {
 		t.Errorf("payable released %s, want -₦2,000.00", released)
+	}
+}
+
+// You cannot spend money you do not have. The ledger primitive permits a
+// negative balance -- obligation accounts must go negative -- so this is the
+// movement layer's job, and without it nothing in the system stops a card
+// being tapped against an empty account.
+func TestATapAgainstAnEmptyBalanceIsDeclined(t *testing.T) {
+	pool := testPool(t)
+	ctx := context.Background()
+
+	cardholder, merchant := uuid.New(), uuid.New()
+	if _, err := Deposit(ctx, pool, cardholder, money.Naira(100), "bank", uuid.NewString()); err != nil {
+		t.Fatalf("Deposit: %v", err)
+	}
+
+	err := spend(t, pool, func(tx pgx.Tx) error {
+		_, e := Tap(ctx, tx, cardholder, merchant, money.Naira(500), money.Zero(money.NGN), uuid.New())
+		return e
+	})
+	if !errors.Is(err, ErrInsufficientFunds) {
+		t.Fatalf("tap of ₦500 against ₦100 returned %v, want ErrInsufficientFunds", err)
+	}
+
+	// The declined tap must leave both sides exactly as they were.
+	if got := balance(t, pool, ledger.User(cardholder), ledger.KindAvailable, money.NGN); got.Minor() != 10_000 {
+		t.Errorf("cardholder = %s, want their ₦100.00 untouched", got)
+	}
+	if got := balance(t, pool, ledger.Merchant(merchant), ledger.KindMerchantPayable, money.NGN); !got.IsZero() {
+		t.Errorf("merchant was credited %s by a declined tap", got)
+	}
+}
+
+// The double-spend. Ten simultaneous taps against a balance that covers three.
+//
+// This is the test the predecessor could not pass: its card debit held no
+// database transaction at all, so every concurrent request read the same
+// spent-today figure, every one of them concluded there was room, and every
+// one of them charged. Here they queue on the account row and exactly three
+// get through.
+func TestConcurrentTapsCannotOverdraw(t *testing.T) {
+	pool := testPool(t)
+	ctx := context.Background()
+
+	cardholder, merchant := uuid.New(), uuid.New()
+	if _, err := Deposit(ctx, pool, cardholder, money.Naira(300), "bank", uuid.NewString()); err != nil {
+		t.Fatalf("Deposit: %v", err)
+	}
+
+	const attempts = 10
+	const each = 100 // ₦100 each, so exactly three can succeed
+
+	var wg sync.WaitGroup
+	errs := make([]error, attempts)
+	for i := range attempts {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			errs[i] = spend(t, pool, func(tx pgx.Tx) error {
+				_, e := Tap(ctx, tx, cardholder, merchant,
+					money.Naira(each), money.Zero(money.NGN), uuid.New())
+				return e
+			})
+		}()
+	}
+	wg.Wait()
+
+	charged, declined := 0, 0
+	for _, err := range errs {
+		switch {
+		case err == nil:
+			charged++
+		case errors.Is(err, ErrInsufficientFunds):
+			declined++
+		default:
+			t.Errorf("unexpected failure: %v", err)
+		}
+	}
+
+	if charged != 3 {
+		t.Errorf("%d taps succeeded against a ₦300 balance, want exactly 3", charged)
+	}
+	if declined != attempts-3 {
+		t.Errorf("%d taps declined, want %d", declined, attempts-3)
+	}
+
+	// The only thing that really matters: the balance never went negative.
+	final := balance(t, pool, ledger.User(cardholder), ledger.KindAvailable, money.NGN)
+	if final.IsNegative() {
+		t.Fatalf("the cardholder was overdrawn to %s", final)
+	}
+	if final.Minor() != 0 {
+		t.Errorf("final balance = %s, want ₦0.00", final)
+	}
+	if got := balance(t, pool, ledger.Merchant(merchant), ledger.KindMerchantPayable, money.NGN); got.Minor() != 30_000 {
+		t.Errorf("merchant owed %s, want ₦300.00 -- no more than was actually spent", got)
+	}
+}
+
+// The same guarantee across different spending paths. A tap and a withdrawal
+// racing for the last of a balance must not both win, which is why the lock is
+// on the account rather than on the card.
+func TestATapAndAWithdrawalCannotBothTakeTheLastOfIt(t *testing.T) {
+	pool := testPool(t)
+	ctx := context.Background()
+
+	user, merchant := uuid.New(), uuid.New()
+	if _, err := Deposit(ctx, pool, user, money.Naira(1_000), "bank", uuid.NewString()); err != nil {
+		t.Fatalf("Deposit: %v", err)
+	}
+
+	var wg sync.WaitGroup
+	var tapErr, withdrawErr error
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		tapErr = spend(t, pool, func(tx pgx.Tx) error {
+			_, e := Tap(ctx, tx, user, merchant, money.Naira(1_000), money.Zero(money.NGN), uuid.New())
+			return e
+		})
+	}()
+	go func() {
+		defer wg.Done()
+		withdrawErr = spend(t, pool, func(tx pgx.Tx) error {
+			_, e := Withdraw(ctx, tx, user, money.Naira(1_000), money.Zero(money.NGN), uuid.New())
+			return e
+		})
+	}()
+	wg.Wait()
+
+	won := 0
+	for _, err := range []error{tapErr, withdrawErr} {
+		if err == nil {
+			won++
+		} else if !errors.Is(err, ErrInsufficientFunds) {
+			t.Errorf("unexpected failure: %v", err)
+		}
+	}
+	if won != 1 {
+		t.Fatalf("%d of 2 racing spends succeeded against one ₦1,000 balance, want 1", won)
+	}
+
+	if final := balance(t, pool, ledger.User(user), ledger.KindAvailable, money.NGN); final.IsNegative() {
+		t.Fatalf("balance went negative: %s", final)
 	}
 }

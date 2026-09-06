@@ -273,3 +273,42 @@ func TestAccountResolutionIsIdempotent(t *testing.T) {
 		t.Fatal("the NGN and USD accounts of one party are the same row")
 	}
 }
+
+// The audit is the invariant made visible. It must report balanced after any
+// sequence of movements, and it must notice if the ledger is ever written
+// around -- which is the only way it can become unbalanced, since the trigger
+// makes it unreachable through this package.
+func TestAuditReportsBalanced(t *testing.T) {
+	pool := testPool(t)
+	ctx := context.Background()
+
+	alice, bob := someone(), someone()
+	from := acct(t, pool, alice, KindAvailable, money.NGN)
+	to := acct(t, pool, bob, KindAvailable, money.NGN)
+	if _, err := Post(ctx, pool, Ref{Type: "test"}, []Entry{
+		{from, money.Naira(-250), "test.debit"},
+		{to, money.Naira(250), "test.credit"},
+	}); err != nil {
+		t.Fatalf("Post: %v", err)
+	}
+
+	audit, err := Auditor(ctx, pool)
+	if err != nil {
+		t.Fatalf("Auditor: %v", err)
+	}
+	if !audit.Balanced {
+		t.Error("the ledger reports unbalanced")
+	}
+	if len(audit.Currencies) != len(money.SupportedCurrencies()) {
+		t.Errorf("audited %d currencies, want %d", len(audit.Currencies), len(money.SupportedCurrencies()))
+	}
+	for _, c := range audit.Currencies {
+		if c.SumMinor != 0 {
+			t.Errorf("%s sums to %d, must be 0", c.Currency, c.SumMinor)
+		}
+		if c.UnbalancedTransactions != 0 {
+			t.Errorf("%s has %d unbalanced transactions; the trigger was bypassed",
+				c.Currency, c.UnbalancedTransactions)
+		}
+	}
+}
