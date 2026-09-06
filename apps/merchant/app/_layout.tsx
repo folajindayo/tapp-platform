@@ -1,0 +1,255 @@
+import '../global.css';
+import '@/ui/loadStyles';
+
+if (!__DEV__) {
+  console.log = () => {};
+  console.info = () => {};
+  console.warn = () => {};
+  console.error = () => {};
+  console.debug = () => {};
+}
+
+import { useEffect, useRef } from 'react';
+import * as Updates from 'expo-updates';
+import { ActivityIndicator, AppState, Image, StyleSheet, View } from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { Slot, useRouter, useSegments } from 'expo-router';
+import { StatusBar } from 'expo-status-bar';
+import { useFonts } from 'expo-font';
+import {
+  BricolageGrotesque_400Regular,
+  BricolageGrotesque_500Medium,
+  BricolageGrotesque_600SemiBold,
+  BricolageGrotesque_700Bold,
+} from '@expo-google-fonts/bricolage-grotesque';
+import {
+  OpenSans_400Regular,
+  OpenSans_500Medium,
+  OpenSans_600SemiBold,
+  OpenSans_700Bold,
+} from '@expo-google-fonts/open-sans';
+import * as SplashScreen from 'expo-splash-screen';
+import { useAuthStore } from '@/auth/store';
+import { useOnboardingState, type OnboardingStep } from '@/auth/useOnboardingState';
+import { toast, ToastContainer } from '@/ui';
+
+void SplashScreen.preventAutoHideAsync();
+
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: 1,
+      staleTime: 30_000,
+      refetchOnWindowFocus: false,
+    },
+  },
+});
+
+export default function RootLayout() {
+  const { isUpdatePending } = Updates.useUpdates();
+
+  // 1. Automatically reload when an update is downloaded/pending
+  useEffect(() => {
+    if (isUpdatePending) {
+      toast.success('New update downloaded! Reloading app...');
+      const timer = setTimeout(() => {
+        void Updates.reloadAsync();
+      }, 2000);
+      return () => clearTimeout(timer);
+    }
+  }, [isUpdatePending]);
+
+  // Helper: check and download updates
+  const checkAndFetchUpdate = async () => {
+    if (__DEV__) return;
+    try {
+      const update = await Updates.checkForUpdateAsync();
+      if (update.isAvailable) {
+        toast.info('Downloading new app version...');
+        await Updates.fetchUpdateAsync();
+      }
+    } catch (e) {
+      console.warn('[Updates] Check failed:', e);
+    }
+  };
+
+  // 2. Active checks: Check for updates when app comes to the foreground
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (nextState) => {
+      if (nextState === 'active') {
+        void checkAndFetchUpdate();
+      }
+    });
+
+    return () => {
+      subscription.remove();
+    };
+  }, []);
+
+  // 3. Periodic checks: Check for updates every 15 minutes while active
+  useEffect(() => {
+    const interval = setInterval(() => {
+      void checkAndFetchUpdate();
+    }, 15 * 60 * 1000);
+
+    return () => {
+      clearInterval(interval);
+    };
+  }, []);
+
+  // Boot sequence: initialize the secure-store backed MMKV instance and
+  // hydrate the auth store before anything below renders. The Guard
+  // gates protected screens on isHydrated.
+  useEffect(() => {
+    void useAuthStore.getState().hydrate();
+  }, []);
+
+  const [fontsLoaded, fontError] = useFonts({
+    'BricolageGrotesque-Regular':  BricolageGrotesque_400Regular,
+    'BricolageGrotesque-Medium':   BricolageGrotesque_500Medium,
+    'BricolageGrotesque-SemiBold': BricolageGrotesque_600SemiBold,
+    'BricolageGrotesque-Bold':     BricolageGrotesque_700Bold,
+    'OpenSans-Regular':            OpenSans_400Regular,
+    'OpenSans-Medium':             OpenSans_500Medium,
+    'OpenSans-SemiBold':           OpenSans_600SemiBold,
+    'OpenSans-Bold':               OpenSans_700Bold,
+  });
+
+  if (!fontsLoaded && !fontError) return <LoadingOverlay />;
+
+  return (
+    <QueryClientProvider client={queryClient}>
+      <GestureHandlerRootView style={{ flex: 1 }}>
+        <SafeAreaProvider>
+          <StatusBar style="light" />
+          <Guard />
+        </SafeAreaProvider>
+      </GestureHandlerRootView>
+    </QueryClientProvider>
+  );
+}
+
+function Guard() {
+  const isHydrated = useAuthStore((s) => s.isHydrated);
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const segments = useSegments();
+  const router = useRouter();
+  const { step, loading } = useOnboardingState();
+
+  const ready = isHydrated && !loading;
+
+  // Track whether the initial boot/splash sequence has completed.
+  // After the first `ready`, we never show the LoadingOverlay again
+  // so mid-session transitions (e.g. sign-up → verify-email) don't
+  // flash the loading screen.
+  const hasBooted = useRef(false);
+  if (ready && !hasBooted.current) hasBooted.current = true;
+
+  useEffect(() => {
+    if (ready) void SplashScreen.hideAsync();
+  }, [ready]);
+
+  useEffect(() => {
+    if (!isHydrated || loading) return;
+
+    const target = targetForStep(step);
+    const seg0 = (segments[0] ?? '') as string;
+    const seg1 = (segments[1] ?? '') as string;
+
+    const currentGroup =
+      seg0 === '(auth)' ? 'auth'
+      : seg0 === '(onboarding)' ? 'onboarding'
+      : seg0 === '(app)' ? 'app'
+      : 'none';
+
+    // ── Allow free navigation within the unauthenticated sign-in flow ──
+    // sign-in → password → sign-up → forgot-password are all valid to visit
+    // ONLY when there is no active session. If the user has a session (just
+    // logged in) but /me failed, we must NOT return early — fall through so
+    // the router.replace below brings them to the correct screen.
+    const signInScreens = new Set(['sign-in', 'password', 'sign-up', 'forgot-password', 'reset-password', 'verify-email']);
+    if (step === 'sign-in' && !isAuthenticated && currentGroup === 'auth' && signInScreens.has(seg1)) return;
+
+    // ── Allow verify-email only when that is the resolved target ──
+    if (step === 'verify-email' && currentGroup === 'auth' && seg1 === 'verify-email') return;
+
+    // ── Allow free navigation within the onboarding group ──
+    if (target.group === 'onboarding' && currentGroup === 'onboarding') return;
+
+    // ── Already on the right screen ──
+    if (target.group === currentGroup && currentGroup !== 'auth') return;
+
+    router.replace(target.route as never);
+  }, [step, loading, segments, router, isHydrated, isAuthenticated]);
+
+  return (
+    <View style={{ flex: 1 }}>
+      <Slot />
+      <ToastContainer />
+      {!hasBooted.current && <LoadingOverlay />}
+    </View>
+  );
+}
+
+function LoadingOverlay() {
+  return (
+    <View style={styles.loadingRoot} pointerEvents="none">
+      <View style={styles.loadingInner}>
+        <Image
+          source={require('../assets/logo.png')}
+          style={styles.logo}
+          resizeMode="contain"
+        />
+        <View style={styles.loadingDots}>
+          <View style={[styles.dot, { opacity: 1 }]} />
+          <View style={[styles.dot, { opacity: 0.5 }]} />
+          <View style={[styles.dot, { opacity: 0.25 }]} />
+        </View>
+      </View>
+    </View>
+  );
+}
+
+function targetForStep(step: OnboardingStep): { group: string; route: string } {
+  switch (step) {
+    case 'sign-in':
+      return { group: 'auth', route: '/(auth)/sign-in' };
+    case 'verify-email':
+      return { group: 'auth', route: '/(auth)/verify-email' };
+    case 'kyb':
+      return { group: 'onboarding', route: '/(onboarding)/kyb' };
+    case 'bank-account':
+      return { group: 'onboarding', route: '/(onboarding)/bank-account' };
+    case 'live':
+      return { group: 'app', route: '/(app)' };
+  }
+}
+
+const styles = StyleSheet.create({
+  loadingRoot: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: '#0D0D0D',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  loadingInner: {
+    alignItems: 'center',
+    gap: 32,
+  },
+  logo: {
+    width: 96,
+    height: 96,
+  },
+  loadingDots: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  dot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#3B82F6',
+  },
+});

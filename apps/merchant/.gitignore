@@ -1,0 +1,39 @@
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
+
+# Node
+node_modules/
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+
+# Expo
+.expo/
+dist/
+web-build/
+expo-env.d.ts
+
+# Native (prebuild output — generated, not source of truth)
+/ios/
+/android/
+
+# But DO track the Kotlin sources our HCE config plugin copies in
+!/plugins/withNfcHce/android/
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+*.orig.*
+
+# Env / secrets
+.env
+*.env
+
+# EAS
+.easignore
+
+# Misc
+*.log

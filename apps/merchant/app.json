@@ -1,0 +1,95 @@
+{
+  "expo": {
+    "name": "Tapp Merchant",
+    "slug": "tapp-merchant",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "scheme": "tappmerchant",
+    "userInterfaceStyle": "dark",
+    "newArchEnabled": true,
+    "updates": {
+      "url": "https://u.expo.dev/a079f2b2-1d78-4b31-995b-4e03232098ff",
+      "enabled": true,
+      "checkOnLaunch": "ALWAYS"
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0D0D0D"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.zoracle.tapp",
+      "infoPlist": {
+        "NFCReaderUsageDescription": "Read Tapp Cards to take payments.",
+        "ITSAppUsesNonExemptEncryption": false
+      },
+      "entitlements": {
+        "com.apple.developer.nfc.readersession.formats": [
+          "TAG"
+        ]
+      }
+    },
+    "android": {
+      "package": "com.zoracle.tapp",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/icon.png",
+        "backgroundColor": "#0D0D0D"
+      },
+      "permissions": [
+        "android.permission.NFC",
+        "android.permission.FOREGROUND_SERVICE",
+        "android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE",
+        "android.permission.POST_NOTIFICATIONS"
+      ]
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-build-properties",
+        {
+          "ios": {
+            "deploymentTarget": "15.1"
+          },
+          "android": {
+            "minSdkVersion": 26,
+            "compileSdkVersion": 35,
+            "targetSdkVersion": 35
+          }
+        }
+      ],
+      [
+        "react-native-nfc-manager",
+        {
+          "includeNdefEntitlement": false
+        }
+      ],
+      "./plugins/withNfcHce",
+      "./plugins/withIosNfc",
+      "expo-asset",
+      "./plugins/withAndroidAutofillHighlight",
+      "expo-font",
+      "expo-secure-store",
+      "./plugins/withDisableUserScriptSandboxing"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    },
+    "extra": {
+      "router": {
+        "origin": false
+      },
+      "eas": {
+        "projectId": "a079f2b2-1d78-4b31-995b-4e03232098ff"
+      }
+    },
+    "owner": "zerocard"
+  }
+}

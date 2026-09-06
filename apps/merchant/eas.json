@@ -1,0 +1,29 @@
+{
+  "cli": {
+    "version": ">= 16.6.1",
+    "appVersionSource": "remote"
+  },
+  "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal"
+    },
+    "preview": {
+      "distribution": "internal",
+      "channel": "preview",
+      "ios": {
+        "image": "macos-sequoia-15.5-xcode-26.0"
+      }
+    },
+    "production": {
+      "autoIncrement": true,
+      "channel": "production",
+      "ios": {
+        "image": "macos-sequoia-15.5-xcode-26.0"
+      }
+    }
+  },
+  "submit": {
+    "production": {}
+  }
+}
