@@ -3,10 +3,14 @@
 /**
  * Wallet API client.
  *
- * Mock mode (`NEXT_PUBLIC_WALLET_MOCK=1`, the default while Rails
- * wallet endpoints are still landing) returns deterministic seeded
- * data so the UI looks coherent across reloads. Switch the flag off
- * once `/v1/wallet/*` is live on the backend.
+ * There is no mock mode. WALLET_MOCK is a const false, kept only so the
+ * remaining references compile; NEXT_PUBLIC_WALLET_MOCK is no longer read.
+ * The flag used to default to ON when unset (`process.env.X !== "0"`), which
+ * meant a deployment that simply forgot to set it served seeded balances as
+ * though they were real.
+ *
+ * Reads throw when they fail. A balance that cannot be fetched must reach the
+ * UI as an error, never as zero.
  */
 
 import { useQuery } from "@tanstack/react-query";
@@ -230,10 +234,14 @@ async function onchainWalletState(suiAddress: string, jwt?: string): Promise<Wal
   let sui = 0;
 
   if (isEvm) {
-    const baseBal = await fetchBaseWalletBalance(suiAddress).catch((err) => {
-      console.warn("fetchBaseWalletBalance error, defaulting to zero:", err);
-      return { usdcSubunit: 0, usdcFormatted: "0.00", ethWei: BigInt(0), ethFormatted: "0.0000" };
-    });
+    if (!jwt) {
+      throw new Error("A Base balance read needs a signed-in session");
+    }
+    // Deliberately unguarded. This used to catch and substitute a zero
+    // balance, which showed the cardholder an empty wallet whenever the RPC
+    // was unreachable -- on screen, identical to their money being gone. Let
+    // it throw so the query surfaces an error state instead.
+    const baseBal = await fetchBaseWalletBalance(suiAddress, jwt);
     usdc = baseBal.usdcSubunit;
     sui = 0; // Base is USDC-denominated; keep headline pure USDC
   } else {
@@ -274,10 +282,13 @@ async function onchainWalletState(suiAddress: string, jwt?: string): Promise<Wal
   };
 }
 
-async function onchainActivity(suiAddress: string): Promise<ActivityEvent[]> {
+async function onchainActivity(suiAddress: string, jwt?: string): Promise<ActivityEvent[]> {
   const isEvm = suiAddress.startsWith("0x") && suiAddress.length === 42;
   if (isEvm) {
-    const baseTxs = await fetchBaseTransactions(suiAddress);
+    if (!jwt) {
+      throw new Error("A Base history read needs a signed-in session");
+    }
+    const baseTxs = await fetchBaseTransactions(suiAddress, jwt);
     return baseTxs.map((tx) => ({
       digest:         tx.digest,
       kind:           tx.kind,
@@ -471,7 +482,7 @@ export const walletApi = {
     seed: string,
     suiAddress?: string,
   ): Promise<ActivityEvent[]> => {
-    if (suiAddress) return onchainActivity(suiAddress);
+    if (suiAddress) return onchainActivity(suiAddress, jwt);
     return realGet<ActivityEvent[]>("/v1/wallet/history", jwt).catch(() => []);
   },
   tx: async (
@@ -481,7 +492,7 @@ export const walletApi = {
     suiAddress?: string,
   ): Promise<ActivityEvent | null> => {
     if (suiAddress) {
-      return (await onchainActivity(suiAddress)).find((t) => t.digest === digest) ?? null;
+      return (await onchainActivity(suiAddress, jwt)).find((t) => t.digest === digest) ?? null;
     }
     return realGet<ActivityEvent>(`/v1/wallet/tx/${digest}`, jwt).catch(() => null);
   },

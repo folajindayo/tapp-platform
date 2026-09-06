@@ -15,7 +15,7 @@
  *                                   testnet and mainnet packages differ)
  *   NEXT_PUBLIC_SUI_EXECUTE_RPC_URL = optional transaction-submit RPC.
  *                                     If unset, uses the read client.
- *   NEXT_PUBLIC_WALLET_MOCK       = "0" to disable the mock and hit Sui
+ *   (NEXT_PUBLIC_WALLET_MOCK is no longer read; there is no mock mode)
  */
 
 import {
