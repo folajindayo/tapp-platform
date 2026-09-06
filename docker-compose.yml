@@ -1,0 +1,35 @@
+# Local dependencies. The API and the two client apps run on the host.
+#
+# Postgres is published on 5433, not 5432, so a local install already using
+# the default port does not silently win the binding and leave you debugging
+# a schema you are not connected to.
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: tapp
+      POSTGRES_PASSWORD: tapp
+      POSTGRES_DB: tapp
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tapp -d tapp"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7.2-alpine
+    command: ["redis-server", "--notify-keyspace-events", "Ex"]
+    ports:
+      - "6380:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  postgres-data:

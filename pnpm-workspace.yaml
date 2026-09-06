@@ -1,0 +1,4 @@
+packages:
+  - "apps/pwa"
+  - "apps/merchant"
+  - "packages/*"
