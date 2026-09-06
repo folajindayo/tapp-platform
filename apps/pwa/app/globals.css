@@ -1,0 +1,330 @@
+@import "tailwindcss";
+
+/*
+ * Tapp PWA — design system mirrors paycrest/zap.
+ * Mobile-first column, white / neutral-900 dark mode, royal-blue
+ * accent. Single source of truth for tokens; per-component classes
+ * still come from src/components/ui/Styles.ts.
+ */
+
+@theme {
+  --color-royal: #0065f5;
+
+  /* Mobile container width: 412px content + 16px padding either side */
+  --max-width-mobile: 428px;
+
+  /* Font stack — Inter via next/font (variable wired in layout.tsx) */
+  --font-sans:
+    var(--font-inter, system-ui), -apple-system, BlinkMacSystemFont, "Segoe UI",
+    sans-serif;
+}
+
+/* Tailwind v4 class-based dark mode (mirrors zap's `darkMode: "class"`). */
+@variant dark (&:where(.dark, .dark *));
+
+html,
+body {
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Zap's number-input chrome removal + select chrome removal. Tap Card
+   flows have numeric PIN inputs; this keeps the look clean. */
+input::-webkit-outer-spin-button,
+input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type="number"] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+select {
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+}
+
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+.loader {
+  width: 48px;
+  height: 48px;
+  margin: auto;
+  position: relative;
+}
+
+.loader:before {
+  content: "";
+  width: 48px;
+  height: 5px;
+  background: #0066f550;
+  position: absolute;
+  top: 60px;
+  left: 0;
+  border-radius: 50%;
+  animation: shadow324 0.5s linear infinite;
+}
+
+.loader:after {
+  content: "";
+  width: 100%;
+  height: 100%;
+  background: #0065f5;
+  position: absolute;
+  top: 0;
+  left: 0;
+  border-radius: 4px;
+  animation: jump7456 0.5s linear infinite;
+}
+
+@keyframes jump7456 {
+  15% {
+    border-bottom-right-radius: 3px;
+  }
+
+  25% {
+    transform: translateY(9px) rotate(22.5deg);
+  }
+
+  50% {
+    transform: translateY(18px) scale(1, 0.9) rotate(45deg);
+    border-bottom-right-radius: 40px;
+  }
+
+  75% {
+    transform: translateY(9px) rotate(67.5deg);
+  }
+
+  100% {
+    transform: translateY(0) rotate(90deg);
+  }
+}
+
+@keyframes shadow324 {
+  0%,
+  100% {
+    transform: scale(1, 1);
+  }
+
+  50% {
+    transform: scale(1.2, 1);
+  }
+}
+
+/* Aurora background animations for the Tapp Card promotion card */
+@keyframes aurora-1 {
+  0% {
+    transform: translate(0px, 0px) scale(1);
+  }
+  33% {
+    transform: translate(25px, -15px) scale(1.15);
+  }
+  66% {
+    transform: translate(-15px, 20px) scale(0.9);
+  }
+  100% {
+    transform: translate(0px, 0px) scale(1);
+  }
+}
+
+@keyframes aurora-2 {
+  0% {
+    transform: translate(0px, 0px) scale(1);
+  }
+  33% {
+    transform: translate(-20px, 15px) scale(0.85);
+  }
+  66% {
+    transform: translate(15px, -20px) scale(1.1);
+  }
+  100% {
+    transform: translate(0px, 0px) scale(1);
+  }
+}
+
+.animate-aurora-1 {
+  animation: aurora-1 15s ease-in-out infinite;
+}
+
+.animate-aurora-2 {
+  animation: aurora-2 20s ease-in-out infinite;
+}
+
+/* Landing page — slow vertical drift for the floating network chips */
+@keyframes landing-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-16px);
+  }
+}
+
+.animate-landing-float {
+  animation: landing-float 10s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-landing-float {
+    animation: none;
+  }
+}
+
+/* Custom Liquid ink reveal transition using View Transitions API + SVG Filter */
+html.theme-transitioning {
+  view-transition-name: root;
+}
+
+html.theme-transitioning::view-transition-old(root) {
+  animation: none !important;
+  mix-blend-mode: normal !important;
+}
+
+html.theme-transitioning::view-transition-new(root) {
+  animation: liquid-dummy 5s linear !important;
+  mix-blend-mode: normal !important;
+  mask: url(#liquid-mask) !important;
+  -webkit-mask: url(#liquid-mask) !important;
+}
+
+@keyframes liquid-dummy {
+  from {
+    opacity: 0.99;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Temporarily disable transitions during theme snapshot capture to prevent fade/jank */
+html.no-transitions * {
+  transition: none !important;
+}
+
+/* Mobile-optimized circular reveal transition (GPU-accelerated clip-path) */
+html.theme-transitioning.mobile-reveal::view-transition-new(root) {
+  animation: clip-reveal 0.45s cubic-bezier(0.4, 0, 0.2, 1) !important;
+  mix-blend-mode: normal !important;
+  mask: none !important;
+  -webkit-mask: none !important;
+}
+
+html.theme-transitioning.mobile-reveal::view-transition-old(root) {
+  animation: none !important;
+  mix-blend-mode: normal !important;
+}
+
+@keyframes clip-reveal {
+  from {
+    clip-path: circle(0px at var(--x) var(--y));
+  }
+  to {
+    clip-path: circle(var(--max-dist) at var(--x) var(--y));
+  }
+}
+
+button {
+  cursor: pointer;
+}
+
+.deck-root {
+  font-family: var(--font-dm-sans, var(--font-sans));
+}
+
+.deck-grid {
+  background-image:
+    linear-gradient(rgb(255 255 255 / 0.1) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(255 255 255 / 0.1) 1px, transparent 1px);
+  background-size: 34px 34px;
+}
+
+.deck-marquee {
+  animation: deck-marquee 16s linear infinite;
+  white-space: nowrap;
+}
+
+.deck-mosaic {
+  animation: deck-enter 0.75s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.deck-chain-roll {
+  animation: deck-chain-roll 14s linear infinite;
+}
+
+.deck-chain-roll:hover {
+  animation-play-state: paused;
+}
+
+@keyframes deck-marquee {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-38%);
+  }
+}
+
+@keyframes deck-chain-roll {
+  from {
+    transform: translateY(0);
+  }
+  to {
+    transform: translateY(-50%);
+  }
+}
+
+@keyframes deck-enter {
+  from {
+    opacity: 0;
+    transform: scale(0.96) rotate(-0.5deg);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) rotate(0);
+  }
+}
+
+.cashout-confetti-piece {
+  position: absolute;
+  top: -24px;
+  display: block;
+  border-radius: 2px;
+  opacity: 0;
+  transform: translate3d(0, -24px, 0) rotate(0deg);
+  animation: cashout-confetti-drop 1.3s cubic-bezier(0.16, 0.8, 0.32, 1) forwards;
+  box-shadow: 0 0 12px rgb(255 255 255 / 0.18);
+}
+
+@keyframes cashout-confetti-drop {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, -24px, 0) rotate(0deg) scale(0.8);
+  }
+  12% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate3d(var(--cashout-confetti-drift), 280px, 0)
+      rotate(var(--cashout-confetti-rotate))
+      scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cashout-confetti-piece {
+    animation: none;
+    opacity: 0;
+  }
+}
+
+/* Prevent Headless UI from injecting padding-right when scroll locking, which shifts/clips layouts on mobile viewports */
+html,
+body {
+  padding-right: 0px !important;
+}

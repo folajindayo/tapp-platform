@@ -1,0 +1,48 @@
+{
+  "name": "tapp",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@cetusprotocol/common-sdk": "^0.1.9",
+    "@cetusprotocol/sui-clmm-sdk": "^1.4.5",
+    "@headlessui/react": "^2.2.10",
+    "@hookform/resolvers": "^5.4.0",
+    "@mysten/sui": "^2.17.0",
+    "@mysten/zklogin": "^0.8.1",
+    "@noble/hashes": "^2.2.0",
+    "@react-oauth/google": "^0.13.5",
+    "@tanstack/react-query": "^5.100.11",
+    "axios": "^1.18.1",
+    "blakejs": "^1.2.1",
+    "clsx": "^2.1.1",
+    "framer-motion": "^12.40.0",
+    "html5-qrcode": "^2.3.8",
+    "jose": "^6.2.3",
+    "matter-js": "^0.20.0",
+    "next": "16.2.6",
+    "next-themes": "^0.4.6",
+    "react": "19.2.4",
+    "react-dom": "19.2.4",
+    "react-hook-form": "^7.76.0",
+    "react-icons": "^5.6.0",
+    "react-qrcode-logo": "^4.1.0",
+    "zod": "^4.4.3",
+    "zustand": "^5.0.13"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "@types/matter-js": "^0.20.2",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "tailwindcss": "^4",
+    "typescript": "^5"
+  },
+  "packageManager": "yarn@1.22.22+sha512.a6b2f7906b721bba3d67d4aff083df04dad64c399707841b7acf00f6b133b7ac24255f2652fa22ae3534329dc6180534e98d17432037ff6fd140556e2bb3137e"
+}
