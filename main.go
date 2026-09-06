@@ -16,6 +16,7 @@ import (
 	"github.com/usezoracle/rails-sui/services/baas/mfb"
 	"github.com/usezoracle/rails-sui/storage"
 	"github.com/usezoracle/rails-sui/tasks"
+	"github.com/usezoracle/rails-sui/utils/crypto"
 	"github.com/usezoracle/rails-sui/utils/logger"
 )
 
@@ -24,6 +25,14 @@ func main() {
 	conf := config.ServerConfig()
 	loc, _ := time.LoadLocation(conf.Timezone)
 	time.Local = loc
+
+	// Custody keys are resolved before anything can serve a request. A signup
+	// creates a private key that must be sealed at rest, so a process with no
+	// valid WALLET_MASTER_KEY has no business accepting one. Fatal on purpose:
+	// the alternative this replaced was a hardcoded key in source.
+	if err := crypto.RequireMasterKey(); err != nil {
+		logger.Fatalf("custody key: %s", err)
+	}
 
 	// Connect to the database
 	DSN := config.DBConfig()

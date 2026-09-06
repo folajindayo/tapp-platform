@@ -32,6 +32,13 @@ import (
 )
 
 func TestAuth(t *testing.T) {
+	// Registration seals a custodied EVM private key, so the suite needs a
+	// master key like any other environment. There is no default to fall back
+	// on -- that is the point -- so an unset key here would fail every signup
+	// with a 500 rather than exercising the real path.
+	viper.Set("WALLET_MASTER_KEY", strings.Repeat("a1b2c3d4", 8))
+	defer viper.Set("WALLET_MASTER_KEY", "")
+
 	// setup httpmock
 	httpmock.Activate()
 	defer httpmock.Deactivate()

@@ -74,9 +74,20 @@ func (ctrl *AuthController) Register(ctx *gin.Context) {
 
 	// Save the user
 	scope := strings.Join(payload.Scopes, " ")
-	evmAddr, encKey, wErr := crypto.GenerateEVMWallet("")
+	// A wallet that cannot be sealed is not a wallet. Previously this logged
+	// and carried on, leaving an account with no address and no signal that
+	// anything had gone wrong; the user discovered it at their first deposit.
+	var evmAddr, encKey string
+	masterKey, wErr := crypto.MasterKey()
+	if wErr == nil {
+		evmAddr, encKey, wErr = crypto.GenerateEVMWallet(masterKey)
+	}
 	if wErr != nil {
-		logger.Errorf("Register: wallet generation error: %v", wErr)
+		_ = tx.Rollback()
+		logger.Errorf("Register: wallet generation: %v", wErr)
+		u.APIResponse(ctx, http.StatusInternalServerError, "error",
+			"Failed to create account", nil)
+		return
 	}
 
 	userCreate := tx.User.
@@ -89,9 +100,7 @@ func (ctrl *AuthController) Register(ctx *gin.Context) {
 		SetIsEmailVerified(true).
 		SetHasEarlyAccess(true)
 
-	if evmAddr != "" {
-		userCreate = userCreate.SetEvmAddress(evmAddr).SetEncryptedPrivateKey(encKey)
-	}
+	userCreate = userCreate.SetEvmAddress(evmAddr).SetEncryptedPrivateKey(encKey)
 
 	user, err := userCreate.Save(ctx)
 	if err != nil {
@@ -310,11 +319,27 @@ func (ctrl *AuthController) Login(ctx *gin.Context) {
 
 	// Ensure user has an EVM wallet
 	if user.EvmAddress == "" {
-		evmAddr, encKey, wErr := crypto.GenerateEVMWallet("")
-		if wErr == nil && evmAddr != "" {
-			_ = user.Update().SetEvmAddress(evmAddr).SetEncryptedPrivateKey(encKey).SetIsEmailVerified(true).Exec(ctx)
-			user.EvmAddress = evmAddr
+		var evmAddr, encKey string
+		masterKey, wErr := crypto.MasterKey()
+		if wErr == nil {
+			evmAddr, encKey, wErr = crypto.GenerateEVMWallet(masterKey)
 		}
+		if wErr != nil {
+			logger.Errorf("Login: wallet backfill for user %s: %v", user.ID, wErr)
+			u.APIResponse(ctx, http.StatusInternalServerError, "error",
+				"Failed to sign in", nil)
+			return
+		}
+		if err := user.Update().
+			SetEvmAddress(evmAddr).
+			SetEncryptedPrivateKey(encKey).
+			Exec(ctx); err != nil {
+			logger.Errorf("Login: persist wallet backfill for user %s: %v", user.ID, err)
+			u.APIResponse(ctx, http.StatusInternalServerError, "error",
+				"Failed to sign in", nil)
+			return
+		}
+		user.EvmAddress = evmAddr
 	}
 
 	// Stateless short-lived access JWT.
