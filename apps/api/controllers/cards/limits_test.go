@@ -14,10 +14,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/usezoracle/rails-sui/ent"
-	"github.com/usezoracle/rails-sui/ent/enttest"
-	"github.com/usezoracle/rails-sui/ent/tappcard"
-	"github.com/usezoracle/rails-sui/storage"
+	"github.com/usezoracle/tapp/api/ent"
+	"github.com/usezoracle/tapp/api/ent/enttest"
+	"github.com/usezoracle/tapp/api/ent/tappcard"
+	"github.com/usezoracle/tapp/api/storage"
 )
 
 // This test mimics the real POST /v1/cards/me/limits system end-to-end with no

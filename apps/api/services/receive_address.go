@@ -13,7 +13,7 @@ import (
 
 	"golang.org/x/crypto/blake2b"
 
-	cryptoUtils "github.com/usezoracle/rails-sui/utils/crypto"
+	cryptoUtils "github.com/usezoracle/tapp/api/utils/crypto"
 )
 
 // suiSignatureSchemeFlagEd25519 prefixes the public key before blake2b256-

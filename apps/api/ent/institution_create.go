@@ -12,8 +12,8 @@ import (
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
 	"github.com/google/uuid"
-	"github.com/usezoracle/rails-sui/ent/fiatcurrency"
-	"github.com/usezoracle/rails-sui/ent/institution"
+	"github.com/usezoracle/tapp/api/ent/fiatcurrency"
+	"github.com/usezoracle/tapp/api/ent/institution"
 )
 
 // InstitutionCreate is the builder for creating a Institution entity.

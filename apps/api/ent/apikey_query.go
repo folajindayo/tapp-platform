@@ -13,11 +13,11 @@ import (
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
 	"github.com/google/uuid"
-	"github.com/usezoracle/rails-sui/ent/apikey"
-	"github.com/usezoracle/rails-sui/ent/paymentorder"
-	"github.com/usezoracle/rails-sui/ent/predicate"
-	"github.com/usezoracle/rails-sui/ent/providerprofile"
-	"github.com/usezoracle/rails-sui/ent/senderprofile"
+	"github.com/usezoracle/tapp/api/ent/apikey"
+	"github.com/usezoracle/tapp/api/ent/paymentorder"
+	"github.com/usezoracle/tapp/api/ent/predicate"
+	"github.com/usezoracle/tapp/api/ent/providerprofile"
+	"github.com/usezoracle/tapp/api/ent/senderprofile"
 )
 
 // APIKeyQuery is the builder for querying APIKey entities.

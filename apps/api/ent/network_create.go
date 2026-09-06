@@ -12,8 +12,8 @@ import (
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
 	"github.com/shopspring/decimal"
-	"github.com/usezoracle/rails-sui/ent/network"
-	"github.com/usezoracle/rails-sui/ent/token"
+	"github.com/usezoracle/tapp/api/ent/network"
+	"github.com/usezoracle/tapp/api/ent/token"
 )
 
 // NetworkCreate is the builder for creating a Network entity.

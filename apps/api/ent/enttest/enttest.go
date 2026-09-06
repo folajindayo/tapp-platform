@@ -5,12 +5,12 @@ package enttest
 import (
 	"context"
 
-	"github.com/usezoracle/rails-sui/ent"
+	"github.com/usezoracle/tapp/api/ent"
 	// required by schema hooks.
-	_ "github.com/usezoracle/rails-sui/ent/runtime"
+	_ "github.com/usezoracle/tapp/api/ent/runtime"
 
 	"entgo.io/ent/dialect/sql/schema"
-	"github.com/usezoracle/rails-sui/ent/migrate"
+	"github.com/usezoracle/tapp/api/ent/migrate"
 )
 
 type (

@@ -14,9 +14,9 @@ import (
 	"entgo.io/ent/schema/field"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
-	"github.com/usezoracle/rails-sui/ent/lpaccount"
-	"github.com/usezoracle/rails-sui/ent/lpledgerentry"
-	"github.com/usezoracle/rails-sui/ent/user"
+	"github.com/usezoracle/tapp/api/ent/lpaccount"
+	"github.com/usezoracle/tapp/api/ent/lpledgerentry"
+	"github.com/usezoracle/tapp/api/ent/user"
 )
 
 // LpAccountCreate is the builder for creating a LpAccount entity.

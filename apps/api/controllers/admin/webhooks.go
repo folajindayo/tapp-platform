@@ -9,11 +9,11 @@ import (
 	"github.com/gin-gonic/gin"
 	fastshot "github.com/opus-domini/fast-shot"
 
-	"github.com/usezoracle/rails-sui/ent"
-	"github.com/usezoracle/rails-sui/ent/webhookretryattempt"
-	"github.com/usezoracle/rails-sui/storage"
-	u "github.com/usezoracle/rails-sui/utils"
-	"github.com/usezoracle/rails-sui/utils/logger"
+	"github.com/usezoracle/tapp/api/ent"
+	"github.com/usezoracle/tapp/api/ent/webhookretryattempt"
+	"github.com/usezoracle/tapp/api/storage"
+	u "github.com/usezoracle/tapp/api/utils"
+	"github.com/usezoracle/tapp/api/utils/logger"
 )
 
 // WebhooksController lets operators inspect the merchant-webhook retry queue and

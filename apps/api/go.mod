@@ -1,4 +1,4 @@
-module github.com/usezoracle/rails-sui
+module github.com/usezoracle/tapp/api
 
 go 1.25.0
 

@@ -14,13 +14,13 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
-	"github.com/usezoracle/rails-sui/ent"
-	"github.com/usezoracle/rails-sui/ent/enttest"
-	"github.com/usezoracle/rails-sui/ent/webhookretryattempt"
-	db "github.com/usezoracle/rails-sui/storage"
-	"github.com/usezoracle/rails-sui/types"
-	"github.com/usezoracle/rails-sui/utils"
-	"github.com/usezoracle/rails-sui/utils/test"
+	"github.com/usezoracle/tapp/api/ent"
+	"github.com/usezoracle/tapp/api/ent/enttest"
+	"github.com/usezoracle/tapp/api/ent/webhookretryattempt"
+	db "github.com/usezoracle/tapp/api/storage"
+	"github.com/usezoracle/tapp/api/types"
+	"github.com/usezoracle/tapp/api/utils"
+	"github.com/usezoracle/tapp/api/utils/test"
 )
 
 var testCtx = struct {

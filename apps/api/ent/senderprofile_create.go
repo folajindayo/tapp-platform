@@ -13,13 +13,13 @@ import (
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
 	"github.com/google/uuid"
-	"github.com/usezoracle/rails-sui/ent/apikey"
-	"github.com/usezoracle/rails-sui/ent/cardservernonce"
-	"github.com/usezoracle/rails-sui/ent/merchantbankaccount"
-	"github.com/usezoracle/rails-sui/ent/paymentorder"
-	"github.com/usezoracle/rails-sui/ent/senderordertoken"
-	"github.com/usezoracle/rails-sui/ent/senderprofile"
-	"github.com/usezoracle/rails-sui/ent/user"
+	"github.com/usezoracle/tapp/api/ent/apikey"
+	"github.com/usezoracle/tapp/api/ent/cardservernonce"
+	"github.com/usezoracle/tapp/api/ent/merchantbankaccount"
+	"github.com/usezoracle/tapp/api/ent/paymentorder"
+	"github.com/usezoracle/tapp/api/ent/senderordertoken"
+	"github.com/usezoracle/tapp/api/ent/senderprofile"
+	"github.com/usezoracle/tapp/api/ent/user"
 )
 
 // SenderProfileCreate is the builder for creating a SenderProfile entity.

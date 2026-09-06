@@ -11,7 +11,7 @@ import (
 
 	"github.com/shopspring/decimal"
 
-	"github.com/usezoracle/rails-sui/services/baas"
+	"github.com/usezoracle/tapp/api/services/baas"
 )
 
 // TestVerifyWebhookSHA512 pins the signature scheme: HMAC-SHA512 over

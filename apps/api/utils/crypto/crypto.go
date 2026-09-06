@@ -14,7 +14,7 @@ import (
 	"io"
 	"strings"
 
-	"github.com/usezoracle/rails-sui/config"
+	"github.com/usezoracle/tapp/api/config"
 	"golang.org/x/crypto/bcrypt"
 )
 

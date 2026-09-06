@@ -6,7 +6,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/usezoracle/rails-sui/ent"
+	"github.com/usezoracle/tapp/api/ent"
 )
 
 // The APIKeyFunc type is an adapter to allow the use of ordinary

@@ -8,10 +8,10 @@ import (
 
 	"entgo.io/ent/dialect"
 	entsql "entgo.io/ent/dialect/sql"
-	"github.com/usezoracle/rails-sui/config"
-	"github.com/usezoracle/rails-sui/ent"
-	"github.com/usezoracle/rails-sui/ent/migrate"
-	_ "github.com/usezoracle/rails-sui/ent/runtime" // ent runtime
+	"github.com/usezoracle/tapp/api/config"
+	"github.com/usezoracle/tapp/api/ent"
+	"github.com/usezoracle/tapp/api/ent/migrate"
+	_ "github.com/usezoracle/tapp/api/ent/runtime" // ent runtime
 
 	_ "github.com/jackc/pgx/v5/stdlib"
 )

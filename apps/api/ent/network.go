@@ -10,7 +10,7 @@ import (
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
 	"github.com/shopspring/decimal"
-	"github.com/usezoracle/rails-sui/ent/network"
+	"github.com/usezoracle/tapp/api/ent/network"
 )
 
 // Network is the model entity for the Network schema.

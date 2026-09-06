@@ -13,10 +13,10 @@ import (
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
 	"github.com/google/uuid"
-	"github.com/usezoracle/rails-sui/ent/lpaccount"
-	"github.com/usezoracle/rails-sui/ent/lpledgerentry"
-	"github.com/usezoracle/rails-sui/ent/predicate"
-	"github.com/usezoracle/rails-sui/ent/user"
+	"github.com/usezoracle/tapp/api/ent/lpaccount"
+	"github.com/usezoracle/tapp/api/ent/lpledgerentry"
+	"github.com/usezoracle/tapp/api/ent/predicate"
+	"github.com/usezoracle/tapp/api/ent/user"
 )
 
 // LpAccountQuery is the builder for querying LpAccount entities.

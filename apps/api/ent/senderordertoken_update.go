@@ -13,10 +13,10 @@ import (
 	"entgo.io/ent/schema/field"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
-	"github.com/usezoracle/rails-sui/ent/predicate"
-	"github.com/usezoracle/rails-sui/ent/senderordertoken"
-	"github.com/usezoracle/rails-sui/ent/senderprofile"
-	"github.com/usezoracle/rails-sui/ent/token"
+	"github.com/usezoracle/tapp/api/ent/predicate"
+	"github.com/usezoracle/tapp/api/ent/senderordertoken"
+	"github.com/usezoracle/tapp/api/ent/senderprofile"
+	"github.com/usezoracle/tapp/api/ent/token"
 )
 
 // SenderOrderTokenUpdate is the builder for updating SenderOrderToken entities.

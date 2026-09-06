@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/usezoracle/rails-sui/config"
+	"github.com/usezoracle/tapp/api/config"
 )
 
 // The wallet master key is resolved once, at startup, and cached. Request

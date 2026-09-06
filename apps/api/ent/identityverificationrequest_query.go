@@ -12,8 +12,8 @@ import (
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
 	"github.com/google/uuid"
-	"github.com/usezoracle/rails-sui/ent/identityverificationrequest"
-	"github.com/usezoracle/rails-sui/ent/predicate"
+	"github.com/usezoracle/tapp/api/ent/identityverificationrequest"
+	"github.com/usezoracle/tapp/api/ent/predicate"
 )
 
 // IdentityVerificationRequestQuery is the builder for querying IdentityVerificationRequest entities.

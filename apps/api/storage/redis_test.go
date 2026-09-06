@@ -5,7 +5,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/usezoracle/rails-sui/config"
+	"github.com/usezoracle/tapp/api/config"
 )
 
 func TestRedisOptions_PrefersURL(t *testing.T) {

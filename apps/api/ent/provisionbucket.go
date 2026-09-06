@@ -11,8 +11,8 @@ import (
 	"entgo.io/ent/dialect/sql"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
-	"github.com/usezoracle/rails-sui/ent/fiatcurrency"
-	"github.com/usezoracle/rails-sui/ent/provisionbucket"
+	"github.com/usezoracle/tapp/api/ent/fiatcurrency"
+	"github.com/usezoracle/tapp/api/ent/provisionbucket"
 )
 
 // ProvisionBucket is the model entity for the ProvisionBucket schema.

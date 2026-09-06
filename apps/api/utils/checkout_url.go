@@ -4,7 +4,7 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
-	"github.com/usezoracle/rails-sui/config"
+	"github.com/usezoracle/tapp/api/config"
 )
 
 // BuildCheckoutURL returns the public Zoracle checkout URL the payer

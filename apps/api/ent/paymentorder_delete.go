@@ -8,8 +8,8 @@ import (
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
-	"github.com/usezoracle/rails-sui/ent/paymentorder"
-	"github.com/usezoracle/rails-sui/ent/predicate"
+	"github.com/usezoracle/tapp/api/ent/paymentorder"
+	"github.com/usezoracle/tapp/api/ent/predicate"
 )
 
 // PaymentOrderDelete is the builder for deleting a PaymentOrder entity.

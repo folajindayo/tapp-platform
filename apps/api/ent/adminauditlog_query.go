@@ -12,8 +12,8 @@ import (
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
 	"github.com/google/uuid"
-	"github.com/usezoracle/rails-sui/ent/adminauditlog"
-	"github.com/usezoracle/rails-sui/ent/predicate"
+	"github.com/usezoracle/tapp/api/ent/adminauditlog"
+	"github.com/usezoracle/tapp/api/ent/predicate"
 )
 
 // AdminAuditLogQuery is the builder for querying AdminAuditLog entities.

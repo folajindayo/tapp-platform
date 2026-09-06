@@ -10,16 +10,16 @@ import (
 	"github.com/google/uuid"
 	"github.com/jarcoal/httpmock"
 	_ "github.com/mattn/go-sqlite3"
-	"github.com/usezoracle/rails-sui/config"
-	"github.com/usezoracle/rails-sui/ent"
-	db "github.com/usezoracle/rails-sui/storage"
-	"github.com/usezoracle/rails-sui/types"
+	"github.com/usezoracle/tapp/api/config"
+	"github.com/usezoracle/tapp/api/ent"
+	db "github.com/usezoracle/tapp/api/storage"
+	"github.com/usezoracle/tapp/api/types"
 	"github.com/shopspring/decimal"
 
 	"github.com/gin-gonic/gin"
-	"github.com/usezoracle/rails-sui/ent/enttest"
-	"github.com/usezoracle/rails-sui/ent/identityverificationrequest"
-	"github.com/usezoracle/rails-sui/utils/test"
+	"github.com/usezoracle/tapp/api/ent/enttest"
+	"github.com/usezoracle/tapp/api/ent/identityverificationrequest"
+	"github.com/usezoracle/tapp/api/utils/test"
 	"github.com/stretchr/testify/assert"
 )
 

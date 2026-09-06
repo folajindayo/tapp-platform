@@ -29,13 +29,13 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 
-	"github.com/usezoracle/rails-sui/ent"
-	"github.com/usezoracle/rails-sui/ent/cardservernonce"
-	"github.com/usezoracle/rails-sui/ent/tappcard"
-	userEnt "github.com/usezoracle/rails-sui/ent/user"
-	"github.com/usezoracle/rails-sui/storage"
-	u "github.com/usezoracle/rails-sui/utils"
-	"github.com/usezoracle/rails-sui/utils/logger"
+	"github.com/usezoracle/tapp/api/ent"
+	"github.com/usezoracle/tapp/api/ent/cardservernonce"
+	"github.com/usezoracle/tapp/api/ent/tappcard"
+	userEnt "github.com/usezoracle/tapp/api/ent/user"
+	"github.com/usezoracle/tapp/api/storage"
+	u "github.com/usezoracle/tapp/api/utils"
+	"github.com/usezoracle/tapp/api/utils/logger"
 )
 
 type stepUpGrantRequest struct {

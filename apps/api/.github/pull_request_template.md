@@ -1,4 +1,4 @@
-By submitting a PR to this repository, you agree to the terms within the [Rails Code of Conduct](https://github.com/usezoracle/rails-sui). Please see the [contributing guidelines](https://github.com/usezoracle/rails-sui) for how to create and submit a high-quality PR for this repo.
+By submitting a PR to this repository, you agree to the terms within the [Rails Code of Conduct](https://github.com/usezoracle/tapp/api). Please see the [contributing guidelines](https://github.com/usezoracle/tapp/api) for how to create and submit a high-quality PR for this repo.
 
 ### Description
 

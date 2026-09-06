@@ -5,15 +5,15 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/usezoracle/rails-sui/controllers"
-	"github.com/usezoracle/rails-sui/controllers/accounts"
-	adminCtrl "github.com/usezoracle/rails-sui/controllers/admin"
-	"github.com/usezoracle/rails-sui/controllers/cards"
-	"github.com/usezoracle/rails-sui/controllers/lp"
-	"github.com/usezoracle/rails-sui/controllers/provider"
-	"github.com/usezoracle/rails-sui/controllers/sender"
-	"github.com/usezoracle/rails-sui/routers/middleware"
-	u "github.com/usezoracle/rails-sui/utils"
+	"github.com/usezoracle/tapp/api/controllers"
+	"github.com/usezoracle/tapp/api/controllers/accounts"
+	adminCtrl "github.com/usezoracle/tapp/api/controllers/admin"
+	"github.com/usezoracle/tapp/api/controllers/cards"
+	"github.com/usezoracle/tapp/api/controllers/lp"
+	"github.com/usezoracle/tapp/api/controllers/provider"
+	"github.com/usezoracle/tapp/api/controllers/sender"
+	"github.com/usezoracle/tapp/api/routers/middleware"
+	u "github.com/usezoracle/tapp/api/utils"
 )
 
 // RegisterRoutes add all routing list here automatically get main router

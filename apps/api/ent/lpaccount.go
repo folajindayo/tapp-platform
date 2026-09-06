@@ -11,8 +11,8 @@ import (
 	"entgo.io/ent/dialect/sql"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
-	"github.com/usezoracle/rails-sui/ent/lpaccount"
-	"github.com/usezoracle/rails-sui/ent/user"
+	"github.com/usezoracle/tapp/api/ent/lpaccount"
+	"github.com/usezoracle/tapp/api/ent/user"
 )
 
 // LpAccount is the model entity for the LpAccount schema.

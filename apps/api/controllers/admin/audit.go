@@ -3,8 +3,8 @@ package admin
 import (
 	"github.com/gin-gonic/gin"
 
-	"github.com/usezoracle/rails-sui/storage"
-	"github.com/usezoracle/rails-sui/utils/logger"
+	"github.com/usezoracle/tapp/api/storage"
+	"github.com/usezoracle/tapp/api/utils/logger"
 )
 
 // writeAudit appends an append-only admin audit row and mirrors it to logs.

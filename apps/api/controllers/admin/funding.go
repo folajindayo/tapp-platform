@@ -13,10 +13,10 @@ import (
 	suisigner "github.com/block-vision/sui-go-sdk/signer"
 	suisdk "github.com/block-vision/sui-go-sdk/sui"
 
-	"github.com/usezoracle/rails-sui/config"
-	"github.com/usezoracle/rails-sui/services/baas"
-	"github.com/usezoracle/rails-sui/services/evm"
-	u "github.com/usezoracle/rails-sui/utils"
+	"github.com/usezoracle/tapp/api/config"
+	"github.com/usezoracle/tapp/api/services/baas"
+	"github.com/usezoracle/tapp/api/services/evm"
+	u "github.com/usezoracle/tapp/api/utils"
 )
 
 const suiNativeCoinType = "0x2::sui::SUI"

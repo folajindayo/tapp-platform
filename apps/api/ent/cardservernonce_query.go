@@ -12,10 +12,10 @@ import (
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
 	"github.com/google/uuid"
-	"github.com/usezoracle/rails-sui/ent/cardservernonce"
-	"github.com/usezoracle/rails-sui/ent/predicate"
-	"github.com/usezoracle/rails-sui/ent/senderprofile"
-	"github.com/usezoracle/rails-sui/ent/tappcard"
+	"github.com/usezoracle/tapp/api/ent/cardservernonce"
+	"github.com/usezoracle/tapp/api/ent/predicate"
+	"github.com/usezoracle/tapp/api/ent/senderprofile"
+	"github.com/usezoracle/tapp/api/ent/tappcard"
 )
 
 // CardServerNonceQuery is the builder for querying CardServerNonce entities.

@@ -12,9 +12,9 @@ import (
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
 	"github.com/google/uuid"
-	"github.com/usezoracle/rails-sui/ent/predicate"
-	"github.com/usezoracle/rails-sui/ent/user"
-	"github.com/usezoracle/rails-sui/ent/verificationtoken"
+	"github.com/usezoracle/tapp/api/ent/predicate"
+	"github.com/usezoracle/tapp/api/ent/user"
+	"github.com/usezoracle/tapp/api/ent/verificationtoken"
 )
 
 // VerificationTokenQuery is the builder for querying VerificationToken entities.

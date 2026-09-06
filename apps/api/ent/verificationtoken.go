@@ -10,8 +10,8 @@ import (
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
 	"github.com/google/uuid"
-	"github.com/usezoracle/rails-sui/ent/user"
-	"github.com/usezoracle/rails-sui/ent/verificationtoken"
+	"github.com/usezoracle/tapp/api/ent/user"
+	"github.com/usezoracle/tapp/api/ent/verificationtoken"
 )
 
 // VerificationToken is the model entity for the VerificationToken schema.

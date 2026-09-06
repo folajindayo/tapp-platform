@@ -10,8 +10,8 @@ import (
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
 	"github.com/google/uuid"
-	"github.com/usezoracle/rails-sui/ent/lockorderfulfillment"
-	"github.com/usezoracle/rails-sui/ent/lockpaymentorder"
+	"github.com/usezoracle/tapp/api/ent/lockorderfulfillment"
+	"github.com/usezoracle/tapp/api/ent/lockpaymentorder"
 )
 
 // LockOrderFulfillment is the model entity for the LockOrderFulfillment schema.

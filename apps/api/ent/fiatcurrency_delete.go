@@ -8,8 +8,8 @@ import (
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
-	"github.com/usezoracle/rails-sui/ent/fiatcurrency"
-	"github.com/usezoracle/rails-sui/ent/predicate"
+	"github.com/usezoracle/tapp/api/ent/fiatcurrency"
+	"github.com/usezoracle/tapp/api/ent/predicate"
 )
 
 // FiatCurrencyDelete is the builder for deleting a FiatCurrency entity.

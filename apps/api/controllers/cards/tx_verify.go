@@ -29,7 +29,7 @@ import (
 	"github.com/block-vision/sui-go-sdk/models"
 	"github.com/block-vision/sui-go-sdk/sui"
 
-	"github.com/usezoracle/rails-sui/config"
+	"github.com/usezoracle/tapp/api/config"
 )
 
 // VerifyCreateCapResult is what callers care about: did the tx land,

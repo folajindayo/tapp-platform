@@ -44,16 +44,16 @@ import (
 	"github.com/block-vision/sui-go-sdk/transaction"
 	"github.com/shopspring/decimal"
 
-	"github.com/usezoracle/rails-sui/ent"
-	"github.com/usezoracle/rails-sui/ent/lpaccount"
-	"github.com/usezoracle/rails-sui/ent/lpledgerentry"
-	"github.com/usezoracle/rails-sui/ent/paymentorder"
-	"github.com/usezoracle/rails-sui/ent/routeaevent"
-	"github.com/usezoracle/rails-sui/ent/routeaorder"
-	"github.com/usezoracle/rails-sui/services/baas"
-	"github.com/usezoracle/rails-sui/services/settlement"
-	db "github.com/usezoracle/rails-sui/storage"
-	"github.com/usezoracle/rails-sui/utils/logger"
+	"github.com/usezoracle/tapp/api/ent"
+	"github.com/usezoracle/tapp/api/ent/lpaccount"
+	"github.com/usezoracle/tapp/api/ent/lpledgerentry"
+	"github.com/usezoracle/tapp/api/ent/paymentorder"
+	"github.com/usezoracle/tapp/api/ent/routeaevent"
+	"github.com/usezoracle/tapp/api/ent/routeaorder"
+	"github.com/usezoracle/tapp/api/services/baas"
+	"github.com/usezoracle/tapp/api/services/settlement"
+	db "github.com/usezoracle/tapp/api/storage"
+	"github.com/usezoracle/tapp/api/utils/logger"
 )
 
 const (

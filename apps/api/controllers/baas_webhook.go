@@ -13,11 +13,11 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 
-	"github.com/usezoracle/rails-sui/config"
-	"github.com/usezoracle/rails-sui/ent/lockpaymentorder"
-	orderpkg "github.com/usezoracle/rails-sui/services/order"
-	"github.com/usezoracle/rails-sui/storage"
-	"github.com/usezoracle/rails-sui/utils/logger"
+	"github.com/usezoracle/tapp/api/config"
+	"github.com/usezoracle/tapp/api/ent/lockpaymentorder"
+	orderpkg "github.com/usezoracle/tapp/api/services/order"
+	"github.com/usezoracle/tapp/api/storage"
+	"github.com/usezoracle/tapp/api/utils/logger"
 )
 
 var baasConf = config.BaaSConfig()

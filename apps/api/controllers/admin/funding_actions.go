@@ -6,10 +6,10 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/shopspring/decimal"
 
-	"github.com/usezoracle/rails-sui/config"
-	"github.com/usezoracle/rails-sui/services/baas"
-	u "github.com/usezoracle/rails-sui/utils"
-	"github.com/usezoracle/rails-sui/utils/logger"
+	"github.com/usezoracle/tapp/api/config"
+	"github.com/usezoracle/tapp/api/services/baas"
+	u "github.com/usezoracle/tapp/api/utils"
+	"github.com/usezoracle/tapp/api/utils/logger"
 )
 
 // transferRequest funds a beneficiary from a the BaaS provider account (main float by

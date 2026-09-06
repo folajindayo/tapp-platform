@@ -12,9 +12,9 @@ import (
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
 	"github.com/google/uuid"
-	"github.com/usezoracle/rails-sui/ent/lockorderfulfillment"
-	"github.com/usezoracle/rails-sui/ent/lockpaymentorder"
-	"github.com/usezoracle/rails-sui/ent/predicate"
+	"github.com/usezoracle/tapp/api/ent/lockorderfulfillment"
+	"github.com/usezoracle/tapp/api/ent/lockpaymentorder"
+	"github.com/usezoracle/tapp/api/ent/predicate"
 )
 
 // LockOrderFulfillmentUpdate is the builder for updating LockOrderFulfillment entities.

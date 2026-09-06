@@ -8,8 +8,8 @@ import (
 
 	fastshot "github.com/opus-domini/fast-shot"
 
-	"github.com/usezoracle/rails-sui/types"
-	"github.com/usezoracle/rails-sui/utils/logger"
+	"github.com/usezoracle/tapp/api/types"
+	"github.com/usezoracle/tapp/api/utils/logger"
 )
 
 // resendAPIBase is Resend's fixed API host. Unlike SendGrid/Mailgun there is no

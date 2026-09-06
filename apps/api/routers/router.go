@@ -3,9 +3,9 @@ package routers
 import (
 	"strings"
 
-	"github.com/usezoracle/rails-sui/config"
-	"github.com/usezoracle/rails-sui/routers/middleware"
-	"github.com/usezoracle/rails-sui/utils/logger"
+	"github.com/usezoracle/tapp/api/config"
+	"github.com/usezoracle/tapp/api/routers/middleware"
+	"github.com/usezoracle/tapp/api/utils/logger"
 
 	"github.com/gin-gonic/gin"
 )

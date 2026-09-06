@@ -12,14 +12,14 @@ import (
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
 	"github.com/google/uuid"
-	"github.com/usezoracle/rails-sui/ent/apikey"
-	"github.com/usezoracle/rails-sui/ent/fiatcurrency"
-	"github.com/usezoracle/rails-sui/ent/lockpaymentorder"
-	"github.com/usezoracle/rails-sui/ent/predicate"
-	"github.com/usezoracle/rails-sui/ent/providerordertoken"
-	"github.com/usezoracle/rails-sui/ent/providerprofile"
-	"github.com/usezoracle/rails-sui/ent/providerrating"
-	"github.com/usezoracle/rails-sui/ent/provisionbucket"
+	"github.com/usezoracle/tapp/api/ent/apikey"
+	"github.com/usezoracle/tapp/api/ent/fiatcurrency"
+	"github.com/usezoracle/tapp/api/ent/lockpaymentorder"
+	"github.com/usezoracle/tapp/api/ent/predicate"
+	"github.com/usezoracle/tapp/api/ent/providerordertoken"
+	"github.com/usezoracle/tapp/api/ent/providerprofile"
+	"github.com/usezoracle/tapp/api/ent/providerrating"
+	"github.com/usezoracle/tapp/api/ent/provisionbucket"
 )
 
 // ProviderProfileUpdate is the builder for updating ProviderProfile entities.

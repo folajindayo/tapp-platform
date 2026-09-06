@@ -12,9 +12,9 @@ import (
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
 	"github.com/google/uuid"
-	"github.com/usezoracle/rails-sui/ent/fiatcurrency"
-	"github.com/usezoracle/rails-sui/ent/institution"
-	"github.com/usezoracle/rails-sui/ent/predicate"
+	"github.com/usezoracle/tapp/api/ent/fiatcurrency"
+	"github.com/usezoracle/tapp/api/ent/institution"
+	"github.com/usezoracle/tapp/api/ent/predicate"
 )
 
 // InstitutionQuery is the builder for querying Institution entities.

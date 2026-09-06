@@ -11,17 +11,17 @@ import (
 
 	"github.com/block-vision/sui-go-sdk/models"
 	"github.com/block-vision/sui-go-sdk/sui"
-	"github.com/usezoracle/rails-sui/config"
-	"github.com/usezoracle/rails-sui/controllers/cards"
-	"github.com/usezoracle/rails-sui/ent"
-	"github.com/usezoracle/rails-sui/ent/identityverificationrequest"
-	"github.com/usezoracle/rails-sui/ent/paymentorder"
-	"github.com/usezoracle/rails-sui/ent/refreshtoken"
-	"github.com/usezoracle/rails-sui/ent/senderprofile"
-	userEnt "github.com/usezoracle/rails-sui/ent/user"
-	"github.com/usezoracle/rails-sui/storage"
-	u "github.com/usezoracle/rails-sui/utils"
-	"github.com/usezoracle/rails-sui/utils/logger"
+	"github.com/usezoracle/tapp/api/config"
+	"github.com/usezoracle/tapp/api/controllers/cards"
+	"github.com/usezoracle/tapp/api/ent"
+	"github.com/usezoracle/tapp/api/ent/identityverificationrequest"
+	"github.com/usezoracle/tapp/api/ent/paymentorder"
+	"github.com/usezoracle/tapp/api/ent/refreshtoken"
+	"github.com/usezoracle/tapp/api/ent/senderprofile"
+	userEnt "github.com/usezoracle/tapp/api/ent/user"
+	"github.com/usezoracle/tapp/api/storage"
+	u "github.com/usezoracle/tapp/api/utils"
+	"github.com/usezoracle/tapp/api/utils/logger"
 )
 
 // GetUser returns a single user with profile presence, KYC status, order

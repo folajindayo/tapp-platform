@@ -12,9 +12,9 @@ import (
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
 	"github.com/google/uuid"
-	"github.com/usezoracle/rails-sui/ent/predicate"
-	"github.com/usezoracle/rails-sui/ent/refreshtoken"
-	"github.com/usezoracle/rails-sui/ent/user"
+	"github.com/usezoracle/tapp/api/ent/predicate"
+	"github.com/usezoracle/tapp/api/ent/refreshtoken"
+	"github.com/usezoracle/tapp/api/ent/user"
 )
 
 // RefreshTokenQuery is the builder for querying RefreshToken entities.

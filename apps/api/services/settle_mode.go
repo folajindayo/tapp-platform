@@ -16,7 +16,7 @@ import (
 	"strings"
 	"time"
 
-	db "github.com/usezoracle/rails-sui/storage"
+	db "github.com/usezoracle/tapp/api/storage"
 )
 
 const settleModeKey = "rails:settle_mode"

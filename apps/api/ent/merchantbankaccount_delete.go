@@ -8,8 +8,8 @@ import (
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
-	"github.com/usezoracle/rails-sui/ent/merchantbankaccount"
-	"github.com/usezoracle/rails-sui/ent/predicate"
+	"github.com/usezoracle/tapp/api/ent/merchantbankaccount"
+	"github.com/usezoracle/tapp/api/ent/predicate"
 )
 
 // MerchantBankAccountDelete is the builder for deleting a MerchantBankAccount entity.

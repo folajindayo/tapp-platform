@@ -12,9 +12,9 @@ import (
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
 	"github.com/google/uuid"
-	"github.com/usezoracle/rails-sui/ent/merchantbankaccount"
-	"github.com/usezoracle/rails-sui/ent/predicate"
-	"github.com/usezoracle/rails-sui/ent/senderprofile"
+	"github.com/usezoracle/tapp/api/ent/merchantbankaccount"
+	"github.com/usezoracle/tapp/api/ent/predicate"
+	"github.com/usezoracle/tapp/api/ent/senderprofile"
 )
 
 // MerchantBankAccountQuery is the builder for querying MerchantBankAccount entities.

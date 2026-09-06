@@ -5,11 +5,11 @@ import (
 	"encoding/base64"
 	"fmt"
 
-	"github.com/usezoracle/rails-sui/ent"
-	"github.com/usezoracle/rails-sui/storage"
-	"github.com/usezoracle/rails-sui/types"
-	"github.com/usezoracle/rails-sui/utils/crypto"
-	"github.com/usezoracle/rails-sui/utils/token"
+	"github.com/usezoracle/tapp/api/ent"
+	"github.com/usezoracle/tapp/api/storage"
+	"github.com/usezoracle/tapp/api/types"
+	"github.com/usezoracle/tapp/api/utils/crypto"
+	"github.com/usezoracle/tapp/api/utils/token"
 )
 
 // APIKeyService provides functionality related to API keys.

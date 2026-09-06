@@ -10,8 +10,8 @@ import (
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
-	"github.com/usezoracle/rails-sui/ent/adminauditlog"
-	"github.com/usezoracle/rails-sui/ent/predicate"
+	"github.com/usezoracle/tapp/api/ent/adminauditlog"
+	"github.com/usezoracle/tapp/api/ent/predicate"
 )
 
 // AdminAuditLogUpdate is the builder for updating AdminAuditLog entities.

@@ -13,14 +13,14 @@ import (
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
 	"github.com/google/uuid"
-	"github.com/usezoracle/rails-sui/ent/lpaccount"
-	"github.com/usezoracle/rails-sui/ent/predicate"
-	"github.com/usezoracle/rails-sui/ent/providerprofile"
-	"github.com/usezoracle/rails-sui/ent/refreshtoken"
-	"github.com/usezoracle/rails-sui/ent/senderprofile"
-	"github.com/usezoracle/rails-sui/ent/tappcard"
-	"github.com/usezoracle/rails-sui/ent/user"
-	"github.com/usezoracle/rails-sui/ent/verificationtoken"
+	"github.com/usezoracle/tapp/api/ent/lpaccount"
+	"github.com/usezoracle/tapp/api/ent/predicate"
+	"github.com/usezoracle/tapp/api/ent/providerprofile"
+	"github.com/usezoracle/tapp/api/ent/refreshtoken"
+	"github.com/usezoracle/tapp/api/ent/senderprofile"
+	"github.com/usezoracle/tapp/api/ent/tappcard"
+	"github.com/usezoracle/tapp/api/ent/user"
+	"github.com/usezoracle/tapp/api/ent/verificationtoken"
 )
 
 // UserQuery is the builder for querying User entities.

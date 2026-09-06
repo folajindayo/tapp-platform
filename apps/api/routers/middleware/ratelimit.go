@@ -26,8 +26,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/usezoracle/rails-sui/storage"
-	u "github.com/usezoracle/rails-sui/utils"
+	"github.com/usezoracle/tapp/api/storage"
+	u "github.com/usezoracle/tapp/api/utils"
 )
 
 // RateLimit returns a gin handler that limits requests per

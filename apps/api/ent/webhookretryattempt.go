@@ -10,7 +10,7 @@ import (
 
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
-	"github.com/usezoracle/rails-sui/ent/webhookretryattempt"
+	"github.com/usezoracle/tapp/api/ent/webhookretryattempt"
 )
 
 // WebhookRetryAttempt is the model entity for the WebhookRetryAttempt schema.

@@ -10,7 +10,7 @@ import (
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
 	"github.com/google/uuid"
-	"github.com/usezoracle/rails-sui/ent/identityverificationrequest"
+	"github.com/usezoracle/tapp/api/ent/identityverificationrequest"
 )
 
 // IdentityVerificationRequest is the model entity for the IdentityVerificationRequest schema.

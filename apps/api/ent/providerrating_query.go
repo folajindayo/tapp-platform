@@ -11,9 +11,9 @@ import (
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
-	"github.com/usezoracle/rails-sui/ent/predicate"
-	"github.com/usezoracle/rails-sui/ent/providerprofile"
-	"github.com/usezoracle/rails-sui/ent/providerrating"
+	"github.com/usezoracle/tapp/api/ent/predicate"
+	"github.com/usezoracle/tapp/api/ent/providerprofile"
+	"github.com/usezoracle/tapp/api/ent/providerrating"
 )
 
 // ProviderRatingQuery is the builder for querying ProviderRating entities.

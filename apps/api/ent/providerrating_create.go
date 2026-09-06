@@ -12,8 +12,8 @@ import (
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
 	"github.com/shopspring/decimal"
-	"github.com/usezoracle/rails-sui/ent/providerprofile"
-	"github.com/usezoracle/rails-sui/ent/providerrating"
+	"github.com/usezoracle/tapp/api/ent/providerprofile"
+	"github.com/usezoracle/tapp/api/ent/providerrating"
 )
 
 // ProviderRatingCreate is the builder for creating a ProviderRating entity.

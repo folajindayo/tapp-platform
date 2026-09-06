@@ -10,8 +10,8 @@ import (
 
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
-	"github.com/usezoracle/rails-sui/ent/routeaevent"
-	"github.com/usezoracle/rails-sui/ent/routeaorder"
+	"github.com/usezoracle/tapp/api/ent/routeaevent"
+	"github.com/usezoracle/tapp/api/ent/routeaorder"
 )
 
 // RouteAEvent is the model entity for the RouteAEvent schema.

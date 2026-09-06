@@ -7,8 +7,8 @@ import (
 	"log"
 	"os"
 
-	"github.com/usezoracle/rails-sui/config"
-	"github.com/usezoracle/rails-sui/ent"
+	"github.com/usezoracle/tapp/api/config"
+	"github.com/usezoracle/tapp/api/ent"
 
 	atlas "ariga.io/atlas/sql/migrate"
 	"entgo.io/ent/dialect"

@@ -7,14 +7,14 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 
-	"github.com/usezoracle/rails-sui/ent"
-	"github.com/usezoracle/rails-sui/ent/lockpaymentorder"
-	"github.com/usezoracle/rails-sui/ent/paymentorder"
-	"github.com/usezoracle/rails-sui/ent/routeaevent"
-	"github.com/usezoracle/rails-sui/ent/routeaorder"
-	"github.com/usezoracle/rails-sui/storage"
-	u "github.com/usezoracle/rails-sui/utils"
-	"github.com/usezoracle/rails-sui/utils/logger"
+	"github.com/usezoracle/tapp/api/ent"
+	"github.com/usezoracle/tapp/api/ent/lockpaymentorder"
+	"github.com/usezoracle/tapp/api/ent/paymentorder"
+	"github.com/usezoracle/tapp/api/ent/routeaevent"
+	"github.com/usezoracle/tapp/api/ent/routeaorder"
+	"github.com/usezoracle/tapp/api/storage"
+	u "github.com/usezoracle/tapp/api/utils"
+	"github.com/usezoracle/tapp/api/utils/logger"
 )
 
 // TransactionsController exposes the operator transaction-timeline endpoints —

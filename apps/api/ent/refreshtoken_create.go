@@ -13,8 +13,8 @@ import (
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
 	"github.com/google/uuid"
-	"github.com/usezoracle/rails-sui/ent/refreshtoken"
-	"github.com/usezoracle/rails-sui/ent/user"
+	"github.com/usezoracle/tapp/api/ent/refreshtoken"
+	"github.com/usezoracle/tapp/api/ent/user"
 )
 
 // RefreshTokenCreate is the builder for creating a RefreshToken entity.

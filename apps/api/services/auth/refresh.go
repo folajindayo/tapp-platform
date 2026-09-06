@@ -14,11 +14,11 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/usezoracle/rails-sui/ent"
-	"github.com/usezoracle/rails-sui/ent/refreshtoken"
-	userEnt "github.com/usezoracle/rails-sui/ent/user"
-	"github.com/usezoracle/rails-sui/storage"
-	"github.com/usezoracle/rails-sui/utils/token"
+	"github.com/usezoracle/tapp/api/ent"
+	"github.com/usezoracle/tapp/api/ent/refreshtoken"
+	userEnt "github.com/usezoracle/tapp/api/ent/user"
+	"github.com/usezoracle/tapp/api/storage"
+	"github.com/usezoracle/tapp/api/utils/token"
 )
 
 // ErrInvalidRefresh is returned when the submitted token isn't in the

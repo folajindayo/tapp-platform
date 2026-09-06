@@ -11,7 +11,7 @@ import (
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
 	"github.com/google/uuid"
-	"github.com/usezoracle/rails-sui/ent/transactionlog"
+	"github.com/usezoracle/tapp/api/ent/transactionlog"
 )
 
 // TransactionLog is the model entity for the TransactionLog schema.

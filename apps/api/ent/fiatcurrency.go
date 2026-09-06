@@ -11,7 +11,7 @@ import (
 	"entgo.io/ent/dialect/sql"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
-	"github.com/usezoracle/rails-sui/ent/fiatcurrency"
+	"github.com/usezoracle/tapp/api/ent/fiatcurrency"
 )
 
 // FiatCurrency is the model entity for the FiatCurrency schema.

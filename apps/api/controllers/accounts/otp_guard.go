@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	db "github.com/usezoracle/rails-sui/storage"
-	"github.com/usezoracle/rails-sui/utils/logger"
+	db "github.com/usezoracle/tapp/api/storage"
+	"github.com/usezoracle/tapp/api/utils/logger"
 )
 
 // otpMaxAttempts is how many wrong codes we tolerate per (email, scope) before

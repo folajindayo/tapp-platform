@@ -29,10 +29,10 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/usezoracle/rails-sui/ent/routeaevent"
-	"github.com/usezoracle/rails-sui/ent/routeaorder"
-	db "github.com/usezoracle/rails-sui/storage"
-	"github.com/usezoracle/rails-sui/utils/logger"
+	"github.com/usezoracle/tapp/api/ent/routeaevent"
+	"github.com/usezoracle/tapp/api/ent/routeaorder"
+	db "github.com/usezoracle/tapp/api/storage"
+	"github.com/usezoracle/tapp/api/utils/logger"
 )
 
 // Convenience re-exports so callers depend on this package, not on

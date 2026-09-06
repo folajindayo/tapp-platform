@@ -6,13 +6,13 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/shopspring/decimal"
 
-	"github.com/usezoracle/rails-sui/config"
-	"github.com/usezoracle/rails-sui/ent/paymentorder"
-	"github.com/usezoracle/rails-sui/services"
-	"github.com/usezoracle/rails-sui/services/baas/fintava"
-	"github.com/usezoracle/rails-sui/services/baas/korapay"
-	"github.com/usezoracle/rails-sui/storage"
-	u "github.com/usezoracle/rails-sui/utils"
+	"github.com/usezoracle/tapp/api/config"
+	"github.com/usezoracle/tapp/api/ent/paymentorder"
+	"github.com/usezoracle/tapp/api/services"
+	"github.com/usezoracle/tapp/api/services/baas/fintava"
+	"github.com/usezoracle/tapp/api/services/baas/korapay"
+	"github.com/usezoracle/tapp/api/storage"
+	u "github.com/usezoracle/tapp/api/utils"
 )
 
 // TreasuryController gives operators a single consolidated view of where value

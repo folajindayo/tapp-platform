@@ -32,7 +32,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/usezoracle/rails-sui/config"
+	"github.com/usezoracle/tapp/api/config"
 )
 
 func issueResyncNonce(userID, cardID uuid.UUID, expiresAt int64) (string, error) {

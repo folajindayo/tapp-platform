@@ -15,9 +15,9 @@ import (
 
 	"github.com/shopspring/decimal"
 
-	"github.com/usezoracle/rails-sui/config"
-	"github.com/usezoracle/rails-sui/services/lifi"
-	"github.com/usezoracle/rails-sui/services/settlement"
+	"github.com/usezoracle/tapp/api/config"
+	"github.com/usezoracle/tapp/api/services/lifi"
+	"github.com/usezoracle/tapp/api/services/settlement"
 )
 
 // NativeSuiCoinType is the Move type string for native SUI. Used to

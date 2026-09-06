@@ -13,9 +13,9 @@ import (
 	"entgo.io/ent/schema/field"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
-	"github.com/usezoracle/rails-sui/ent/paymentorder"
-	"github.com/usezoracle/rails-sui/ent/routeaevent"
-	"github.com/usezoracle/rails-sui/ent/routeaorder"
+	"github.com/usezoracle/tapp/api/ent/paymentorder"
+	"github.com/usezoracle/tapp/api/ent/routeaevent"
+	"github.com/usezoracle/tapp/api/ent/routeaorder"
 )
 
 // RouteAOrderCreate is the builder for creating a RouteAOrder entity.

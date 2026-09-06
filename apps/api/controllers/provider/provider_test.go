@@ -16,17 +16,17 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/redis/go-redis/v9"
 	"github.com/shopspring/decimal"
-	"github.com/usezoracle/rails-sui/ent"
-	"github.com/usezoracle/rails-sui/routers/middleware"
-	"github.com/usezoracle/rails-sui/services"
-	db "github.com/usezoracle/rails-sui/storage"
-	"github.com/usezoracle/rails-sui/types"
+	"github.com/usezoracle/tapp/api/ent"
+	"github.com/usezoracle/tapp/api/routers/middleware"
+	"github.com/usezoracle/tapp/api/services"
+	db "github.com/usezoracle/tapp/api/storage"
+	"github.com/usezoracle/tapp/api/types"
 
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
-	"github.com/usezoracle/rails-sui/ent/enttest"
-	"github.com/usezoracle/rails-sui/utils/test"
-	"github.com/usezoracle/rails-sui/utils/token"
+	"github.com/usezoracle/tapp/api/ent/enttest"
+	"github.com/usezoracle/tapp/api/utils/test"
+	"github.com/usezoracle/tapp/api/utils/token"
 )
 
 var testCtx = struct {

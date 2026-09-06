@@ -30,16 +30,16 @@ import (
 	"github.com/block-vision/sui-go-sdk/sui"
 	"github.com/block-vision/sui-go-sdk/transaction"
 
-	"github.com/usezoracle/rails-sui/config"
-	"github.com/usezoracle/rails-sui/ent"
-	shinamiGas "github.com/usezoracle/rails-sui/services/shinami_gas"
-	"github.com/usezoracle/rails-sui/ent/lockpaymentorder"
-	"github.com/usezoracle/rails-sui/ent/paymentorder"
-	"github.com/usezoracle/rails-sui/ent/suireceiveaddress"
-	db "github.com/usezoracle/rails-sui/storage"
-	"github.com/usezoracle/rails-sui/types"
-	cryptoUtils "github.com/usezoracle/rails-sui/utils/crypto"
-	"github.com/usezoracle/rails-sui/utils/logger"
+	"github.com/usezoracle/tapp/api/config"
+	"github.com/usezoracle/tapp/api/ent"
+	shinamiGas "github.com/usezoracle/tapp/api/services/shinami_gas"
+	"github.com/usezoracle/tapp/api/ent/lockpaymentorder"
+	"github.com/usezoracle/tapp/api/ent/paymentorder"
+	"github.com/usezoracle/tapp/api/ent/suireceiveaddress"
+	db "github.com/usezoracle/tapp/api/storage"
+	"github.com/usezoracle/tapp/api/types"
+	cryptoUtils "github.com/usezoracle/tapp/api/utils/crypto"
+	"github.com/usezoracle/tapp/api/utils/logger"
 )
 
 // rateScaleE6 mirrors the Move package's u64-scaled rate format (6 decimals).

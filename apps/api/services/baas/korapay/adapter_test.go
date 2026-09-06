@@ -12,7 +12,7 @@ import (
 
 	"github.com/shopspring/decimal"
 
-	"github.com/usezoracle/rails-sui/services/baas"
+	"github.com/usezoracle/tapp/api/services/baas"
 )
 
 const testSecret = "sk_test_abc123"

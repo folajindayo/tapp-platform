@@ -10,8 +10,8 @@ import (
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
 	"github.com/google/uuid"
-	"github.com/usezoracle/rails-sui/ent/merchantbankaccount"
-	"github.com/usezoracle/rails-sui/ent/senderprofile"
+	"github.com/usezoracle/tapp/api/ent/merchantbankaccount"
+	"github.com/usezoracle/tapp/api/ent/senderprofile"
 )
 
 // MerchantBankAccount is the model entity for the MerchantBankAccount schema.

@@ -9,8 +9,8 @@ import (
 	"entgo.io/ent/schema/field"
 	"entgo.io/ent/schema/index"
 	"github.com/google/uuid"
-	gen "github.com/usezoracle/rails-sui/ent"
-	"github.com/usezoracle/rails-sui/ent/hook"
+	gen "github.com/usezoracle/tapp/api/ent"
+	"github.com/usezoracle/tapp/api/ent/hook"
 	"golang.org/x/crypto/bcrypt"
 )
 

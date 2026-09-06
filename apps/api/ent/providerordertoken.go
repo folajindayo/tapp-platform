@@ -11,8 +11,8 @@ import (
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
 	"github.com/shopspring/decimal"
-	"github.com/usezoracle/rails-sui/ent/providerordertoken"
-	"github.com/usezoracle/rails-sui/ent/providerprofile"
+	"github.com/usezoracle/tapp/api/ent/providerordertoken"
+	"github.com/usezoracle/tapp/api/ent/providerprofile"
 )
 
 // ProviderOrderToken is the model entity for the ProviderOrderToken schema.

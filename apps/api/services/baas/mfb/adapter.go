@@ -8,7 +8,7 @@ import (
 	"encoding/json"
 	"strings"
 
-	"github.com/usezoracle/rails-sui/services/baas"
+	"github.com/usezoracle/tapp/api/services/baas"
 )
 
 // Adapter makes the the BaaS provider Client satisfy baas.Provider, translating Safe

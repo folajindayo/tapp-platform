@@ -7,17 +7,17 @@ import (
 
 	"github.com/spf13/viper"
 
-	"github.com/usezoracle/rails-sui/config"
-	"github.com/usezoracle/rails-sui/routers"
-	"github.com/usezoracle/rails-sui/services"
-	"github.com/usezoracle/rails-sui/services/baas"
-	"github.com/usezoracle/rails-sui/services/baas/fintava"
-	"github.com/usezoracle/rails-sui/services/baas/korapay"
-	"github.com/usezoracle/rails-sui/services/baas/mfb"
-	"github.com/usezoracle/rails-sui/storage"
-	"github.com/usezoracle/rails-sui/tasks"
-	"github.com/usezoracle/rails-sui/utils/crypto"
-	"github.com/usezoracle/rails-sui/utils/logger"
+	"github.com/usezoracle/tapp/api/config"
+	"github.com/usezoracle/tapp/api/routers"
+	"github.com/usezoracle/tapp/api/services"
+	"github.com/usezoracle/tapp/api/services/baas"
+	"github.com/usezoracle/tapp/api/services/baas/fintava"
+	"github.com/usezoracle/tapp/api/services/baas/korapay"
+	"github.com/usezoracle/tapp/api/services/baas/mfb"
+	"github.com/usezoracle/tapp/api/storage"
+	"github.com/usezoracle/tapp/api/tasks"
+	"github.com/usezoracle/tapp/api/utils/crypto"
+	"github.com/usezoracle/tapp/api/utils/logger"
 )
 
 func main() {

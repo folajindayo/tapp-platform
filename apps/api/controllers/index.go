@@ -18,23 +18,23 @@ import (
 	"github.com/google/uuid"
 	fastshot "github.com/opus-domini/fast-shot"
 	"github.com/shopspring/decimal"
-	"github.com/usezoracle/rails-sui/config"
-	"github.com/usezoracle/rails-sui/ent"
-	"github.com/usezoracle/rails-sui/ent/fiatcurrency"
-	"github.com/usezoracle/rails-sui/ent/identityverificationrequest"
-	"github.com/usezoracle/rails-sui/ent/institution"
-	"github.com/usezoracle/rails-sui/ent/lockpaymentorder"
-	"github.com/usezoracle/rails-sui/ent/paymentorder"
-	"github.com/usezoracle/rails-sui/ent/providerprofile"
-	"github.com/usezoracle/rails-sui/ent/token"
-	svc "github.com/usezoracle/rails-sui/services"
-	"github.com/usezoracle/rails-sui/services/lifi"
-	orderSvc "github.com/usezoracle/rails-sui/services/order"
-	"github.com/usezoracle/rails-sui/services/settlement"
-	"github.com/usezoracle/rails-sui/storage"
-	"github.com/usezoracle/rails-sui/types"
-	u "github.com/usezoracle/rails-sui/utils"
-	"github.com/usezoracle/rails-sui/utils/logger"
+	"github.com/usezoracle/tapp/api/config"
+	"github.com/usezoracle/tapp/api/ent"
+	"github.com/usezoracle/tapp/api/ent/fiatcurrency"
+	"github.com/usezoracle/tapp/api/ent/identityverificationrequest"
+	"github.com/usezoracle/tapp/api/ent/institution"
+	"github.com/usezoracle/tapp/api/ent/lockpaymentorder"
+	"github.com/usezoracle/tapp/api/ent/paymentorder"
+	"github.com/usezoracle/tapp/api/ent/providerprofile"
+	"github.com/usezoracle/tapp/api/ent/token"
+	svc "github.com/usezoracle/tapp/api/services"
+	"github.com/usezoracle/tapp/api/services/lifi"
+	orderSvc "github.com/usezoracle/tapp/api/services/order"
+	"github.com/usezoracle/tapp/api/services/settlement"
+	"github.com/usezoracle/tapp/api/storage"
+	"github.com/usezoracle/tapp/api/types"
+	u "github.com/usezoracle/tapp/api/utils"
+	"github.com/usezoracle/tapp/api/utils/logger"
 
 	"github.com/gin-gonic/gin"
 )
@@ -945,7 +945,7 @@ func (ctrl *Controller) RequestIDVerification(ctx *gin.Context) {
 			// },
 		},
 		"callback_url":            fmt.Sprintf("%s/v1/kyc/webhook", serverConf.HostDomain),
-		"data_privacy_policy_url": "https://github.com/usezoracle/rails-sui",
+		"data_privacy_policy_url": "https://github.com/usezoracle/tapp/api",
 		"logo_url":                "https://i.postimg.cc/Twrq0gjC/mark-2x-2.png",
 		"is_single_use":           true,
 		"user_id":                 payload.WalletAddress,

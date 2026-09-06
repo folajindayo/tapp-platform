@@ -48,7 +48,7 @@ import (
 	"github.com/block-vision/sui-go-sdk/sui"
 	"github.com/block-vision/sui-go-sdk/transaction"
 
-	shinamiGas "github.com/usezoracle/rails-sui/services/shinami_gas"
+	shinamiGas "github.com/usezoracle/tapp/api/services/shinami_gas"
 )
 
 // sharedRef is the cached resolution for a shared object.

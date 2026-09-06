@@ -16,15 +16,15 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 
-	"github.com/usezoracle/rails-sui/ent/identityverificationrequest"
-	"github.com/usezoracle/rails-sui/ent/merchantbankaccount"
-	"github.com/usezoracle/rails-sui/ent/providerprofile"
-	"github.com/usezoracle/rails-sui/ent/senderprofile"
-	"github.com/usezoracle/rails-sui/ent/tappcard"
-	userEnt "github.com/usezoracle/rails-sui/ent/user"
-	db "github.com/usezoracle/rails-sui/storage"
-	u "github.com/usezoracle/rails-sui/utils"
-	"github.com/usezoracle/rails-sui/utils/logger"
+	"github.com/usezoracle/tapp/api/ent/identityverificationrequest"
+	"github.com/usezoracle/tapp/api/ent/merchantbankaccount"
+	"github.com/usezoracle/tapp/api/ent/providerprofile"
+	"github.com/usezoracle/tapp/api/ent/senderprofile"
+	"github.com/usezoracle/tapp/api/ent/tappcard"
+	userEnt "github.com/usezoracle/tapp/api/ent/user"
+	db "github.com/usezoracle/tapp/api/storage"
+	u "github.com/usezoracle/tapp/api/utils"
+	"github.com/usezoracle/tapp/api/utils/logger"
 )
 
 type meResponse struct {

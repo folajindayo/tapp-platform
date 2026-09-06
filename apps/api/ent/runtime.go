@@ -2,4 +2,4 @@
 
 package ent
 
-// The schema-stitching logic is generated in github.com/usezoracle/rails-sui/ent/runtime/runtime.go
+// The schema-stitching logic is generated in github.com/usezoracle/tapp/api/ent/runtime/runtime.go

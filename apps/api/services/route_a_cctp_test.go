@@ -10,10 +10,10 @@ import (
 
 	"github.com/shopspring/decimal"
 
-	"github.com/usezoracle/rails-sui/config"
-	"github.com/usezoracle/rails-sui/services/cctp"
-	"github.com/usezoracle/rails-sui/services/lifi"
-	"github.com/usezoracle/rails-sui/services/settlement"
+	"github.com/usezoracle/tapp/api/config"
+	"github.com/usezoracle/tapp/api/services/cctp"
+	"github.com/usezoracle/tapp/api/services/lifi"
+	"github.com/usezoracle/tapp/api/services/settlement"
 )
 
 func TestUsdcSubunitsUint64(t *testing.T) {

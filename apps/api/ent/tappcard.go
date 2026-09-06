@@ -10,8 +10,8 @@ import (
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
 	"github.com/google/uuid"
-	"github.com/usezoracle/rails-sui/ent/tappcard"
-	"github.com/usezoracle/rails-sui/ent/user"
+	"github.com/usezoracle/tapp/api/ent/tappcard"
+	"github.com/usezoracle/tapp/api/ent/user"
 )
 
 // TappCard is the model entity for the TappCard schema.

@@ -15,7 +15,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 
-	"github.com/usezoracle/rails-sui/types"
+	"github.com/usezoracle/tapp/api/types"
 )
 
 var errEVMTestStub = errors.New("rails: EVM test helper not available in Sui-only build (rewrite test suite for Sui)")

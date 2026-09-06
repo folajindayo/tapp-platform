@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/usezoracle/rails-sui/services/baas"
+	"github.com/usezoracle/tapp/api/services/baas"
 )
 
 // Adapter normalises the Fintava API onto baas.Provider.

@@ -14,12 +14,12 @@ import (
 	"entgo.io/ent/schema/field"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
-	"github.com/usezoracle/rails-sui/ent/lockorderfulfillment"
-	"github.com/usezoracle/rails-sui/ent/lockpaymentorder"
-	"github.com/usezoracle/rails-sui/ent/providerprofile"
-	"github.com/usezoracle/rails-sui/ent/provisionbucket"
-	"github.com/usezoracle/rails-sui/ent/token"
-	"github.com/usezoracle/rails-sui/ent/transactionlog"
+	"github.com/usezoracle/tapp/api/ent/lockorderfulfillment"
+	"github.com/usezoracle/tapp/api/ent/lockpaymentorder"
+	"github.com/usezoracle/tapp/api/ent/providerprofile"
+	"github.com/usezoracle/tapp/api/ent/provisionbucket"
+	"github.com/usezoracle/tapp/api/ent/token"
+	"github.com/usezoracle/tapp/api/ent/transactionlog"
 )
 
 // LockPaymentOrderCreate is the builder for creating a LockPaymentOrder entity.

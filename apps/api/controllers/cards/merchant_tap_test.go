@@ -5,7 +5,7 @@ import (
 
 	"github.com/shopspring/decimal"
 
-	"github.com/usezoracle/rails-sui/ent"
+	"github.com/usezoracle/tapp/api/ent"
 )
 
 func dec(t *testing.T, s string) decimal.Decimal {

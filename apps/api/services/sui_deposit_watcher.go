@@ -30,15 +30,15 @@ import (
 	"github.com/block-vision/sui-go-sdk/models"
 	"github.com/block-vision/sui-go-sdk/sui"
 
-	"github.com/usezoracle/rails-sui/config"
-	"github.com/usezoracle/rails-sui/ent"
-	"github.com/usezoracle/rails-sui/ent/routeaorder"
-	"github.com/usezoracle/rails-sui/ent/suireceiveaddress"
-	"github.com/usezoracle/rails-sui/services/contracts"
-	orderpkg "github.com/usezoracle/rails-sui/services/order"
-	db "github.com/usezoracle/rails-sui/storage"
-	"github.com/usezoracle/rails-sui/types"
-	"github.com/usezoracle/rails-sui/utils/logger"
+	"github.com/usezoracle/tapp/api/config"
+	"github.com/usezoracle/tapp/api/ent"
+	"github.com/usezoracle/tapp/api/ent/routeaorder"
+	"github.com/usezoracle/tapp/api/ent/suireceiveaddress"
+	"github.com/usezoracle/tapp/api/services/contracts"
+	orderpkg "github.com/usezoracle/tapp/api/services/order"
+	db "github.com/usezoracle/tapp/api/storage"
+	"github.com/usezoracle/tapp/api/types"
+	"github.com/usezoracle/tapp/api/utils/logger"
 )
 
 // SuiDepositWatcher polls per-order Sui receive addresses for incoming

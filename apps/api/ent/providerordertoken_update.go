@@ -13,9 +13,9 @@ import (
 	"entgo.io/ent/dialect/sql/sqljson"
 	"entgo.io/ent/schema/field"
 	"github.com/shopspring/decimal"
-	"github.com/usezoracle/rails-sui/ent/predicate"
-	"github.com/usezoracle/rails-sui/ent/providerordertoken"
-	"github.com/usezoracle/rails-sui/ent/providerprofile"
+	"github.com/usezoracle/tapp/api/ent/predicate"
+	"github.com/usezoracle/tapp/api/ent/providerordertoken"
+	"github.com/usezoracle/tapp/api/ent/providerprofile"
 )
 
 // ProviderOrderTokenUpdate is the builder for updating ProviderOrderToken entities.

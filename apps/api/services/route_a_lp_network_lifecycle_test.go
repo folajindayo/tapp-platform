@@ -17,14 +17,14 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/shopspring/decimal"
 
-	"github.com/usezoracle/rails-sui/config"
-	"github.com/usezoracle/rails-sui/ent/enttest"
-	"github.com/usezoracle/rails-sui/ent/lpledgerentry"
-	"github.com/usezoracle/rails-sui/ent/routeaevent"
-	"github.com/usezoracle/rails-sui/ent/routeaorder"
-	"github.com/usezoracle/rails-sui/services/baas"
-	"github.com/usezoracle/rails-sui/services/lifi"
-	"github.com/usezoracle/rails-sui/storage"
+	"github.com/usezoracle/tapp/api/config"
+	"github.com/usezoracle/tapp/api/ent/enttest"
+	"github.com/usezoracle/tapp/api/ent/lpledgerentry"
+	"github.com/usezoracle/tapp/api/ent/routeaevent"
+	"github.com/usezoracle/tapp/api/ent/routeaorder"
+	"github.com/usezoracle/tapp/api/services/baas"
+	"github.com/usezoracle/tapp/api/services/lifi"
+	"github.com/usezoracle/tapp/api/storage"
 )
 
 func TestRouteBLifecycleLpNetworkToSettled(t *testing.T) {

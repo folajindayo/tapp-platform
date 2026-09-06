@@ -11,13 +11,13 @@ import (
 	"entgo.io/ent/dialect/sql"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
-	"github.com/usezoracle/rails-sui/ent/paymentorder"
-	"github.com/usezoracle/rails-sui/ent/paymentorderrecipient"
-	"github.com/usezoracle/rails-sui/ent/receiveaddress"
-	"github.com/usezoracle/rails-sui/ent/routeaorder"
-	"github.com/usezoracle/rails-sui/ent/senderprofile"
-	"github.com/usezoracle/rails-sui/ent/suireceiveaddress"
-	"github.com/usezoracle/rails-sui/ent/token"
+	"github.com/usezoracle/tapp/api/ent/paymentorder"
+	"github.com/usezoracle/tapp/api/ent/paymentorderrecipient"
+	"github.com/usezoracle/tapp/api/ent/receiveaddress"
+	"github.com/usezoracle/tapp/api/ent/routeaorder"
+	"github.com/usezoracle/tapp/api/ent/senderprofile"
+	"github.com/usezoracle/tapp/api/ent/suireceiveaddress"
+	"github.com/usezoracle/tapp/api/ent/token"
 )
 
 // PaymentOrder is the model entity for the PaymentOrder schema.

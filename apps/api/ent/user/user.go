@@ -126,7 +126,7 @@ func ValidColumn(column string) bool {
 // package on the initialization of the application. Therefore,
 // it should be imported in the main as follows:
 //
-//	import _ "github.com/usezoracle/rails-sui/ent/runtime"
+//	import _ "github.com/usezoracle/tapp/api/ent/runtime"
 var (
 	Hooks [1]ent.Hook
 	// DefaultCreatedAt holds the default value on creation for the "created_at" field.

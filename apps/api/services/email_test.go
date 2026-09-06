@@ -7,8 +7,8 @@ import (
 	"testing"
 
 	"github.com/jarcoal/httpmock"
-	"github.com/usezoracle/rails-sui/config"
-	"github.com/usezoracle/rails-sui/types"
+	"github.com/usezoracle/tapp/api/config"
+	"github.com/usezoracle/tapp/api/types"
 	"github.com/stretchr/testify/assert"
 )
 

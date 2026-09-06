@@ -11,7 +11,7 @@ import (
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
 	"github.com/google/uuid"
-	"github.com/usezoracle/rails-sui/ent/adminauditlog"
+	"github.com/usezoracle/tapp/api/ent/adminauditlog"
 )
 
 // AdminAuditLog is the model entity for the AdminAuditLog schema.

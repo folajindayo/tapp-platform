@@ -10,7 +10,7 @@ import (
 
 	sentryhook "github.com/chadsr/logrus-sentry"
 	"github.com/getsentry/sentry-go"
-	"github.com/usezoracle/rails-sui/config"
+	"github.com/usezoracle/tapp/api/config"
 	"github.com/sirupsen/logrus"
 )
 

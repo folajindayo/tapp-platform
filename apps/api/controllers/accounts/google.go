@@ -26,17 +26,17 @@ import (
 	"github.com/gin-gonic/gin"
 	"google.golang.org/api/idtoken"
 
-	"github.com/usezoracle/rails-sui/config"
-	"github.com/usezoracle/rails-sui/ent"
-	"github.com/usezoracle/rails-sui/ent/fiatcurrency"
-	"github.com/usezoracle/rails-sui/ent/providerprofile"
-	userEnt "github.com/usezoracle/rails-sui/ent/user"
-	authSvc "github.com/usezoracle/rails-sui/services/auth"
-	db "github.com/usezoracle/rails-sui/storage"
-	"github.com/usezoracle/rails-sui/types"
-	u "github.com/usezoracle/rails-sui/utils"
-	"github.com/usezoracle/rails-sui/utils/logger"
-	"github.com/usezoracle/rails-sui/utils/token"
+	"github.com/usezoracle/tapp/api/config"
+	"github.com/usezoracle/tapp/api/ent"
+	"github.com/usezoracle/tapp/api/ent/fiatcurrency"
+	"github.com/usezoracle/tapp/api/ent/providerprofile"
+	userEnt "github.com/usezoracle/tapp/api/ent/user"
+	authSvc "github.com/usezoracle/tapp/api/services/auth"
+	db "github.com/usezoracle/tapp/api/storage"
+	"github.com/usezoracle/tapp/api/types"
+	u "github.com/usezoracle/tapp/api/utils"
+	"github.com/usezoracle/tapp/api/utils/logger"
+	"github.com/usezoracle/tapp/api/utils/token"
 )
 
 // authConf is declared in auth.go (same package).

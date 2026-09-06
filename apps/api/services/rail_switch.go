@@ -17,11 +17,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/usezoracle/rails-sui/config"
-	"github.com/usezoracle/rails-sui/services/baas"
-	"github.com/usezoracle/rails-sui/services/baas/fintava"
-	"github.com/usezoracle/rails-sui/services/baas/korapay"
-	db "github.com/usezoracle/rails-sui/storage"
+	"github.com/usezoracle/tapp/api/config"
+	"github.com/usezoracle/tapp/api/services/baas"
+	"github.com/usezoracle/tapp/api/services/baas/fintava"
+	"github.com/usezoracle/tapp/api/services/baas/korapay"
+	db "github.com/usezoracle/tapp/api/storage"
 )
 
 const (
