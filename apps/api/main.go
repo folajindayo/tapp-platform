@@ -98,6 +98,12 @@ func main() {
 
 		if baseRail != nil {
 			go baseRail.Watcher.Run(context.Background(), apiv1.BasePollInterval())
+			// Pooling is the point: one key protects everything. Until a
+			// deposit is swept it sits at an address whose key must be
+			// re-derived to touch, and a withdrawal cannot be paid from money
+			// spread across a thousand addresses.
+			go baseRail.Sweeper.Run(context.Background(), apiv1.BasePollInterval())
+			go baseRail.Withdrawals.Run(context.Background(), apiv1.BasePollInterval())
 		}
 
 		// Deliver what the ledger says is owed. Until this runs, merchants

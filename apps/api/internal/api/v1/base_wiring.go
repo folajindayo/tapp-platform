@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/spf13/viper"
 
 	"github.com/usezoracle/tapp/api/internal/chain/base"
@@ -16,10 +15,13 @@ import (
 
 // BaseRail is everything the USDC rail needs, assembled once.
 type BaseRail struct {
-	Addresses *base.Addresses
-	Deposits  *base.Deposits
-	Watcher   *base.Watcher
-	ChainID   int64
+	Addresses   *base.Addresses
+	Deposits    *base.Deposits
+	Watcher     *base.Watcher
+	Sweeper     *base.Sweeper
+	Withdrawals *base.Withdrawals
+	Chain       *base.Chain
+	ChainID     int64
 }
 
 // NewBaseRail builds the deposit rail from configuration.
@@ -55,10 +57,12 @@ func NewBaseRail(ctx context.Context) (*BaseRail, error) {
 		return nil, err
 	}
 
-	client, err := ethclient.DialContext(ctx, rpcURL)
+	chainID := viper.GetInt64("BASE_CHAIN_ID")
+	chain, err := base.NewChain(ctx, rpcURL, usdc, viper.GetString("BASE_TREASURY_KEY"), chainID)
 	if err != nil {
-		return nil, fmt.Errorf("base: dial %s: %w", rpcURL, err)
+		return nil, err
 	}
+	client := chain.Client
 
 	addresses := &base.Addresses{Pool: storage.Pool, Deriver: deriver}
 	deposits := &base.Deposits{
@@ -66,16 +70,26 @@ func NewBaseRail(ctx context.Context) (*BaseRail, error) {
 		Confirmations: uint64(viper.GetInt("BASE_CONFIRMATIONS")),
 	}
 
+	if !chain.CanSend() {
+		// Deposits still credit correctly without a treasury key; nothing can
+		// leave, and saying so at boot beats discovering it at a withdrawal.
+		logger.Infof("base: no BASE_TREASURY_KEY -- deposits will be credited but not swept, " +
+			"and USDC withdrawals are unavailable")
+	}
+
 	return &BaseRail{
 		Addresses: addresses,
 		Deposits:  deposits,
-		ChainID:   viper.GetInt64("BASE_CHAIN_ID"),
+		Chain:     chain,
+		ChainID:   chainID,
 		Watcher: &base.Watcher{
 			Pool: storage.Pool, Client: client,
 			USDC:       common.HexToAddress(usdc),
 			Deposits:   deposits,
 			StartBlock: uint64(viper.GetInt64("BASE_START_BLOCK")),
 		},
+		Sweeper:     &base.Sweeper{Pool: storage.Pool, Chain: chain, Deriver: deriver},
+		Withdrawals: &base.Withdrawals{Pool: storage.Pool, Chain: chain},
 	}, nil
 }
 
