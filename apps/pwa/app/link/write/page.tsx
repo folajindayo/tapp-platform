@@ -16,7 +16,6 @@ import { IconContactlessCard } from "@/lib/icons";
 import {
   deriveLinkingProofs,
   newCardPassword,
-  newRotationToken,
   randomBytes,
   uidHash,
 } from "@/lib/cardCrypto";
@@ -27,6 +26,9 @@ import {
   writeCardPayload,
 } from "@/lib/webnfc";
 import { useLinkStore } from "@/lib/cardLinkStore";
+import { linkApi, ApiError } from "@/lib/api";
+import { useSession } from "@/lib/auth";
+import { bytesToHex, hexToBytes } from "@/lib/cardCrypto";
 
 /** Constant-time-ish byte compare for the write read-back verification. */
 function sameBytes(a: Uint8Array, b: Uint8Array): boolean {
@@ -49,10 +51,16 @@ function Body() {
   const router = useRouter();
   const params = useSearchParams();
   const cardId = params.get("card");
+  const sessionId = params.get("session");
+  const { session } = useSession();
 
   const pin = useLinkStore((s) => s.pin);
+  const dailyLimitSubunit = useLinkStore((s) => s.dailyLimitSubunit);
+  const perTapLimitSubunit = useLinkStore((s) => s.perTapLimitSubunit);
+  const stepUpThresholdSubunit = useLinkStore((s) => s.stepUpThresholdSubunit);
   const setCryptoMaterial = useLinkStore((s) => s.setCryptoMaterial);
   const setCardUidHash = useLinkStore((s) => s.setCardUidHash);
+  const setRotationToken = useLinkStore((s) => s.setRotationToken);
 
   const [phase, setPhase] = useState<Phase>("ready");
   const [error, setError] = useState<string | null>(null);
@@ -62,7 +70,7 @@ function Body() {
   }, [cardId, pin, router]);
 
   async function startWrite() {
-    if (!pin) return;
+    if (!pin || !sessionId || !session) return;
     setError(null);
     setPhase("writing");
 
@@ -74,36 +82,61 @@ function Body() {
       }
 
       const K = randomBytes(32);
-      const rotationToken = newRotationToken();
       const cardPassword = newCardPassword();
       const { linkingProof, pinVerifier } = deriveLinkingProofs(K, pin);
+
+      // Ask the server for the token to write. It is issued server-side, not
+      // generated here: it is the value every later tap is checked against,
+      // and client entropy is the weaker source. Asking again after a dropped
+      // connection returns the SAME token, so a retry cannot leave two
+      // different values on one chip.
+      const provisioned = await linkApi.provision(
+        sessionId,
+        {
+          pin_anchor: bytesToHex(linkingProof),
+          per_tap_limit: (perTapLimitSubunit / 100).toFixed(2),
+          step_up_limit: (stepUpThresholdSubunit / 100).toFixed(2),
+          daily_limit: (dailyLimitSubunit / 100).toFixed(2),
+        },
+        session.jwt,
+      );
+      if (!provisioned.writeToken) {
+        throw new Error("The server did not return a token to write.");
+      }
+      const rotationToken = hexToBytes(provisioned.writeToken);
       const payload = packCardPayload(K, rotationToken);
 
       await writeCardPayload(payload);
 
-      // Verify the write actually persisted BEFORE anything downstream funds
-      // the card. Without this, a card can end up funded + "live" while the
-      // chip is physically blank — which is exactly why the merchant couldn't
-      // read it. Read the card back and require the exact payload to be there.
+      // Verify the write actually persisted before the card is activated.
+      // Without this a card can go "live" while the chip is physically blank,
+      // which is exactly why a merchant could not read it — and the place that
+      // is discovered is a checkout counter.
       const readback = await readCardPayload();
       if (!sameBytes(readback.payload, payload)) {
         throw new Error(
           "The card didn't store its data — keep it flat against the phone and tap again.",
         );
       }
-      const cardUidHash = uidHash(readback.uid);
 
-      setCryptoMaterial({ K, linkingProof, pinVerifier, cardPassword, rotationToken });
-      setCardUidHash(cardUidHash);
+      setCryptoMaterial({ K, linkingProof, pinVerifier, cardPassword });
+      setCardUidHash(uidHash(readback.uid));
+      setRotationToken(rotationToken);
       setPhase("done");
     } catch (err) {
       setPhase("error");
-      setError(err instanceof Error ? err.message : "Could not write to card");
+      const msg =
+        err instanceof ApiError
+          ? err.message
+          : err instanceof Error
+            ? err.message
+            : "Could not write to card";
+      setError(msg);
     }
   }
 
   function next() {
-    router.push(`/link/sign?card=${cardId}`);
+    router.push(`/link/sign?session=${sessionId}&card=${cardId}`);
   }
 
   return (

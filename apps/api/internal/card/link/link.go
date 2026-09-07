@@ -111,12 +111,15 @@ func (l Limits) Valid(maxDailyMinor int64) error {
 	return nil
 }
 
-// Provisioning is what the client commits before writing to the chip.
+// Provisioning is what the client commits before writing to the chip: what the
+// cardholder chose, and the proof derived from their PIN.
+//
+// The chip's UID is deliberately NOT here. A client learns it by reading the
+// card, and the read it naturally performs is the one that verifies the write
+// landed -- which happens after provisioning. Demanding the UID first would
+// force a second tap onto the flow for no gain, and a linking ceremony that
+// asks somebody to present the card twice is one more place to lose them.
 type Provisioning struct {
-	// UIDHash is sha256 of the chip's factory UID. The raw UID is never sent:
-	// it identifies the physical card and there is no reason for the server to
-	// hold it.
-	UIDHash []byte
 	// Anchor is HMAC(HMAC(K, PIN), "linking-anchor-v1"). See the package
 	// comment for why this and not its inputs.
 	Anchor []byte
@@ -125,11 +128,29 @@ type Provisioning struct {
 
 // Valid checks a provisioning before it is committed.
 func (p Provisioning) Valid(maxDailyMinor int64) error {
-	if len(p.UIDHash) != 32 {
-		return fmt.Errorf("link: the card UID hash must be a 32-byte sha256")
-	}
 	if len(p.Anchor) != 32 {
 		return fmt.Errorf("link: the PIN anchor must be 32 bytes")
 	}
 	return p.Limits.Valid(maxDailyMinor)
+}
+
+// Activation is what the client presents once it has written the token.
+type Activation struct {
+	// UIDHash is sha256 of the chip's factory UID, read back off the card. The
+	// raw UID is never sent: it identifies the physical card and there is no
+	// reason for the server to hold it.
+	UIDHash []byte
+	// ReadBack is the token as read off the chip, proving the write landed.
+	ReadBack []byte
+}
+
+// Valid checks an activation.
+func (a Activation) Valid() error {
+	if len(a.UIDHash) != 32 {
+		return fmt.Errorf("link: the card UID hash must be a 32-byte sha256")
+	}
+	if len(a.ReadBack) == 0 {
+		return fmt.Errorf("link: activation must present what was read off the card")
+	}
+	return nil
 }

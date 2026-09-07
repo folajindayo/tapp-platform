@@ -65,9 +65,6 @@ func (h *LinkHandler) Get(ctx *gin.Context) {
 }
 
 type provisionRequest struct {
-	// CardUIDHash is sha256 of the chip's factory UID. The raw UID is never
-	// sent: it identifies the physical card and there is no reason to hold it.
-	CardUIDHash string `json:"card_uid_hash" binding:"required"`
 	// Anchor is HMAC(HMAC(K, PIN), "linking-anchor-v1"), computed on the
 	// client. Neither K nor the PIN can be recovered from it, which is why the
 	// client sends this and not its inputs.
@@ -90,10 +87,6 @@ func (h *LinkHandler) Provision(ctx *gin.Context) {
 		return
 	}
 
-	uidHash, ok := decodeHex(ctx, req.CardUIDHash, "card_uid_hash")
-	if !ok {
-		return
-	}
 	anchor, ok := decodeHex(ctx, req.Anchor, "pin_anchor")
 	if !ok {
 		return
@@ -105,7 +98,7 @@ func (h *LinkHandler) Provision(ctx *gin.Context) {
 	}
 
 	session, err := h.Svc.Provision(ctx.Request.Context(), sessionID, user, link.Provisioning{
-		UIDHash: uidHash, Anchor: anchor, Limits: limits,
+		Anchor: anchor, Limits: limits,
 	})
 	if err != nil {
 		writeLinkError(ctx, err)
@@ -115,6 +108,10 @@ func (h *LinkHandler) Provision(ctx *gin.Context) {
 }
 
 type activateRequest struct {
+	// CardUIDHash is sha256 of the chip's factory UID, read back off the card.
+	// The raw UID is never sent: it identifies the physical card and there is
+	// no reason for the server to hold it.
+	CardUIDHash string `json:"card_uid_hash" binding:"required"`
 	// ReadBack is what the client read off the chip after writing. Trusting
 	// the write alone would leave a fraction of cards permanently unusable: an
 	// NFC write reporting success without landing is common.
@@ -132,12 +129,18 @@ func (h *LinkHandler) Activate(ctx *gin.Context) {
 		u.APIResponse(ctx, http.StatusBadRequest, "error", "Invalid request", u.GetErrorData(err))
 		return
 	}
+	uidHash, ok := decodeHex(ctx, req.CardUIDHash, "card_uid_hash")
+	if !ok {
+		return
+	}
 	readBack, ok := decodeHex(ctx, req.ReadBack, "read_back")
 	if !ok {
 		return
 	}
 
-	session, err := h.Svc.Activate(ctx.Request.Context(), sessionID, user, readBack)
+	session, err := h.Svc.Activate(ctx.Request.Context(), sessionID, user, link.Activation{
+		UIDHash: uidHash, ReadBack: readBack,
+	})
 	if err != nil {
 		writeLinkError(ctx, err)
 		return

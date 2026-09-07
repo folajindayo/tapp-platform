@@ -16,7 +16,7 @@ import { Button } from "@/components/ui/Button";
 import { Icon } from "@/components/ui/Icon";
 import { IconSuccessBadge } from "@/lib/icons";
 import { useSession } from "@/lib/auth";
-import { cardsApi, ApiError } from "@/lib/api";
+import { linkApi, ApiError } from "@/lib/api";
 import {
   AnimatedComponent,
   fadeInOut,
@@ -44,7 +44,9 @@ function LinkPageBody() {
     <ClaimingState
       token={token}
       jwt={session.jwt}
-      onDone={(id) => router.replace(`/link/configure?card=${id}`)}
+      onDone={(sessionId, cardId) =>
+        router.replace(`/link/configure?session=${sessionId}&card=${cardId}`)
+      }
     />
   );
 }
@@ -267,7 +269,7 @@ function ClaimingState({
 }: {
   token: string;
   jwt: string;
-  onDone: (cardId: string) => void;
+  onDone: (sessionId: string, cardId: string) => void;
 }) {
   const [status, setStatus] = useState<"claiming" | "error" | "already-yours">(
     "claiming",
@@ -278,9 +280,9 @@ function ClaimingState({
     let cancelled = false;
     async function go() {
       try {
-        const res = await cardsApi.claim(token, jwt);
+        const session = await linkApi.start(token, jwt);
         if (cancelled) return;
-        onDone(res.card_id);
+        onDone(session.id, session.cardId);
       } catch (err) {
         if (cancelled) return;
         if (

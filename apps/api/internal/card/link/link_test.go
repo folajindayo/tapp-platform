@@ -104,15 +104,20 @@ func newUser(t *testing.T, s *Service) uuid.UUID {
 
 func provisioning(t *testing.T) Provisioning {
 	t.Helper()
+	return Provisioning{
+		Anchor: auth.Anchor([]byte("32-bytes-of-secret-living-on-crd"), "1379"),
+		Limits: Limits{PerTapMinor: 200_000, StepUpMinor: 1_500_000, DailyMinor: 4_000_000},
+	}
+}
+
+// activation carries the UID the client read back off the chip.
+func activation(t *testing.T, readBack []byte) Activation {
+	t.Helper()
 	uid := make([]byte, 32)
 	if _, err := rand.Read(uid); err != nil {
 		t.Fatal(err)
 	}
-	return Provisioning{
-		UIDHash: uid,
-		Anchor:  auth.Anchor([]byte("32-bytes-of-secret-living-on-crd"), "1379"),
-		Limits:  Limits{PerTapMinor: 200_000, StepUpMinor: 1_500_000, DailyMinor: 4_000_000},
-	}
+	return Activation{UIDHash: uid, ReadBack: readBack}
 }
 
 // The whole ceremony, and then the card is live.
@@ -138,7 +143,7 @@ func TestLinkingACardEndToEnd(t *testing.T) {
 	}
 
 	written, _ := hex.DecodeString(session.WriteToken)
-	session, err = s.Activate(ctx, session.ID, user, written)
+	session, err = s.Activate(ctx, session.ID, user, activation(t, written))
 	if err != nil {
 		t.Fatalf("Activate: %v", err)
 	}
@@ -193,7 +198,7 @@ func TestAnInterruptedCeremonyResumes(t *testing.T) {
 	}
 
 	written, _ := hex.DecodeString(resumed.WriteToken)
-	if _, err := s.Activate(ctx, session.ID, user, written); err != nil {
+	if _, err := s.Activate(ctx, session.ID, user, activation(t, written)); err != nil {
 		t.Fatalf("Activate after resuming: %v", err)
 	}
 }
@@ -259,7 +264,7 @@ func TestActivationRequiresTheCardToActuallyHoldTheToken(t *testing.T) {
 	if _, err := rand.Read(wrong); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := s.Activate(ctx, session.ID, user, wrong); !errors.Is(err, ErrWrongState) {
+	if _, err := s.Activate(ctx, session.ID, user, activation(t, wrong)); !errors.Is(err, ErrWrongState) {
 		t.Fatalf("activation with the wrong read-back returned %v", err)
 	}
 
@@ -303,15 +308,30 @@ func TestOnePhysicalChipCannotBackTwoCards(t *testing.T) {
 	s := testService(t)
 	ctx := context.Background()
 	user := newUser(t, s)
-	p := provisioning(t)
 
-	first, _ := s.Start(ctx, issueCard(t, s), user)
-	if _, err := s.Provision(ctx, first.ID, user, p); err != nil {
-		t.Fatalf("first Provision: %v", err)
+	uid := make([]byte, 32)
+	if _, err := rand.Read(uid); err != nil {
+		t.Fatal(err)
 	}
 
+	first, _ := s.Start(ctx, issueCard(t, s), user)
+	first, err := s.Provision(ctx, first.ID, user, provisioning(t))
+	if err != nil {
+		t.Fatalf("first Provision: %v", err)
+	}
+	written, _ := hex.DecodeString(first.WriteToken)
+	if _, err := s.Activate(ctx, first.ID, user, Activation{UIDHash: uid, ReadBack: written}); err != nil {
+		t.Fatalf("first Activate: %v", err)
+	}
+
+	// A second card record presenting the same physical chip.
 	second, _ := s.Start(ctx, issueCard(t, s), user)
-	if _, err := s.Provision(ctx, second.ID, user, p); !errors.Is(err, ErrUIDTaken) {
+	second, err = s.Provision(ctx, second.ID, user, provisioning(t))
+	if err != nil {
+		t.Fatalf("second Provision: %v", err)
+	}
+	written2, _ := hex.DecodeString(second.WriteToken)
+	if _, err := s.Activate(ctx, second.ID, user, Activation{UIDHash: uid, ReadBack: written2}); !errors.Is(err, ErrUIDTaken) {
 		t.Fatalf("got %v, want ErrUIDTaken", err)
 	}
 }

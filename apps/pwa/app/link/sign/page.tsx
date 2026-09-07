@@ -14,7 +14,7 @@ import {
 import { useSession } from "@/lib/auth";
 import { useLinkStore } from "@/lib/cardLinkStore";
 import { bytesToHex } from "@/lib/cardCrypto";
-import { cardsApi, ApiError } from "@/lib/api";
+import { linkApi, ApiError } from "@/lib/api";
 
 export default function LinkSignPage() {
   return (
@@ -30,6 +30,7 @@ function Body() {
   const router = useRouter();
   const params = useSearchParams();
   const cardId = params.get("card");
+  const sessionId = params.get("session");
   const { hydrated, session } = useSession();
   const link = useLinkStore();
 
@@ -61,38 +62,24 @@ function Body() {
     setPhase("signing");
 
     try {
-      // Idempotency guard — the whole point of this fix. create_cap moves
-      // real USDC, so it must run AT MOST ONCE per holder. If they already
-      // have a live, funded card (e.g. they re-entered linking because the
-      // balance showed 0), do NOT fund a second cap — send them to the card
-      // they already have. This is what was double-charging users.
-      const existing = await cardsApi.me(session.jwt).catch(() => null);
-      if (existing && existing.status === "live" && existing.cap_object_id) {
-        router.replace("/settings/card");
-        return;
+      // There is no on-chain step any more. Funds are ledger-side, so this
+      // screen no longer fabricates a cap object id and a transaction digest
+      // for a transaction that never happened -- it confirms to the server
+      // what was actually read back off the chip.
+      //
+      // Activation is idempotent: a session already activated returns the same
+      // answer rather than repeating anything, so a retry here is free.
+      if (!sessionId) throw new Error("This setup session has been lost.");
+      if (!link.cardUidHash || !link.rotationToken) {
+        throw new Error("Write the card before finishing setup.");
       }
 
-      // Base / off-chain settlement linking parameters
-      const capObjectId = "0xbase_cap_" + (cardId ?? "").slice(0, 8);
-      const coinType = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"; // Base Mainnet USDC
-      const txDigest = "base-link-" + Date.now().toString(36);
-
-      link.setChainResult({ capObjectId, coinType, txDigest });
-
       setPhase("submitting");
-      await cardsApi.linkComplete(
+      await linkApi.activate(
+        sessionId,
         {
-          card_uid_hash:             bytesToHex(link.cardUidHash!),
-          cap_object_id:             capObjectId,
-          coin_type:                 coinType,
-          linking_proof:             bytesToHex(link.linkingProof!),
-          pin_verifier:              bytesToHex(link.pinVerifier!),
-          card_password:             bytesToHex(link.cardPassword!),
-          current_token_ct:          bytesToHex(link.rotationToken!),
-          tx_digest:                 txDigest,
-          daily_limit_subunit:       link.dailyLimitSubunit,
-          per_tap_limit_subunit:     link.perTapLimitSubunit,
-          step_up_threshold_subunit: link.stepUpThresholdSubunit,
+          card_uid_hash: bytesToHex(link.cardUidHash),
+          read_back: bytesToHex(link.rotationToken),
         },
         session.jwt,
       );

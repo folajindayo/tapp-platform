@@ -33,8 +33,9 @@ function Body() {
   const router = useRouter();
   const params = useSearchParams();
   const cardId = params.get("card");
+  const sessionId = params.get("session");
   const { hydrated, session } = useSession();
-  const setCardId = useLinkStore((s) => s.setCardId);
+  const setLinkSession = useLinkStore((s) => s.setSession);
   const setLimits = useLinkStore((s) => s.setLimits);
 
   const [daily, setDaily] = useState(DEFAULTS.dailyNGN);
@@ -45,24 +46,29 @@ function Body() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!cardId) router.replace("/");
+    if (!cardId || !sessionId) router.replace("/");
     if (hydrated && !session)
       router.replace(
-        `/sign-in?next=/link/configure?card=${cardId ?? ""}`,
+        `/sign-in?next=/link/configure?session=${sessionId ?? ""}&card=${cardId ?? ""}`,
       );
-    if (cardId) setCardId(cardId);
-  }, [cardId, hydrated, session, router, setCardId]);
+    if (cardId && sessionId) setLinkSession(sessionId, cardId);
+  }, [cardId, sessionId, hydrated, session, router, setLinkSession]);
 
   // One card per user: if the holder already has a live card, the link flow
   // is a dead end — bounce them to their card instead of re-showing "set
-  // limits" (and never let them fund a second cap).
+  // limits".
+  //
+  // The condition used to also require cap_object_id, which was the on-chain
+  // spending cap. There is no on-chain cap any more, so that field is always
+  // absent and the guard would never have fired: somebody with a working card
+  // would have been walked through setup a second time.
   useEffect(() => {
     if (!session) return;
     let cancelled = false;
     cardsApi
       .me(session.jwt)
       .then((c) => {
-        if (!cancelled && c.status === "live" && c.cap_object_id) {
+        if (!cancelled && c.status === "live") {
           router.replace("/settings/card");
         }
       })
@@ -92,7 +98,7 @@ function Body() {
       stepUp:  stepUp * 100,
       pin,
     });
-    router.push(`/link/write?card=${cardId}`);
+    router.push(`/link/write?session=${sessionId}&card=${cardId}`);
   }
 
   return (

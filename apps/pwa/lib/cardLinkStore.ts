@@ -13,6 +13,12 @@ import { create } from "zustand";
  */
 
 export interface LinkState {
+  /**
+   * The server-side session driving this ceremony. Everything below is
+   * scratch state for the current screen; this is what lets a client that
+   * lost its place ask the server where it got to instead of starting over.
+   */
+  sessionId: string | null;
   cardId: string | null;
   // Limits the user dialed in.
   dailyLimitSubunit: number;
@@ -26,12 +32,16 @@ export interface LinkState {
   pinVerifier: Uint8Array | null;
   cardPassword: Uint8Array | null;
   cardUidHash: Uint8Array | null;
+  /**
+   * The token the SERVER issued for this card, to be written to the chip.
+   *
+   * Generated server-side rather than here: it is the value a later tap is
+   * checked against, and client entropy is the weaker source. Held so the
+   * write and the activation that confirms it use the same bytes.
+   */
   rotationToken: Uint8Array | null;
-  // Set after the create_cap PTB lands.
-  capObjectId: string | null;
-  coinType: string | null;
-  txDigest: string | null;
 
+  setSession: (sessionId: string, cardId: string) => void;
   setCardId: (id: string) => void;
   setLimits: (l: {
     daily: number;
@@ -45,14 +55,14 @@ export interface LinkState {
     linkingProof: Uint8Array;
     pinVerifier: Uint8Array;
     cardPassword: Uint8Array;
-    rotationToken: Uint8Array;
   }) => void;
   setCardUidHash: (h: Uint8Array) => void;
-  setChainResult: (r: { capObjectId: string; coinType: string; txDigest: string }) => void;
+  setRotationToken: (t: Uint8Array) => void;
   reset: () => void;
 }
 
 export const useLinkStore = create<LinkState>((set) => ({
+  sessionId: null,
   cardId: null,
   dailyLimitSubunit: 0,
   perTapLimitSubunit: 0,
@@ -65,10 +75,8 @@ export const useLinkStore = create<LinkState>((set) => ({
   cardPassword: null,
   cardUidHash: null,
   rotationToken: null,
-  capObjectId: null,
-  coinType: null,
-  txDigest: null,
 
+  setSession: (sessionId, cardId) => set({ sessionId, cardId }),
   setCardId: (id) => set({ cardId: id }),
   setLimits: (l) =>
     set({
@@ -84,15 +92,9 @@ export const useLinkStore = create<LinkState>((set) => ({
       linkingProof: m.linkingProof,
       pinVerifier: m.pinVerifier,
       cardPassword: m.cardPassword,
-      rotationToken: m.rotationToken,
     }),
   setCardUidHash: (h) => set({ cardUidHash: h }),
-  setChainResult: (r) =>
-    set({
-      capObjectId: r.capObjectId,
-      coinType: r.coinType,
-      txDigest: r.txDigest,
-    }),
+  setRotationToken: (t) => set({ rotationToken: t }),
   reset: () => {
     // Best-effort wipe of sensitive buffers before drop.
     set((s) => {
@@ -102,6 +104,7 @@ export const useLinkStore = create<LinkState>((set) => ({
       s.cardPassword?.fill(0);
       s.rotationToken?.fill(0);
       return {
+        sessionId: null,
         cardId: null,
         dailyLimitSubunit: 0,
         perTapLimitSubunit: 0,
@@ -114,9 +117,6 @@ export const useLinkStore = create<LinkState>((set) => ({
         cardPassword: null,
         cardUidHash: null,
         rotationToken: null,
-        capObjectId: null,
-        coinType: null,
-        txDigest: null,
       };
     });
   },

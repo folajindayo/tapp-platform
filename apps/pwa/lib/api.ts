@@ -150,26 +150,87 @@ export interface ResyncPayload {
   resync_nonce: string;
 }
 
-export const cardsApi = {
-  /** Claim a freshly-issued card by its activation token (Act 1). */
-  claim: (token: string, jwt: string) =>
-    request<CardClaimResponse>("POST", "/v1/cards/link/claim", {
-      body: { token },
+export interface LinkSession {
+  id: string;
+  cardId: string;
+  state: "started" | "provisioned" | "activated" | "abandoned" | "failed";
+  /**
+   * Hex token to write to the chip. Present once provisioned, and returned
+   * again on every read of the session -- a client that lost its connection
+   * mid-write resumes with the SAME value. Two different tokens written to
+   * one chip is how a card ends up out of sync before it has ever been used.
+   */
+  writeToken?: string;
+  failure?: string;
+  expiresAt: string;
+}
+
+/**
+ * Card linking, as one resumable session.
+ *
+ * Replaces the old claim/complete pair, which were two of four unrelated
+ * endpoints with no state between them: any dropped connection meant repeating
+ * a ceremony that generates a secret, writes it to a chip over NFC, and
+ * commits a PIN proof. Every call here is idempotent, and `get` tells the
+ * client where it got to.
+ */
+export const linkApi = {
+  /** Claim a card by its activation token and open a session. */
+  start: (activationToken: string, jwt: string) =>
+    request<LinkSession>("POST", "/v1/cards/link/sessions", {
+      body: { activation_token: activationToken },
+      token: jwt,
+    }),
+
+  /** Where did this session get to? Safe to call at any point. */
+  get: (sessionId: string, jwt: string) =>
+    request<LinkSession>("GET", `/v1/cards/link/sessions/${sessionId}`, {
       token: jwt,
     }),
 
   /**
-   * Complete linking after PWA: writes K to card, builds + signs
-   * create_cap PTB, and POSTs all the verifier bytes here so the
-   * server can validate per-debit PIN responses later.
+   * Commit the PIN proof and the chosen limits; receive the token to write.
+   *
+   * `pin_anchor` is HMAC(HMAC(K, PIN), "linking-anchor-v1"), computed here.
+   * The server never sees K or the PIN, so a stolen database yields no ability
+   * to impersonate a cardholder.
    */
-  linkComplete: (body: CardLinkCompleteRequest, jwt: string) =>
-    request<{ card_id: string; status: "live" }>(
+  provision: (
+    sessionId: string,
+    body: {
+      pin_anchor: string;
+      per_tap_limit: string;
+      step_up_limit: string;
+      daily_limit: string;
+    },
+    jwt: string,
+  ) =>
+    request<LinkSession>(
       "POST",
-      "/v1/cards/link/complete",
+      `/v1/cards/link/sessions/${sessionId}/provision`,
       { body, token: jwt },
     ),
 
+  /**
+   * Finish, presenting what was actually read back off the chip.
+   *
+   * The read-back is not a formality: an NFC write that reports success
+   * without landing is common, and a card that goes live without holding its
+   * token fails at a checkout counter instead of here.
+   */
+  activate: (
+    sessionId: string,
+    body: { card_uid_hash: string; read_back: string },
+    jwt: string,
+  ) =>
+    request<LinkSession>(
+      "POST",
+      `/v1/cards/link/sessions/${sessionId}/activate`,
+      { body, token: jwt },
+    ),
+};
+
+export const cardsApi = {
   /**
    * Re-provision the SAME physical card after a torn write destroyed
    * its NDEF payload (resync can't run without K from the card). Runs

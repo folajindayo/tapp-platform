@@ -147,20 +147,12 @@ func (s *Service) Provision(
 
 		if _, err := tx.Exec(ctx, `
 			UPDATE tapp_cards
-			   SET card_uid_hash = $2, linking_proof = $3,
-			       per_tap_limit_subunit = $4, step_up_threshold_subunit = $5,
-			       daily_limit_subunit = $6, updated_at = now()
+			   SET linking_proof = $2,
+			       per_tap_limit_subunit = $3, step_up_threshold_subunit = $4,
+			       daily_limit_subunit = $5, updated_at = now()
 			 WHERE id = $1`,
-			current.CardID, p.UIDHash, p.Anchor,
+			current.CardID, p.Anchor,
 			p.Limits.PerTapMinor, p.Limits.StepUpMinor, p.Limits.DailyMinor); err != nil {
-			var pgErr *pgconn.PgError
-			if errors.As(err, &pgErr) && pgErr.Code == "23505" {
-				// The chip is already bound to another card record. Unique
-				// since this rewrite: it used to be merely indexed, so two
-				// rows could claim one physical card and every tap of it then
-				// failed as "not recognised".
-				return ErrUIDTaken
-			}
 			return fmt.Errorf("link: provision card: %w", err)
 		}
 
@@ -188,7 +180,11 @@ func (s *Service) Provision(
 // The read-back matters: an NFC write that reports success and did not land is
 // common enough that trusting the write alone would leave a fraction of cards
 // permanently unusable. The client proves it by presenting what it read.
-func (s *Service) Activate(ctx context.Context, sessionID, user uuid.UUID, readBack []byte) (*Session, error) {
+func (s *Service) Activate(ctx context.Context, sessionID, user uuid.UUID, a Activation) (*Session, error) {
+	if err := a.Valid(); err != nil {
+		return nil, err
+	}
+
 	var session *Session
 
 	err := movements.InTx(ctx, s.Pool, func(tx pgx.Tx) error {
@@ -212,20 +208,33 @@ func (s *Service) Activate(ctx context.Context, sessionID, user uuid.UUID, readB
 		}
 
 		state := token.State{Current: stored}
-		if _, err := state.Verify(readBack, s.now()); err != nil {
+		if _, err := state.Verify(a.ReadBack, s.now()); err != nil {
 			// What was read back is not what was issued. The write did not
 			// land, or landed corrupted; either way the card is not usable and
 			// saying so now is better than at a checkout counter.
 			return fmt.Errorf("%w: the card does not hold what was written to it", ErrWrongState)
 		}
 
+		// The UID is bound here rather than at provisioning, because this is
+		// where the client naturally has it: the read that produced it is the
+		// same read that proves the write landed.
 		if _, err := tx.Exec(ctx, `
 			UPDATE tapp_cards
-			   SET status = 'live', current_token_ciphertext = $2, token_rotated_at = now(),
+			   SET status = 'live', card_uid_hash = $2,
+			       current_token_ciphertext = $3, token_rotated_at = now(),
 			       pending_token_ciphertext = NULL, pending_token_issued_at = NULL,
 			       token_mismatch_count = 0, needs_resync = false,
 			       pin_attempts_remaining = 5, updated_at = now()
-			 WHERE id = $1`, current.CardID, stored); err != nil {
+			 WHERE id = $1`, current.CardID, a.UIDHash, stored); err != nil {
+			var pgErr *pgconn.PgError
+			if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+				// This chip already backs another card record. Unique since
+				// this rewrite: it was merely indexed before, so two rows
+				// could claim one physical card and every tap of it then
+				// failed as "not recognised" -- a conflict nobody could
+				// diagnose from the symptom.
+				return ErrUIDTaken
+			}
 			return fmt.Errorf("link: activate card: %w", err)
 		}
 		if _, err := tx.Exec(ctx, `
