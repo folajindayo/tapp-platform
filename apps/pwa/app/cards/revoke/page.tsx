@@ -30,8 +30,7 @@ export default function RevokePage() {
     setError(null);
     setPhase("signing");
     try {
-      const skeleton = await cardsApi.revoke(session.jwt);
-      console.info("Revoke PTB skeleton (sign + submit):", skeleton);
+      await cardsApi.revoke(session.jwt);
       setPhase("done");
     } catch (err) {
       const msg =
@@ -75,8 +74,8 @@ export default function RevokePage() {
             Revoke this card?
           </h1>
           <p className="max-w-xs text-sm text-gray-500 dark:text-white/50">
-            Merchants won&apos;t be able to debit it. You can re-enable it from
-            the dashboard, or destroy it later to reclaim the balance.
+            No merchant will be able to charge it again. Your balance is
+            untouched — it lives in your account, not on the card.
           </p>
         </div>
         {error ? <InputError message={error} /> : null}

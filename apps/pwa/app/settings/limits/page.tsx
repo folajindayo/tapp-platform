@@ -57,7 +57,15 @@ export default function SettingsLimitsPage() {
     setError(null);
     setSaving(true);
     try {
-      // 1. Persist the NGN limits off-chain (display + tier resolution).
+      // Limits are enforced from these values inside the debit transaction, so
+      // saving them is the whole operation.
+      //
+      // There used to be a second half: convert each limit to USDC at a live
+      // rate and push it on-chain, because the card's spending cap was a Move
+      // object denominated in USDC. That made a limit somebody set in naira
+      // depend on the exchange rate at the moment they saved it, and it failed
+      // outright whenever the rate endpoint was unreachable. The card spends a
+      // naira balance now and its limits are naira.
       await cardsApi.updateLimits(
         {
           daily_limit_subunit: Math.round(daily * 100),
@@ -66,43 +74,6 @@ export default function SettingsLimitsPage() {
         },
         session.jwt,
       );
-
-      // 2. Push the limits ON-CHAIN as USDC subunit — the cap is USDC-
-      //    denominated, so its limits must be too. Owner-signed via zkLogin.
-      //    This is also the migration for older caps whose on-chain limits
-      //    were stored in NGN kobo (they'd otherwise reject real debits).
-      const c = card.data;
-      if (c && c.status === "live" && c.cap_object_id && c.coin_type) {
-        const packageId = process.env.NEXT_PUBLIC_TAPP_PACKAGE_ID;
-        if (!packageId || !/^0x[0-9a-f]{64}$/i.test(packageId)) {
-          throw new Error("Card package isn't configured.");
-        }
-        const ratesRes = await fetch("/api/rates", { cache: "no-store" })
-          .then((r) => r.json())
-          .catch(() => null);
-        const ngnPerUsdc = Number(ratesRes?.ngn_per_usdc);
-        if (!ngnPerUsdc || ngnPerUsdc <= 0) {
-          throw new Error("Couldn't load the NGN/USDC rate — try again in a moment.");
-        }
-        const ngnToUsdcMicro = (ngn: number) =>
-          BigInt(Math.max(1, Math.round((ngn / ngnPerUsdc) * 1_000_000)));
-        const dailyUsdc = ngnToUsdcMicro(daily);
-        const perTapUsdc = ngnToUsdcMicro(perTap);
-
-        const zk = await import("@/lib/zklogin");
-        const { Transaction } = await import("@mysten/sui/transactions");
-        await zk.executeZkLoginTx((tx: InstanceType<typeof Transaction>) => {
-          tx.moveCall({
-            target: `${packageId}::tapp_card::update_limits`,
-            typeArguments: [c.coin_type!],
-            arguments: [
-              tx.object(c.cap_object_id!),
-              tx.pure.u64(dailyUsdc),
-              tx.pure.u64(perTapUsdc),
-            ],
-          });
-        });
-      }
 
       // Refresh the cached card so the new limits stick on reload.
       await qc.invalidateQueries({ queryKey: ["cards", "me"] });

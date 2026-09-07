@@ -16,9 +16,9 @@ import (
 )
 
 // TreasuryController gives operators a single consolidated view of where value
-// sits: on-chain aggregator wallets, the the BaaS provider NGN float + LP sub-accounts,
-// and a DB-side financial summary. Read-only (money movement lives under
-// /funding/transfer).
+// sits: the Base aggregator wallet, the BaaS provider NGN float + LP
+// sub-accounts, and a DB-side financial summary. Read-only (money movement
+// lives under /funding/transfer).
 type TreasuryController struct{}
 
 // NewTreasuryController constructs the controller.
@@ -32,7 +32,6 @@ func (c *TreasuryController) GetOverview(ctx *gin.Context) {
 
 	wallets := gin.H{
 		"base_aggregator": baseAggregatorBalances(ctx, conf),
-		"sui_aggregator":  suiAggregatorBalances(ctx, conf),
 		"safehaven":       baasBalances(ctx),
 	}
 

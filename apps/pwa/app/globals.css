@@ -19,6 +19,81 @@
     sans-serif;
 }
 
+/*
+ * Semantic tokens.
+ *
+ * Ten names with a rule for choosing between them, rather than forty without
+ * one. The reference app this borrows its interaction patterns from carries
+ * eight separate greys for text -- textMuted, textSubtle, textSection,
+ * textSecondary, textTertiary, textInactive, textDisabled, textPlaceholderDark
+ * -- and nothing anywhere says which to use when. Neither a designer nor a
+ * developer can pick correctly from that, so in practice they pick whichever
+ * they saw last and the surfaces drift apart.
+ *
+ * THE RULE, in one line each:
+ *
+ *   fg          what the screen is about. Amounts, names, answers.
+ *   fg-muted    what helps you read it. Labels, captions, units.
+ *   fg-subtle   what is not there yet. Placeholders, disabled, hints.
+ *
+ *   surface     the page itself.
+ *   raised      something sitting on the page: a card, a sheet.
+ *   sunken      something set into it: an input, a well, a read-only panel.
+ *
+ * If a colour does not answer one of those questions it does not need a token.
+ *
+ * Every token is defined once for light and once for dark, so a component
+ * never writes `dark:` for colour. A component that does is a component that
+ * will be wrong in one theme the first time somebody edits it in the other.
+ */
+:root {
+  --surface: #ffffff;
+  --raised: #ffffff;
+  --sunken: #f7f8fa;
+
+  --fg: #101114;
+  --fg-muted: #5c6270;
+  --fg-subtle: #9aa1ad;
+
+  --line: #e6e8ec;
+  --line-strong: #d3d7de;
+
+  --accent: #0065f5;
+  --accent-fg: #ffffff;
+  --accent-wash: #eaf1ff;
+
+  --positive: #12833a;
+  --positive-wash: #e6f6ec;
+  --negative: #c62828;
+  --negative-wash: #fdecec;
+  --caution: #a35a00;
+  --caution-wash: #fff3e2;
+}
+
+.dark {
+  --surface: #0d0e11;
+  --raised: #16181d;
+  --sunken: #111318;
+
+  --fg: #f4f5f7;
+  --fg-muted: #9aa1ad;
+  --fg-subtle: #666d7a;
+
+  --line: #23262d;
+  --line-strong: #2f333c;
+
+  --accent: #4d92ff;
+  --accent-fg: #06122a;
+  --accent-wash: #12203a;
+
+  --positive: #56d97f;
+  --positive-wash: #10251a;
+  --negative: #ff6b6b;
+  --negative-wash: #2a1315;
+  --caution: #f0a852;
+  --caution-wash: #2a1f10;
+}
+
 /* Tailwind v4 class-based dark mode (mirrors zap's `darkMode: "class"`). */
 @variant dark (&:where(.dark, .dark *));
 

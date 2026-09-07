@@ -73,7 +73,7 @@ type Agent struct {
 	// Float is what this agent can currently hand out as cash. Read from the
 	// ledger, not stored here: capacity is a balance, and a stored flag saying
 	// "has cash" drifts from the money within a day.
-	Float money.Amount `json:"-"`
+	Float money.Amount `json:"float"`
 
 	// DistanceM is set only by a nearby search.
 	DistanceM int `json:"distanceM,omitempty"`

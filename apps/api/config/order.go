@@ -1,7 +1,6 @@
 package config
 
 import (
-	"encoding/hex"
 	"fmt"
 	"time"
 
@@ -10,10 +9,6 @@ import (
 )
 
 // OrderConfiguration type defines payment order configurations.
-//
-// EVM/Tron-specific fields (BundlerUrl*, PaymasterUrl*, EntryPoint*,
-// TronProApiKey, ActiveAAService) have been removed during the Sui port.
-// Sui equivalents are below.
 type OrderConfiguration struct {
 	// CardFeeBPS is the platform's cut of a card payment, in basis points of
 	// the amount. Taken out of what the merchant receives, never added on top,
@@ -34,34 +29,7 @@ type OrderConfiguration struct {
 	PercentDeviationFromExternalRate decimal.Decimal
 	PercentDeviationFromMarketRate   decimal.Decimal
 
-	// Sui-specific.
-	SuiRpcURL               string
-	SuiWsURL                string // wss:// endpoint for event subscriptions (e.g. BlockVision); falls back to SuiRpcURL scheme-converted
-	SuiGrpcURL              string
-	SuiGrpcToken            string
-	SuiGatewayPackageID     string
-	SuiGatewayObjectID      string
-	SuiAggregatorCapID      string
-	SuiAggregatorPrivateKey []byte // raw 32-byte Ed25519 seed; hex-decoded from SUI_AGGREGATOR_PRIVATE_KEY env var
-
-	// LiFi (Route A bridging).
-	LiFiBaseURL string
-	LiFiAPIKey  string // optional; free tier when empty (rate-limited)
-
-	// Direct-CCTP bridge fallback (services/route_a_cctp.go) — engages
-	// only after repeated LiFi quote failures on USDC-source orders.
-	CCTPFallbackEnabled bool   // kill switch; default true
-	CCTPIrisURL         string // optional override of Circle's attestation host (tests/proxies)
-
-	// Shinami Gas Station — sponsors all aggregator-initiated Move
-	// calls (CreateOrder, SettleOrder, RefundOrder, DebitCard). When
-	// empty, the OrderSui code path falls back to a typed error so
-	// misconfiguration surfaces immediately rather than silently
-	// failing. See services/shinami_gas/client.go.
-	ShinamiGasAPIKey  string
-	ShinamiGasBaseURL string
-
-	// Base — Route A's EVM destination chain. Same env block works for
+	// Base — the chain this platform settles on. Same env block works for
 	// Base mainnet (8453) and Base Sepolia (84532); flip BASE_CHAIN_ID
 	// + BASE_GATEWAY_CONTRACT + BASE_USDC_CONTRACT + BASE_RPC_URL to
 	// switch networks. USDC on Base is 6-decimal native Circle.
@@ -93,14 +61,6 @@ func OrderConfig() *OrderConfiguration {
 	viper.SetDefault("NETWORK_FEE", 0.05)
 	viper.SetDefault("PERCENT_DEVIATION_FROM_EXTERNAL_RATE", 0.01)
 	viper.SetDefault("PERCENT_DEVIATION_FROM_MARKET_RATE", 0.1)
-	// PUBLIC fullnodes (fullnode.{mainnet,testnet}.sui.io) no longer serve
-	// JSON-RPC — every method returns -32601 "Method not found". The Sui SDK
-	// this codebase uses is JSON-RPC, so SUI_RPC_URL must be set to a provider
-	// that still serves it (e.g. https://rpc.ankr.com/sui/<token>). This default
-	// only keeps local boot working; it will fail on the first RPC call.
-	viper.SetDefault("SUI_RPC_URL", "https://fullnode.testnet.sui.io:443")
-	viper.SetDefault("LIFI_BASE_URL", "https://li.quest/v1")
-	viper.SetDefault("CCTP_FALLBACK_ENABLED", true)
 	viper.SetDefault("BASE_RPC_URL", "https://sepolia.base.org")           // Sepolia default; mainnet = https://mainnet.base.org
 	viper.SetDefault("BASE_CHAIN_ID", 84532)                               // Base Sepolia; mainnet = 8453
 	viper.SetDefault("BASE_SENDER_FEE_BPS", 50)                            // 0.5% sender fee
@@ -109,17 +69,6 @@ func OrderConfig() *OrderConfiguration {
 	viper.SetDefault("SETTLEMENT_API_URL", "https://api.paycrest.io")
 	viper.SetDefault("SETTLEMENT_PUBKEY_CACHE_TTL_SECONDS", 3600)
 	viper.SetDefault("SETTLEMENT_POLL_INTERVAL_SECONDS", 30)
-
-	// SUI_AGGREGATOR_PRIVATE_KEY is expected hex-encoded; decoded once at startup.
-	aggregatorKeyHex := viper.GetString("SUI_AGGREGATOR_PRIVATE_KEY")
-	var aggregatorKey []byte
-	if aggregatorKeyHex != "" {
-		decoded, err := hex.DecodeString(aggregatorKeyHex)
-		if err != nil {
-			panic(fmt.Sprintf("SUI_AGGREGATOR_PRIVATE_KEY hex decode failed: %s", err))
-		}
-		aggregatorKey = decoded
-	}
 
 	return &OrderConfiguration{
 		CardFeeBPS:                       viper.GetInt("CARD_FEE_BPS"),
@@ -130,20 +79,6 @@ func OrderConfig() *OrderConfiguration {
 		RefundCancellationCount:          viper.GetInt("REFUND_CANCELLATION_COUNT"),
 		PercentDeviationFromExternalRate: decimal.NewFromFloat(viper.GetFloat64("PERCENT_DEVIATION_FROM_EXTERNAL_RATE")),
 		PercentDeviationFromMarketRate:   decimal.NewFromFloat(viper.GetFloat64("PERCENT_DEVIATION_FROM_MARKET_RATE")),
-		SuiRpcURL:                        viper.GetString("SUI_RPC_URL"),
-		SuiWsURL:                         viper.GetString("SUI_WS_URL"),
-		SuiGrpcURL:                       viper.GetString("SUI_GRPC_URL"),
-		SuiGrpcToken:                     viper.GetString("SUI_GRPC_TOKEN"),
-		SuiGatewayPackageID:              viper.GetString("SUI_GATEWAY_PACKAGE_ID"),
-		SuiGatewayObjectID:               viper.GetString("SUI_GATEWAY_OBJECT_ID"),
-		SuiAggregatorCapID:               viper.GetString("SUI_AGGREGATOR_CAP_ID"),
-		SuiAggregatorPrivateKey:          aggregatorKey,
-		LiFiBaseURL:                      viper.GetString("LIFI_BASE_URL"),
-		LiFiAPIKey:                       viper.GetString("LIFI_API_KEY"),
-		CCTPFallbackEnabled:              viper.GetBool("CCTP_FALLBACK_ENABLED"),
-		CCTPIrisURL:                      viper.GetString("CCTP_IRIS_URL"),
-		ShinamiGasAPIKey:                 viper.GetString("SHINAMI_GAS_API_KEY"),
-		ShinamiGasBaseURL:                viper.GetString("SHINAMI_GAS_BASE_URL"),
 		BaseRpcURL:                       viper.GetString("BASE_RPC_URL"),
 		BaseAggregatorAddress:            viper.GetString("BASE_AGGREGATOR_ADDRESS"),
 		BaseGatewayContract:              viper.GetString("BASE_GATEWAY_CONTRACT"),

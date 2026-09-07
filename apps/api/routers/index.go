@@ -93,6 +93,8 @@ func RegisterRoutes(route *gin.Engine) {
 	// accepting those would mean crediting people for pictures.
 	if cashHandler := apiv1.NewCashHandler(); cashHandler != nil {
 		pledges := v1.Group("cash", middleware.JWTMiddleware)
+		pledges.GET("pledges", cashHandler.List)
+		pledges.GET("pledges/:id", cashHandler.Get)
 		pledges.POST("pledges", cashHandler.Pledge)
 		pledges.POST("pledges/:id/match", cashHandler.Match)
 		pledges.POST("handovers/:id/confirm", cashHandler.ConfirmByTrader)
@@ -192,6 +194,25 @@ func authRoutes(route *gin.Engine) {
 
 	v1.GET("me", middleware.JWTMiddleware, authCtrl.Me)
 	v1.PATCH("me", middleware.JWTMiddleware, authCtrl.UpdateMe)
+
+	// What somebody holds, per currency. Read from the ledger view, so this
+	// answer and the entries behind it cannot drift apart.
+	balances := &apiv1.BalanceHandler{User: apiv1.UserFromContext}
+	v1.GET("me/balances", middleware.JWTMiddleware, balances.Balances)
+	v1.GET("me/activity", middleware.JWTMiddleware, balances.Activity)
+
+	// Currency conversion. Two steps by design: a price is offered, then
+	// accepted. Quoting and executing in one call would convert at whatever
+	// the rate happened to be when the request arrived, which is what the
+	// predecessor did and why no conversion could be reconciled afterwards.
+	//
+	// Mounted on the cardholder scope, not the merchant one. Converting is
+	// something a person with a balance does; requiring a sender profile to
+	// reach it would put it out of reach of exactly the people it is for.
+	if convertHandler := apiv1.NewConvertHandler(); convertHandler != nil {
+		v1.POST("me/convert/quote", middleware.JWTMiddleware, convertHandler.Quote)
+		v1.POST("me/convert", middleware.JWTMiddleware, convertHandler.Execute)
+	}
 }
 
 func senderRoutes(route *gin.Engine) {
@@ -235,15 +256,6 @@ func senderRoutes(route *gin.Engine) {
 	}
 	me.POST("tap", checkoutHandler.Open)
 	me.GET("payments/stream", senderCtrl.StreamPayments)
-
-	// Currency conversion. Two steps by design: a price is offered, then
-	// accepted. Quoting and executing in one call would convert at whatever
-	// the rate happened to be when the request arrived, which is what the
-	// predecessor did and why no conversion could be reconciled afterwards.
-	if convertHandler := apiv1.NewConvertHandler(); convertHandler != nil {
-		me.POST("convert/quote", convertHandler.Quote)
-		me.POST("convert", convertHandler.Execute)
-	}
 
 	// Card payments. The ledger authorises the debit in one transaction and
 	// the bank rail settles behind it; nothing here waits on a chain.
@@ -322,10 +334,11 @@ func cardsRoutes(route *gin.Engine) {
 	cardholder.POST("link/sessions/:id/provision", linkHandler.Provision)
 	cardholder.POST("link/sessions/:id/activate", linkHandler.Activate)
 	cardholder.GET("me", cardsCtrl.Me)
-	cardholder.GET("reclaimable", cardsCtrl.Reclaimable)
 	cardholder.POST("reset", cardsCtrl.Reset)
 	cardholder.POST("me/limits", cardsCtrl.UpdateLimits)
-	cardholder.POST("top-up", cardsCtrl.TopUp)
+	// No top-up. A card spends the holder's ledger balance directly, so there
+	// is no second pot to move money into -- the endpoint that used to do it
+	// returned a Move call for a package that no longer exists.
 	cardholder.POST("revoke", cardsCtrl.Revoke)
 	cardholder.POST("me/resync", cardsCtrl.Resync)
 	cardholder.POST("me/resync/complete", cardsCtrl.ResyncComplete)

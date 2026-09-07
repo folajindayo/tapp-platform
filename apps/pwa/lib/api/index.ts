@@ -1,0 +1,17 @@
+/**
+ * The API client.
+ *
+ * One module per resource, one shared transport. Import from `@/lib/api` and
+ * take what you need; the split is so that adding a resource does not mean
+ * editing a file everything else already imports.
+ */
+
+export * from "./http";
+export * from "./money";
+
+export * from "./agents";
+export * from "./balances";
+export * from "./cards";
+export * from "./cash";
+export * from "./convert";
+export * from "./deposits";

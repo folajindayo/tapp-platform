@@ -82,8 +82,8 @@ type Pledge struct {
 	// Declared is what the trader said; Counted is what recognition made of
 	// the photograph. Kept apart on purpose -- a disagreement is the most
 	// useful signal there is, and reconciling them away destroys it.
-	Declared money.Amount `json:"-"`
-	Counted  money.Amount `json:"-"`
+	Declared money.Amount `json:"declared"`
+	Counted  money.Amount `json:"counted"`
 
 	State State `json:"state"`
 
@@ -103,7 +103,7 @@ type Handover struct {
 	PledgeID uuid.UUID `json:"pledgeId"`
 	AgentID  uuid.UUID `json:"agentId"`
 
-	Amount money.Amount `json:"-"`
+	Amount money.Amount `json:"amount"`
 
 	// Code is spoken aloud at the counter. It is not a secret worth much: it
 	// bounds a window, it does not authenticate anybody. What authenticates

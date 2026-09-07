@@ -1,87 +1,9 @@
 /**
- * Typed Rails API client. Talks to tapp/rails-sui.
- *
- * Auth model:
- *   - Cardholder endpoints (`/v1/cards/...`) authenticate with the
- *     user's zkLogin-derived JWT, sent as `Authorization: Bearer`.
- *   - The public token redirect (`/c/:token`) is browser-native — we
- *     don't call it from JS; the URL just opens in the address bar.
+ * Cards: linking a physical card, and living with one afterwards.
  */
 
-import { refreshAccessToken, formatApiErrorMessage } from "./auth";
-
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
-
-export class ApiError extends Error {
-  readonly status: number;
-  readonly code?: string;
-  readonly data?: unknown;
-
-  constructor(status: number, message: string, code?: string, data?: unknown) {
-    super(message);
-    this.name = "ApiError";
-    this.status = status;
-    this.code = code;
-    this.data = data;
-  }
-}
-
-interface RailsEnvelope<T> {
-  status: "success" | "error";
-  message: string;
-  data?: T;
-}
-
-interface RequestOptions {
-  body?: unknown;
-  token?: string;
-  signal?: AbortSignal;
-}
-
-async function request<T>(
-  method: string,
-  path: string,
-  { body, token, signal }: RequestOptions = {},
-  retried = false,
-): Promise<T> {
-  const headers: Record<string, string> = {
-    "ngrok-skip-browser-warning": "1",
-  };
-  if (body !== undefined) headers["Content-Type"] = "application/json";
-  if (token) headers["Authorization"] = `Bearer ${token}`;
-
-  const res = await fetch(`${API_BASE}${path}`, {
-    method,
-    headers,
-    body: body === undefined ? undefined : JSON.stringify(body),
-    signal,
-  });
-
-  const json = (await res.json().catch(() => ({}))) as RailsEnvelope<T>;
-
-  if (!res.ok || json.status === "error") {
-    // The rails access JWT lives ~15 min. On a 401, silently refresh it
-    // (rotating the refresh token) and retry the request once with the
-    // fresh token, so an expired access token never surfaces to the user.
-    if (res.status === 401 && token && !retried && !path.startsWith("/v1/auth/")) {
-      const fresh = await refreshAccessToken(token);
-      if (fresh) {
-        return request<T>(method, path, { body, token: fresh, signal }, true);
-      }
-    }
-    const rawMsg = formatApiErrorMessage(json, `Request failed (${res.status})`);
-    throw new ApiError(
-      res.status,
-      rawMsg,
-      typeof json.data === "object" && json.data !== null && "code" in (json.data as Record<string, unknown>)
-        ? String((json.data as Record<string, unknown>).code)
-        : undefined,
-      json.data,
-    );
-  }
-
-  return json.data as T;
-}
+import { request } from "./http";
+import type { Money } from "./money";
 
 // -----------------------------------------------------------------------------
 // Cards (cardholder-scope) — see rails/docs/tapp-card-spec.md
@@ -90,20 +12,6 @@ async function request<T>(
 export interface CardClaimResponse {
   card_id: string;
   status: "claimed" | "live";
-}
-
-export interface CardLinkCompleteRequest {
-  card_uid_hash:               string; // hex sha256 of factory UID
-  cap_object_id:               string; // Sui object id from create_cap tx
-  coin_type:                   string; // e.g. "0x...::usdc::USDC"
-  linking_proof:               string; // hex(HMAC(K', "linking-anchor-v1"))
-  pin_verifier:                string; // hex(HMAC(K,  "tapp-card-verifier-v1"))
-  card_password:               string; // hex of 4-byte NTAG215 PWD
-  current_token_ct:            string; // hex of initial rotation token
-  tx_digest:                   string; // Sui digest of create_cap
-  daily_limit_subunit:         number;
-  per_tap_limit_subunit:       number;
-  step_up_threshold_subunit:   number;
 }
 
 export interface CardRelinkRequest {
@@ -117,31 +25,20 @@ export interface CardRelinkRequest {
 export interface CardSummary {
   id: string;
   status: "issued" | "claimed" | "live" | "revoked" | "locked";
-  cap_object_id?: string;
-  coin_type?: string;
   daily_limit_subunit: number;
   per_tap_limit_subunit: number;
   step_up_threshold_subunit: number;
   spent_today_subunit: number;
+  /**
+   * What the card can actually spend: the holder's ledger balance.
+   *
+   * Its predecessor was an on-chain "cap balance" read over RPC that answered
+   * "0" whenever the node was unreachable -- so a node outage and an empty
+   * card looked identical on this screen.
+   */
+  spendable: Money;
   needs_resync: boolean;
   pin_attempts_remaining: number;
-  on_chain_balance?: string;
-}
-
-export interface ReclaimableCap {
-  card_id: string;
-  cap_object_id: string;
-  coin_type: string;
-  on_chain_balance: string;
-}
-
-export interface PtbSkeleton {
-  package_id: string;
-  module: string;
-  function: string;
-  type_args: string[];
-  args: unknown[];
-  note?: string;
 }
 
 export interface ResyncPayload {
@@ -248,29 +145,20 @@ export const cardsApi = {
   me: (jwt: string) =>
     request<CardSummary>("GET", "/v1/cards/me", { token: jwt }),
 
-  /** Caps the holder owns — sign destroy_and_reclaim on each before reset. */
-  reclaimable: (jwt: string) =>
-    request<{ caps: ReclaimableCap[] }>("GET", "/v1/cards/reclaimable", { token: jwt }),
-
-  /** Delete all the holder's card rows (refused while a cap still holds funds). */
+  /** Delete the holder's card rows so they can link again from scratch. */
   reset: (jwt: string) =>
     request<{ deleted: number }>("POST", "/v1/cards/reset", { token: jwt }),
 
-  /** Returns the PTB skeleton the PWA signs to add USDC to the cap. */
-  topUp: (amount_subunit: number, jwt: string) =>
-    request<PtbSkeleton>("POST", "/v1/cards/top-up", {
-      body: { amount_subunit },
+  /**
+   * Stop the card. A revoked card is refused inside the debit transaction,
+   * which is the only place a refusal counts.
+   */
+  revoke: (jwt: string) =>
+    request<{ card_id: string; status: string }>("POST", "/v1/cards/revoke", {
       token: jwt,
     }),
 
-  /** Returns the PTB skeleton the PWA signs to flip set_revoked(true). */
-  revoke: (jwt: string) =>
-    request<PtbSkeleton>("POST", "/v1/cards/revoke", { token: jwt }),
-
-  /**
-   * Persists new spend limits to the off-chain mirror (read back via `me`)
-   * and returns the `update_limits` PTB skeleton for on-chain enforcement.
-   */
+  /** Save new spend limits. They are enforced from these values at debit. */
   updateLimits: (
     body: {
       daily_limit_subunit: number;
@@ -279,7 +167,11 @@ export const cardsApi = {
     },
     jwt: string,
   ) =>
-    request<PtbSkeleton>("POST", "/v1/cards/me/limits", { body, token: jwt }),
+    request<{
+      daily_limit_subunit: number;
+      per_tap_limit_subunit: number;
+      step_up_threshold_subunit: number;
+    }>("POST", "/v1/cards/me/limits", { body, token: jwt }),
 
   /** Issues the canonical rotation token + a one-shot nonce. */
   resync: (jwt: string) =>

@@ -9,23 +9,21 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 
-	"github.com/block-vision/sui-go-sdk/models"
-	"github.com/block-vision/sui-go-sdk/sui"
-	"github.com/usezoracle/tapp/api/config"
-	"github.com/usezoracle/tapp/api/controllers/cards"
 	"github.com/usezoracle/tapp/api/ent"
 	"github.com/usezoracle/tapp/api/ent/identityverificationrequest"
 	"github.com/usezoracle/tapp/api/ent/paymentorder"
 	"github.com/usezoracle/tapp/api/ent/refreshtoken"
 	"github.com/usezoracle/tapp/api/ent/senderprofile"
 	userEnt "github.com/usezoracle/tapp/api/ent/user"
+	"github.com/usezoracle/tapp/api/internal/ledger"
+	"github.com/usezoracle/tapp/api/internal/money"
 	"github.com/usezoracle/tapp/api/storage"
 	u "github.com/usezoracle/tapp/api/utils"
 	"github.com/usezoracle/tapp/api/utils/logger"
 )
 
 // GetUser returns a single user with profile presence, KYC status, order
-// count, Sui wallet balances, and active card details.
+// count, ledger balances and card details.
 //
 //	GET /v1/admin/users/:id
 func (c *UsersController) GetUser(ctx *gin.Context) {
@@ -63,101 +61,49 @@ func (c *UsersController) GetUser(ctx *gin.Context) {
 	}
 
 	cardList := make([]gin.H, 0, len(user.Edges.TappCards))
-	var userSuiAddress string
-	var userSuiBalance string
-	var userUsdcBalance string
-
-	client := sui.NewSuiClient(config.OrderConfig().SuiRpcURL)
-
 	for _, card := range user.Edges.TappCards {
-		cardMap := gin.H{
+		cardList = append(cardList, gin.H{
 			"id":                        card.ID.String(),
 			"status":                    card.Status.String(),
 			"needs_resync":              card.NeedsResync,
 			"pin_attempts_remaining":    card.PinAttemptsRemaining,
 			"token_mismatch_count":      card.TokenMismatchCount,
 			"created_at":                card.CreatedAt.Format(tsLayout),
-			"cap_object_id":             "",
-			"coin_type":                 "",
-			"on_chain_balance":          "0",
 			"daily_limit_subunit":       card.DailyLimitSubunit,
 			"per_tap_limit_subunit":     card.PerTapLimitSubunit,
 			"step_up_threshold_subunit": card.StepUpThresholdSubunit,
 			"spent_today_subunit":       operatorSpentToday(ctx, card.ID),
-		}
-
-		if card.CapObjectID != nil {
-			cardMap["cap_object_id"] = *card.CapObjectID
-		}
-		if card.CoinType != nil {
-			cardMap["coin_type"] = *card.CoinType
-		}
-
-		// Query on-chain CardSpendingCap details if cap_object_id is set
-		if card.CapObjectID != nil && *card.CapObjectID != "" {
-			resp, err := client.SuiGetObject(ctx, models.SuiGetObjectRequest{
-				ObjectId: *card.CapObjectID,
-				Options: models.SuiObjectDataOptions{
-					ShowOwner:   true,
-					ShowContent: true,
-				},
-			})
-			if err == nil && resp.Data != nil {
-				// Parse owner
-				if ownerMap, ok := resp.Data.Owner.(map[string]any); ok {
-					if addr, ok := ownerMap["AddressOwner"].(string); ok {
-						userSuiAddress = addr
-					}
-				}
-
-				// Parse on-chain balance and limits from fields
-				if resp.Data.Content != nil && resp.Data.Content.Fields != nil {
-					fields := resp.Data.Content.Fields
-					// balance — scalar u64; parsed centrally (see cards pkg).
-					cardMap["on_chain_balance"] = cards.ParseCapBalanceField(fields)
-					// limits
-					if dl, ok := fields["daily_limit_subunit"]; ok {
-						cardMap["daily_limit_subunit"] = parseUint64(dl)
-					}
-					if pl, ok := fields["per_tap_limit_subunit"]; ok {
-						cardMap["per_tap_limit_subunit"] = parseUint64(pl)
-					}
-					if su, ok := fields["step_up_threshold_subunit"]; ok {
-						cardMap["step_up_threshold_subunit"] = parseUint64(su)
-					}
-					if st, ok := fields["spent_today_subunit"]; ok {
-						cardMap["spent_today_subunit"] = parseUint64(st)
-					}
-				}
-			}
-		}
-		cardList = append(cardList, cardMap)
+		})
 	}
 
-	// If we resolved the user's Sui address, fetch SUI and USDC balances
-	if userSuiAddress != "" {
-		suiBal, err := client.SuiXGetBalance(ctx, models.SuiXGetBalanceRequest{
-			Owner:    userSuiAddress,
-			CoinType: "0x2::sui::SUI",
+	// What this user holds, per currency, read from the ledger.
+	//
+	// This replaces a Sui address and its SUI and USDC balances, which were
+	// read over RPC and left empty on any error -- so an operator looking at
+	// this screen during an incident saw the same thing as an operator looking
+	// at an empty account. Balances come from the ledger now, and a read that
+	// fails says so rather than reporting zero.
+	balances := make([]gin.H, 0, len(money.SupportedCurrencies()))
+	for _, currency := range money.SupportedCurrencies() {
+		available, err := ledger.Balance(ctx.Request.Context(), storage.Pool,
+			ledger.User(user.ID), ledger.KindAvailable, currency)
+		if err != nil {
+			logger.Errorf("admin GetUser: balance %s: %v", currency, err)
+			u.APIResponse(ctx, http.StatusInternalServerError, "error",
+				"failed to read balances", nil)
+			return
+		}
+		escrow, err := ledger.Balance(ctx.Request.Context(), storage.Pool,
+			ledger.User(user.ID), ledger.KindEscrow, currency)
+		if err != nil {
+			logger.Errorf("admin GetUser: escrow %s: %v", currency, err)
+			u.APIResponse(ctx, http.StatusInternalServerError, "error",
+				"failed to read balances", nil)
+			return
+		}
+		balances = append(balances, gin.H{
+			"currency": currency, "available": available, "escrow": escrow,
 		})
-		if err == nil {
-			userSuiBalance = suiBal.TotalBalance
-		}
-
-		usdcCoinType := "0x5d4b302506645c37ff133b98c4b50a5ae14841659738d6d733d59d0d217a93bf::usdc::USDC"
-		for _, card := range user.Edges.TappCards {
-			if card.CoinType != nil && *card.CoinType != "" {
-				usdcCoinType = *card.CoinType
-				break
-			}
-		}
-		usdcBal, err := client.SuiXGetBalance(ctx, models.SuiXGetBalanceRequest{
-			Owner:    userSuiAddress,
-			CoinType: usdcCoinType,
-		})
-		if err == nil {
-			userUsdcBalance = usdcBal.TotalBalance
-		}
 	}
 
 	u.APIResponse(ctx, http.StatusOK, "success", "ok", gin.H{
@@ -174,9 +120,7 @@ func (c *UsersController) GetUser(ctx *gin.Context) {
 		"tapp_cards":        len(user.Edges.TappCards),
 		"kyc_status":        kyc,
 		"order_count":       orderCount,
-		"sui_address":       userSuiAddress,
-		"sui_balance":       userSuiBalance,
-		"usdc_balance":      userUsdcBalance,
+		"balances":          balances,
 		"cards":             cardList,
 	})
 }

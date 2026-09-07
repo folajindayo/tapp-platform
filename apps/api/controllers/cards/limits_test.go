@@ -47,8 +47,6 @@ const (
 	seedDaily  = 4_000_000 // ₦40,000
 	seedPerTap = 200_000   // ₦2,000
 	seedStepUp = 1_500_000 // ₦15,000
-	seedCapID  = "0xcap1234"
-	seedCoin   = "0x2::usdc::USDC"
 )
 
 // setupLimitsTest builds an isolated in-memory system: ent client (→
@@ -78,8 +76,6 @@ func setupLimitsTest(t *testing.T) (*gin.Engine, *ent.Client, *ent.User) {
 	client.TappCard.Create().
 		SetActivationToken("TKN-" + t.Name()).
 		SetStatus(tappcard.StatusLive).
-		SetCapObjectID(seedCapID).
-		SetCoinType(seedCoin).
 		SetDailyLimitSubunit(seedDaily).
 		SetPerTapLimitSubunit(seedPerTap).
 		SetStepUpThresholdSubunit(seedStepUp).
@@ -100,8 +96,9 @@ func postLimits(r *gin.Engine, body string) *httptest.ResponseRecorder {
 	return w
 }
 
-// TestUpdateLimits_Success: a valid update returns 200 with the correct
-// update_limits PTB skeleton AND persists all three values to the mirror.
+// TestUpdateLimits_Success: a valid update returns 200 and persists all three
+// values, which is the whole operation -- they are what the debit transaction
+// enforces against.
 func TestUpdateLimits_Success(t *testing.T) {
 	r, client, user := setupLimitsTest(t)
 
@@ -113,15 +110,6 @@ func TestUpdateLimits_Success(t *testing.T) {
 	var env apiEnvelope
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &env))
 	assert.Equal(t, "success", env.Status)
-
-	// PTB skeleton the PWA will sign.
-	assert.Equal(t, "tapp_card", env.Data.Module)
-	assert.Equal(t, "update_limits", env.Data.Function)
-	assert.Equal(t, []string{seedCoin}, env.Data.TypeArgs)
-	require.Len(t, env.Data.Args, 3)
-	assert.Equal(t, seedCapID, env.Data.Args[0])
-	assert.Equal(t, "5000000", env.Data.Args[1]) // new daily as string (u64-safe)
-	assert.Equal(t, "300000", env.Data.Args[2])  // new per-tap as string
 
 	// Off-chain mirror actually changed — this is what GET /v1/cards/me reads.
 	card, err := client.TappCard.Query().
@@ -165,8 +153,9 @@ func TestUpdateLimits_InvalidOrdering(t *testing.T) {
 	}
 }
 
-// TestUpdateLimits_CardNotLive: valid limits but the card hasn't finished
-// linking (no on-chain cap) → 409, mirror untouched.
+// TestUpdateLimits_CardNotLive: valid limits but the card has not finished
+// linking → 409, mirror untouched. Limits chosen during linking are written by
+// the linking session, so saving them here first would be overwritten.
 func TestUpdateLimits_CardNotLive(t *testing.T) {
 	r, client, _ := setupLimitsTest(t)
 
@@ -175,12 +164,32 @@ func TestUpdateLimits_CardNotLive(t *testing.T) {
 	card := client.TappCard.Query().FirstX(ctx)
 	client.TappCard.UpdateOne(card).
 		SetStatus(tappcard.StatusClaimed).
-		ClearCapObjectID().
-		ClearCoinType().
 		SaveX(ctx)
 
 	w := postLimits(r, `{"daily_limit_subunit":5000000,"per_tap_limit_subunit":300000,"step_up_threshold_subunit":2000000}`)
 	assert.Equal(t, http.StatusConflict, w.Code, "body: %s", w.Body.String())
+
+	// And the limits it already had are untouched.
+	after := client.TappCard.Query().FirstX(ctx)
+	assert.EqualValues(t, seedDaily, after.DailyLimitSubunit)
+	assert.EqualValues(t, seedPerTap, after.PerTapLimitSubunit)
+	assert.EqualValues(t, seedStepUp, after.StepUpThresholdSubunit)
+}
+
+// TestUpdateLimits_LiveCardSaves is the case the predecessor could not pass: a
+// perfectly ordinary live card, linked through the session flow, changing its
+// own limits.
+func TestUpdateLimits_LiveCardSaves(t *testing.T) {
+	r, client, _ := setupLimitsTest(t)
+	ctx := context.Background()
+
+	w := postLimits(r, `{"daily_limit_subunit":5000000,"per_tap_limit_subunit":300000,"step_up_threshold_subunit":2000000}`)
+	require.Equal(t, http.StatusOK, w.Code, "body: %s", w.Body.String())
+
+	after := client.TappCard.Query().FirstX(ctx)
+	assert.EqualValues(t, 5_000_000, after.DailyLimitSubunit)
+	assert.EqualValues(t, 300_000, after.PerTapLimitSubunit)
+	assert.EqualValues(t, 2_000_000, after.StepUpThresholdSubunit)
 }
 
 // TestUpdateLimits_Unauthenticated: no user_id in context → 401, before any

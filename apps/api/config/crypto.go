@@ -9,15 +9,13 @@ import (
 // CryptoConfiguration holds the key material this service encrypts with.
 //
 // AggregatorPublicKey/AggregatorPrivateKey are the RSA keypair used to encrypt
-// and decrypt the `recipient` blob that travels on-chain as `message_hash` on
-// every OrderCreated event. Sender encrypts with the public key when
-// constructing the create_order PTB; the indexer decrypts with the private key.
+// and decrypt the `recipient` blob that travels with a settlement order.
+// The sender encrypts with the public key; the indexer decrypts with the
+// private key.
 //
 // WalletMasterKey is the AES-256 key that seals custodied EVM private keys at
 // rest. Validation and access live in utils/crypto, which owns that key end to
-// end; this struct only carries the raw configured string. It is distinct from
-// SUI_AGGREGATOR_PRIVATE_KEY (the Ed25519 seed for signing Sui transactions,
-// configured in OrderConfiguration).
+// end; this struct only carries the raw configured string.
 type CryptoConfiguration struct {
 	AggregatorPublicKey  string
 	AggregatorPrivateKey string

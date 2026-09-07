@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { reclaimAndReset } from "@/lib/cardReset";
+import { resetCards } from "@/lib/cardReset";
 import {
   PiArrowLeftBold,
   PiCheckCircleFill,
@@ -155,9 +155,10 @@ function CardDetail({
 }
 
 /**
- * Returns the card's on-chain balance to the holder's wallet (one
- * destroy_and_reclaim signature per cap), then deletes the card rows so they
- * can start fresh. Funds are reclaimed BEFORE any row is deleted.
+ * Deletes the holder's card rows so they can link a card again from scratch.
+ *
+ * Their balance is not involved. It lives in the ledger against the person,
+ * not against the card, so there is nothing here to strand.
  */
 function ResetCardButton() {
   const { session } = useSession();
@@ -173,7 +174,7 @@ function ResetCardButton() {
     setBusy(true);
     setError(null);
     try {
-      await reclaimAndReset(session.jwt, setMsg);
+      await resetCards(session.jwt, setMsg);
       await qc.invalidateQueries({ queryKey: ["cards", "me"] });
       router.replace("/");
     } catch (e) {
@@ -185,7 +186,7 @@ function ResetCardButton() {
   if (!confirming) {
     return (
       <Button variant="secondary" onClick={() => setConfirming(true)}>
-        Reset card &amp; reclaim funds
+        Reset card
       </Button>
     );
   }

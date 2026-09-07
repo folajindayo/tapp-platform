@@ -48,6 +48,7 @@ func NewCashHandler() *CashHandler {
 			Recogniser: recogniser,
 			Risk:       engine,
 		},
+		Read:   &cash.Reader{Pool: storage.Pool},
 		Agents: &agents.Store{Pool: storage.Pool},
 		User:   UserFromContext,
 	}

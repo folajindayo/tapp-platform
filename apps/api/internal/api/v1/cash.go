@@ -25,8 +25,48 @@ const MaxImageBytes = 6 << 20
 // CashHandler serves the cash pledge flow.
 type CashHandler struct {
 	Svc    *cash.Service
+	Read   *cash.Reader
 	Agents *agents.Store
 	User   func(*gin.Context) (uuid.UUID, bool)
+}
+
+// Get returns one pledge and the handover it is waiting on.
+//
+// The client polls this between the two confirmations: the trader confirms,
+// and then stands there until the agent does. Without a read the app has to
+// guess, and the only guess available is "it probably worked".
+func (h *CashHandler) Get(ctx *gin.Context) {
+	pledgeID, err := uuid.Parse(ctx.Param("id"))
+	if err != nil {
+		u.APIResponse(ctx, http.StatusBadRequest, "error", "Invalid pledge id", nil)
+		return
+	}
+	trader, ok := h.User(ctx)
+	if !ok {
+		return
+	}
+
+	view, err := h.Read.Get(ctx.Request.Context(), pledgeID, trader)
+	if err != nil {
+		writeCashError(ctx, err, nil)
+		return
+	}
+	u.APIResponse(ctx, http.StatusOK, "success", "Pledge retrieved", view)
+}
+
+// List returns this trader's pledges, most recent first.
+func (h *CashHandler) List(ctx *gin.Context) {
+	trader, ok := h.User(ctx)
+	if !ok {
+		return
+	}
+	pledges, err := h.Read.List(ctx.Request.Context(), trader, 25)
+	if err != nil {
+		writeCashError(ctx, err, nil)
+		return
+	}
+	u.APIResponse(ctx, http.StatusOK, "success", "Pledges retrieved",
+		gin.H{"pledges": pledges})
 }
 
 type pledgeRequest struct {

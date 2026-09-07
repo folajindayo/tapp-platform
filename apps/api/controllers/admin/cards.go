@@ -8,10 +8,6 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 
-	"github.com/block-vision/sui-go-sdk/models"
-	"github.com/block-vision/sui-go-sdk/sui"
-	"github.com/usezoracle/tapp/api/config"
-	"github.com/usezoracle/tapp/api/controllers/cards"
 	"github.com/usezoracle/tapp/api/ent"
 	"github.com/usezoracle/tapp/api/ent/tappcard"
 	userEnt "github.com/usezoracle/tapp/api/ent/user"
@@ -69,51 +65,10 @@ func cardView(ctx *gin.Context, card *ent.TappCard) gin.H {
 		"locked_until":              lockedUntil,
 		"needs_resync":              card.NeedsResync,
 		"created_at":                card.CreatedAt.Format(tsLayout),
-		"cap_object_id":             "",
-		"coin_type":                 "",
-		"on_chain_balance":          "0",
 		"daily_limit_subunit":       card.DailyLimitSubunit,
 		"per_tap_limit_subunit":     card.PerTapLimitSubunit,
 		"step_up_threshold_subunit": card.StepUpThresholdSubunit,
 		"spent_today_subunit":       operatorSpentToday(ctx, card.ID),
-	}
-
-	if card.CapObjectID != nil {
-		cardMap["cap_object_id"] = *card.CapObjectID
-	}
-	if card.CoinType != nil {
-		cardMap["coin_type"] = *card.CoinType
-	}
-
-	// Query on-chain CardSpendingCap details if cap_object_id is set
-	if card.CapObjectID != nil && *card.CapObjectID != "" {
-		client := sui.NewSuiClient(config.OrderConfig().SuiRpcURL)
-		resp, err := client.SuiGetObject(ctx, models.SuiGetObjectRequest{
-			ObjectId: *card.CapObjectID,
-			Options: models.SuiObjectDataOptions{
-				ShowOwner:   true,
-				ShowContent: true,
-			},
-		})
-		if err == nil && resp.Data != nil && resp.Data.Content != nil && resp.Data.Content.Fields != nil {
-			fields := resp.Data.Content.Fields
-			// balance — Balance<T> serializes as a scalar u64 string, parsed
-			// centrally so this can't silently fall through to "0" again.
-			cardMap["on_chain_balance"] = cards.ParseCapBalanceField(fields)
-			// limits
-			if dl, ok := fields["daily_limit_subunit"]; ok {
-				cardMap["daily_limit_subunit"] = parseUint64(dl)
-			}
-			if pl, ok := fields["per_tap_limit_subunit"]; ok {
-				cardMap["per_tap_limit_subunit"] = parseUint64(pl)
-			}
-			if su, ok := fields["step_up_threshold_subunit"]; ok {
-				cardMap["step_up_threshold_subunit"] = parseUint64(su)
-			}
-			if st, ok := fields["spent_today_subunit"]; ok {
-				cardMap["spent_today_subunit"] = parseUint64(st)
-			}
-		}
 	}
 
 	return cardMap

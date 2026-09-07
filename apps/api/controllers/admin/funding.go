@@ -9,22 +9,17 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/shopspring/decimal"
 
-	suimodels "github.com/block-vision/sui-go-sdk/models"
-	suisigner "github.com/block-vision/sui-go-sdk/signer"
-	suisdk "github.com/block-vision/sui-go-sdk/sui"
-
 	"github.com/usezoracle/tapp/api/config"
 	"github.com/usezoracle/tapp/api/services/baas"
 	"github.com/usezoracle/tapp/api/services/evm"
 	u "github.com/usezoracle/tapp/api/utils"
 )
 
-const suiNativeCoinType = "0x2::sui::SUI"
-
 // FundingController exposes the operator funding dashboard: balances of every
-// wallet/account the platform funds (Base aggregator, Sui aggregator, the BaaS provider
-// float + LP sub-accounts). Each source is read independently and degrades
-// gracefully so one outage doesn't blank the whole view. Read-only.
+// wallet/account the platform funds (the Base aggregator and the BaaS provider
+// float + LP sub-accounts). Each source is read independently and reports its
+// own failure, so one outage does not blank the whole view -- and, importantly,
+// an unreadable balance is never rendered as zero. Read-only.
 type FundingController struct{}
 
 // NewFundingController constructs the controller.
@@ -38,7 +33,6 @@ func (c *FundingController) GetBalances(ctx *gin.Context) {
 
 	u.APIResponse(ctx, http.StatusOK, "success", "ok", gin.H{
 		"base_aggregator": baseAggregatorBalances(ctx, conf),
-		"sui_aggregator":  suiAggregatorBalances(ctx, conf),
 		"safehaven":       baasBalances(ctx),
 	})
 }
@@ -77,36 +71,6 @@ func baseAggregatorBalances(ctx context.Context, conf *config.OrderConfiguration
 		out["usdc"] = formatUnits(usdc, conf.BaseUSDCDecimals)
 	} else {
 		out["usdc_error"] = err.Error()
-	}
-	return out
-}
-
-// suiAggregatorBalances reads the native SUI gas balance of the aggregator.
-func suiAggregatorBalances(ctx context.Context, conf *config.OrderConfiguration) gin.H {
-	if len(conf.SuiAggregatorPrivateKey) == 0 || conf.SuiRpcURL == "" {
-		return gin.H{"available": false, "reason": "sui aggregator not configured"}
-	}
-	addr := suisigner.NewSigner(conf.SuiAggregatorPrivateKey).Address
-	apiClient := suisdk.NewSuiClient(conf.SuiRpcURL)
-	client, ok := apiClient.(*suisdk.Client)
-	if !ok {
-		return gin.H{"available": false, "reason": "sui client init failed"}
-	}
-	bal, err := client.SuiXGetBalance(ctx, suimodels.SuiXGetBalanceRequest{
-		Owner:    addr,
-		CoinType: suiNativeCoinType,
-	})
-	if err != nil {
-		return gin.H{"available": false, "address": addr, "reason": err.Error()}
-	}
-	out := gin.H{"available": true, "address": addr}
-	if mist, ok := new(big.Int).SetString(bal.TotalBalance, 10); ok {
-		out["sui"] = formatUnits(mist, 9) // SUI has 9 decimals (MIST)
-		if mist.Sign() == 0 {
-			out["low_sui"] = true
-		}
-	} else {
-		out["sui_raw"] = bal.TotalBalance
 	}
 	return out
 }
