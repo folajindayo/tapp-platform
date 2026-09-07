@@ -7,7 +7,6 @@ import (
 	"math"
 	"math/big"
 	"os"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -50,26 +49,28 @@ func testStore(t *testing.T) *Store {
 // truncated the ones it was actually looking for. Spacing the origins a degree
 // apart -- about 111km, far beyond any search radius here -- makes each test
 // blind to the others.
-// The base is random per process. A counter starting from zero each run drops
-// the next run's agents on top of the last run's, and a search then returns
-// agents this test never registered.
-var (
-	originBase = randomOrigin()
-	testOrigin atomic.Int64
-)
-
-func randomOrigin() float64 {
-	n, err := rand.Int(rand.Reader, big.NewInt(1_000))
-	if err != nil {
-		panic(err)
-	}
-	return float64(n.Int64())
-}
-
+// patch returns a random point in Nigeria for this test's agents.
+//
+// Random per fixture, not a counter. Agents accumulate -- nothing resets the
+// database -- so any scheme that walks a small range collides with an earlier
+// run's agents sooner or later, and a test expecting "no agent can cover this"
+// then finds a well-funded one from a previous run. That failure is
+// intermittent, looks like a bug in the float check, and is not one.
+//
+// Nigeria spans about 9 degrees of latitude and 12 of longitude. At the search
+// radii used here two points collide only if they fall within roughly 0.05
+// degrees of each other, which is about one part in fifty thousand of the box.
 func ownPatch(t *testing.T) (float64, float64) {
 	t.Helper()
-	n := originBase + float64(testOrigin.Add(1))
-	return 4.5 + math.Mod(n*0.37, 9.0), 2.5 + math.Mod(n*0.53, 12.0)
+	lat, err := rand.Int(rand.Reader, big.NewInt(9_000))
+	if err != nil {
+		t.Fatalf("rand: %v", err)
+	}
+	lng, err := rand.Int(rand.Reader, big.NewInt(12_000))
+	if err != nil {
+		t.Fatalf("rand: %v", err)
+	}
+	return 4.5 + float64(lat.Int64())/1000, 2.5 + float64(lng.Int64())/1000
 }
 
 func register(t *testing.T, s *Store, name string, lat, lng float64, verified bool) *Agent {

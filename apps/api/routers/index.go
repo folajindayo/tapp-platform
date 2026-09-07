@@ -68,6 +68,17 @@ func RegisterRoutes(route *gin.Engine) {
 	v1.GET("agents/nearby", agentHandler.Nearby)
 	v1.POST("agents", middleware.JWTMiddleware, agentHandler.Register)
 
+	// USDC deposits on Base. Not registered when the rail is not configured:
+	// an address people send money to that nobody watches is worse than a
+	// missing feature by a wide margin.
+	if rail := apiv1.Rail(); rail != nil {
+		deposits := &apiv1.DepositHandler{
+			Addresses: rail.Addresses, ChainID: rail.ChainID,
+			Token: "USDC", User: apiv1.UserFromContext,
+		}
+		v1.GET("deposits/address", middleware.JWTMiddleware, deposits.Address)
+	}
+
 	// Cash pledges. Not registered at all when there is no recogniser: a
 	// pledge with no recognition is a photograph nobody looked at, and
 	// accepting those would mean crediting people for pictures.

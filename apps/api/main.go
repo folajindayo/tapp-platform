@@ -9,6 +9,7 @@ import (
 	"github.com/spf13/viper"
 
 	"github.com/usezoracle/tapp/api/config"
+	apiv1 "github.com/usezoracle/tapp/api/internal/api/v1"
 	"github.com/usezoracle/tapp/api/internal/cash"
 	"github.com/usezoracle/tapp/api/routers"
 	"github.com/usezoracle/tapp/api/services"
@@ -74,6 +75,17 @@ func main() {
 		tasks.StartCronJobs()
 	}
 
+	// The USDC rail on Base. Built before the router so the HTTP handler and
+	// the watcher share one instance -- two would mean two watchers advancing
+	// the same position past each other's work.
+	baseRail, err := apiv1.NewBaseRail(context.Background())
+	if err != nil {
+		// Fatal rather than degraded. A misconfigured deposit rail that starts
+		// anyway hands out addresses nobody is watching.
+		logger.Fatalf("base rail: %s", err)
+	}
+	apiv1.SetRail(baseRail)
+
 	// Release float locked against handovers nobody turned up for.
 	//
 	// Not a tidy-up job: until this runs, an agent's capital is committed to a
@@ -82,6 +94,10 @@ func main() {
 	if !viper.GetBool("DISABLE_BACKGROUND_JOBS") {
 		cashSvc := &cash.Service{Pool: storage.Pool}
 		go cashSvc.RunSweeper(context.Background(), cashSweepInterval())
+
+		if baseRail != nil {
+			go baseRail.Watcher.Run(context.Background(), apiv1.BasePollInterval())
+		}
 	}
 
 	// Run the server

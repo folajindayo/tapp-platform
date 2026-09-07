@@ -8,10 +8,8 @@ import (
 	"image"
 	"image/color"
 	"image/jpeg"
-	"math"
 	"math/big"
 	"os"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -81,42 +79,29 @@ func testPool(t *testing.T) *pgxpool.Pool {
 	return pool
 }
 
-// Each test gets its own patch of map, so agents registered by one test are
-// invisible to the others.
+// patch returns a random point in Nigeria for this test's agents.
 //
-// The base is random per process, not a fixed start. Agents accumulate --
-// nothing resets the database between runs -- so a counter starting from zero
-// each time drops the next run's agents on top of the last run's, and a search
-// then finds an older agent with its own float. That failure looks like a
-// locking bug and is not one.
-var (
-	originBase = randomOrigin()
-	origin     atomic.Int64
-)
-
-func randomOrigin() float64 {
-	n, err := rand.Int(rand.Reader, big.NewInt(1_000))
-	if err != nil {
-		panic(err)
-	}
-	return float64(n.Int64())
-}
-
+// Random per fixture, not a counter. Agents accumulate -- nothing resets the
+// database -- so any scheme that walks a small range collides with an earlier
+// run's agents sooner or later, and a test expecting "no agent can cover this"
+// then finds a well-funded one from a previous run. That failure is
+// intermittent, looks like a bug in the float check, and is not one.
+//
+// Nigeria spans about 9 degrees of latitude and 12 of longitude. At the search
+// radii used here two points collide only if they fall within roughly 0.05
+// degrees of each other, which is about one part in fifty thousand of the box.
 func patch(t *testing.T) (float64, float64) {
 	t.Helper()
-	n := originBase + float64(origin.Add(1))
-	// Nigeria spans about 10 degrees of latitude and 13 of longitude. Spacing
-	// on an irrational-ish step and wrapping keeps successive patches far
-	// apart without marching off the map.
-	lat := 4.5 + math.Mod(n*0.37, 9.0)
-	lng := 2.5 + math.Mod(n*0.53, 12.0)
-	return lat, lng
+	lat, err := rand.Int(rand.Reader, big.NewInt(9_000))
+	if err != nil {
+		t.Fatalf("rand: %v", err)
+	}
+	lng, err := rand.Int(rand.Reader, big.NewInt(12_000))
+	if err != nil {
+		t.Fatalf("rand: %v", err)
+	}
+	return 4.5 + float64(lat.Int64())/1000, 2.5 + float64(lng.Int64())/1000
 }
-
-// photo is a real JPEG. The pledge path perceptually hashes the image, which
-// needs a decodable one -- and it should, because a file that is not a
-// photograph is not a photograph of cash.
-func photo(t *testing.T) []byte { return uniquePhoto(t) }
 
 // uniquePhoto is a photograph no other pledge has used.
 //
@@ -145,6 +130,8 @@ func uniquePhoto(t *testing.T) []byte {
 	}
 	return buf.Bytes()
 }
+
+func photo(t *testing.T) []byte { return uniquePhoto(t) }
 
 // notesFor builds a recognition reading with unique note identities, so tests
 // do not collide on the double-spend guard.
