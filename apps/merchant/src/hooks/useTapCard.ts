@@ -32,6 +32,7 @@ import { Platform } from 'react-native';
 import NfcManager, { NfcTech } from 'react-native-nfc-manager';
 import { router } from 'expo-router';
 import { sha256 } from '@noble/hashes/sha2';
+import { CHECKOUT_BASE_URL } from '@/api/config';
 import { merchantApi } from '@/api/endpoints';
 import type { TapCardDebitResponse, TapCardTier } from '@/api/types';
 import { readCardPayload, writeCardPayload } from '@/hce/NfcCardIO';
@@ -66,6 +67,19 @@ interface SessionState {
   cardUidHash: string;
   serverNonce: string;
   cardPassword: string; // set during read; rotated server-side per debit
+}
+
+/**
+ * Where the cardholder approves a large payment.
+ *
+ * Built here rather than returned by the server. The server does not know
+ * which cardholder app this merchant's customers use, and having it hand back
+ * a URL meant the deployment's PWA address was baked into an API response --
+ * so pointing the two at different environments produced a QR code leading
+ * somewhere the customer could not sign in.
+ */
+function stepUpUrlFor(reference: string): string {
+  return `${CHECKOUT_BASE_URL}/cards/step-up?token=${encodeURIComponent(reference)}`;
 }
 
 export function useTapCard({ amount, currency = 'NGN', memo, enabled = true }: UseTapCardArgs) {
@@ -167,14 +181,14 @@ export function useTapCard({ amount, currency = 'NGN', memo, enabled = true }: U
           setPhase({ kind: 'pin-required', serverNonce: nonceResp.server_nonce });
           return;
         case 'step_up':
-          if (!nonceResp.step_up_url || !nonceResp.step_up_token) {
-            setPhase({ kind: 'failed', error: 'Backend did not return a step-up URL.' });
+          if (!nonceResp.step_up_ref) {
+            setPhase({ kind: 'failed', error: 'The server did not return an approval reference.' });
             return;
           }
           setPhase({
             kind: 'step-up-required',
-            stepUpUrl: nonceResp.step_up_url,
-            stepUpToken: nonceResp.step_up_token,
+            stepUpUrl: stepUpUrlFor(nonceResp.step_up_ref),
+            stepUpToken: nonceResp.step_up_ref,
           });
           return;
         default:
@@ -205,21 +219,20 @@ export function useTapCard({ amount, currency = 'NGN', memo, enabled = true }: U
       setPhase(chargingPhase);
       try {
         const resp = await merchantApi.tapCardDebit({
-          card_uid_hash:   s.cardUidHash,
-          current_token_ct: s.currentTokenHex,
+          card_uid_hash: s.cardUidHash,
+          card_token:    s.currentTokenHex,
           amount,
           currency,
-          memo,
-          server_nonce:    s.serverNonce,
-          pin_response:    pinResponseHex,
-          step_up_token:   stepUpToken,
+          server_nonce:  s.serverNonce,
+          pin_response:  pinResponseHex,
+          step_up_ref:   stepUpToken,
         });
-        sessionRef.current.cardPassword = resp.card_password;
-        if (resp.status === 'processing') {
-          setPhase({ kind: 'processing', response: resp });
-          return;
-        }
         // Tap 2: write the new token back.
+        //
+        // No intermediate "processing" state any more. The debit either
+        // charged the cardholder or it did not, and it commits before
+        // answering -- the previous response could say "settled" for a Base
+        // card while no money had moved at all.
         setPhase({ kind: 'writing', response: resp });
       } catch (err) {
         const e = err as { code?: string; message?: string };
@@ -283,13 +296,13 @@ export function useTapCard({ amount, currency = 'NGN', memo, enabled = true }: U
       newPayload.set(K, 0);
       newPayload.set(newToken, 32);
       await writeCardPayload(newPayload);
-      await merchantApi.tapCardTokenAck(resp.order_id, { written: true });
+      await merchantApi.tapCardTokenAck(resp.tap_id, { written: true });
       setPhase({ kind: 'settled', response: resp });
     } catch (err) {
       // Best-effort ack — server keeps the previous token valid for
       // the cardholder's next PWA-driven resync.
       void merchantApi
-        .tapCardTokenAck(resp.order_id, { written: false })
+        .tapCardTokenAck(resp.tap_id, { written: false })
         .catch(() => undefined);
       setPhase({
         kind: 'write-retry',

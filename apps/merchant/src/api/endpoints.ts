@@ -199,10 +199,10 @@ export const merchantApi = {
       url: "/v1/sender/me/tap-card",
       data: body,
     }),
-  tapCardTokenAck: (orderId: UUID, body: TapCardTokenAckRequest) =>
-    request<{ acknowledged: true }>({
+  tapCardTokenAck: (tapId: UUID, body: TapCardTokenAckRequest) =>
+    request<null>({
       method: "POST",
-      url: `/v1/sender/me/tap-card/${orderId}/token-ack`,
+      url: `/v1/sender/me/tap-card/${tapId}/token-ack`,
       data: body,
     }),
   tapCardStepUpPoll: (token: string) =>

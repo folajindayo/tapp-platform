@@ -149,39 +149,56 @@ export interface TapCardNonceRequest {
 }
 export interface TapCardNonceResponse {
   tier: TapCardTier;
-  server_nonce: string; // hex, single-use, 60s TTL
-  step_up_url?: string; // present only when tier === 'step_up'
-  step_up_token?: string; // opaque; echoed back on re-submit
+  server_nonce: string; // hex, single-use
+  /** Present only when tier === 'step_up'. Echoed back on the debit. */
+  step_up_ref?: string;
+  expires_at: string;
 }
 
 /** POST /v1/sender/me/tap-card — the debit itself. */
 export interface TapCardDebitRequest {
   card_uid_hash: string; // hex(sha256(UID))
-  current_token_ct: string; // hex of the ciphertext bytes read off the card
+  /**
+   * The token read off the card, hex.
+   *
+   * Was current_token_ct. It is not ciphertext and never was -- the card holds
+   * opaque server-generated randomness -- and the name invited people to
+   * assume a confidentiality property it does not have.
+   */
+  card_token: string;
   amount: string; // fiat amount, decimal string
   currency: string; // 'NGN' in v1
-  memo?: string;
   server_nonce: string; // echo from GET /nonce
-  /** HMAC challenge-response. Null when tier === 'none'. */
-  pin_response?: string; // hex(HMAC-SHA256(HMAC(K, PIN), server_nonce))
-  /** Echoed back after a step-up grant; null on initial submit. */
-  step_up_token?: string;
+  /** HMAC challenge-response. Absent when tier === 'none'. */
+  pin_response?: string; // hex(HMAC-SHA256(anchor, server_nonce))
+  /** Echoed back for a step-up tap. */
+  step_up_ref?: string;
 }
 
 export interface TapCardDebitResponse {
-  status: "settled" | "processing";
-  order_id: UUID;
+  /**
+   * "charged", not "settled".
+   *
+   * The cardholder has been debited and the merchant is owed. The money has
+   * not reached their bank yet, and the previous value claimed it had -- on a
+   * response that, for Base cards, accompanied no movement at all.
+   */
+  status: "charged";
+  tap_id: UUID;
   amount: string;
   currency: string;
-  /** New card-sector token to write back on success. Hex. */
+  tier: TapCardTier;
+  /**
+   * The token to write to the card, hex.
+   *
+   * Until the write is acknowledged the card's PREVIOUS token also remains
+   * valid, so a failed write costs nothing and needs no re-sync.
+   */
   new_card_token: string;
-  /** Single-use NTAG215 PWD (4 bytes hex) for PWD_AUTH before write. */
-  card_password: string;
-  remaining_daily: string; // subunit u64
-  tx_hash?: string;
+  remaining_daily: string;
 }
 
-/** POST /v1/sender/me/tap-card/:order_id/token-ack */
+/** POST /v1/sender/me/tap-card/:tap_id/token-ack */
 export interface TapCardTokenAckRequest {
   written: boolean;
 }
