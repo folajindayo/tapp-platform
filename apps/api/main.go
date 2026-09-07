@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"time"
@@ -8,6 +9,7 @@ import (
 	"github.com/spf13/viper"
 
 	"github.com/usezoracle/tapp/api/config"
+	"github.com/usezoracle/tapp/api/internal/cash"
 	"github.com/usezoracle/tapp/api/routers"
 	"github.com/usezoracle/tapp/api/services"
 	"github.com/usezoracle/tapp/api/services/baas"
@@ -72,6 +74,16 @@ func main() {
 		tasks.StartCronJobs()
 	}
 
+	// Release float locked against handovers nobody turned up for.
+	//
+	// Not a tidy-up job: until this runs, an agent's capital is committed to a
+	// trader who never came and cannot serve anybody else. Every minute of
+	// delay is float withdrawn from the market.
+	if !viper.GetBool("DISABLE_BACKGROUND_JOBS") {
+		cashSvc := &cash.Service{Pool: storage.Pool}
+		go cashSvc.RunSweeper(context.Background(), cashSweepInterval())
+	}
+
 	// Run the server
 	router := routers.Routes()
 
@@ -130,4 +142,16 @@ func initBaaSRail() {
 	default:
 		logger.Fatalf("BaaS rail: unknown provider %q (admin config)", provider)
 	}
+}
+
+// cashSweepInterval is how often expired handovers are released.
+func cashSweepInterval() time.Duration {
+	viper.SetDefault("CASH_SWEEP_INTERVAL_SECONDS", 30)
+	seconds := viper.GetInt("CASH_SWEEP_INTERVAL_SECONDS")
+	if seconds < 5 {
+		// A sweep every second or two would hammer the database for no gain;
+		// the shortest handover window is measured in minutes.
+		seconds = 5
+	}
+	return time.Duration(seconds) * time.Second
 }

@@ -24,6 +24,24 @@ type CryptoConfiguration struct {
 	WalletMasterKey      string
 }
 
+// AnthropicAPIKey is the key for banknote recognition.
+//
+// Without it there is no recognition, and without recognition a cash pledge is
+// a photograph nobody looked at. The cash routes are not registered at all in
+// that case rather than accepting pledges unscreened.
+func (c *CryptoConfiguration) AnthropicAPIKey() string {
+	return viper.GetString("ANTHROPIC_API_KEY")
+}
+
+// VisionModel is which model counts the notes. Chosen by measured accuracy
+// against real photographs, not by intuition.
+func VisionModel() string {
+	if m := viper.GetString("VISION_MODEL"); m != "" {
+		return m
+	}
+	return "claude-haiku-4-5"
+}
+
 // CryptoConfig loads the key material from environment / viper.
 func CryptoConfig() *CryptoConfiguration {
 	return &CryptoConfiguration{

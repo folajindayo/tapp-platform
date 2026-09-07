@@ -67,6 +67,17 @@ func RegisterRoutes(route *gin.Engine) {
 	}
 	v1.GET("agents/nearby", agentHandler.Nearby)
 	v1.POST("agents", middleware.JWTMiddleware, agentHandler.Register)
+
+	// Cash pledges. Not registered at all when there is no recogniser: a
+	// pledge with no recognition is a photograph nobody looked at, and
+	// accepting those would mean crediting people for pictures.
+	if cashHandler := apiv1.NewCashHandler(); cashHandler != nil {
+		pledges := v1.Group("cash", middleware.JWTMiddleware)
+		pledges.POST("pledges", cashHandler.Pledge)
+		pledges.POST("pledges/:id/match", cashHandler.Match)
+		pledges.POST("handovers/:id/confirm", cashHandler.ConfirmByTrader)
+		pledges.POST("handovers/:id/receive", cashHandler.ConfirmByAgent)
+	}
 	v1.GET("orders/:id", ctrl.GetLockPaymentOrderStatus)
 	// Public order-scoped SSE — customer checkout PWA subscribes after
 	// submitting their on-chain payment to advance through the bridge

@@ -2,8 +2,10 @@ package agents
 
 import (
 	"context"
+	"crypto/rand"
 	"errors"
 	"math"
+	"math/big"
 	"os"
 	"sync/atomic"
 	"testing"
@@ -48,16 +50,26 @@ func testStore(t *testing.T) *Store {
 // truncated the ones it was actually looking for. Spacing the origins a degree
 // apart -- about 111km, far beyond any search radius here -- makes each test
 // blind to the others.
-var testOrigin atomic.Int64
+// The base is random per process. A counter starting from zero each run drops
+// the next run's agents on top of the last run's, and a search then returns
+// agents this test never registered.
+var (
+	originBase = randomOrigin()
+	testOrigin atomic.Int64
+)
+
+func randomOrigin() float64 {
+	n, err := rand.Int(rand.Reader, big.NewInt(1_000))
+	if err != nil {
+		panic(err)
+	}
+	return float64(n.Int64())
+}
 
 func ownPatch(t *testing.T) (float64, float64) {
 	t.Helper()
-	n := float64(testOrigin.Add(1))
-	lat, lng := 5.0+n*0.5, 4.0+n*0.5
-	if lat > MaxLat-1 || lng > MaxLng-1 {
-		t.Fatalf("ran out of test origins at %d", int(n))
-	}
-	return lat, lng
+	n := originBase + float64(testOrigin.Add(1))
+	return 4.5 + math.Mod(n*0.37, 9.0), 2.5 + math.Mod(n*0.53, 12.0)
 }
 
 func register(t *testing.T, s *Store, name string, lat, lng float64, verified bool) *Agent {
