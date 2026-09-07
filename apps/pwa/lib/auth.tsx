@@ -3,14 +3,14 @@
 /**
  * Auth for the Tapp PWA.
  *
- * Cardholder sign-in goes through Google OAuth: the PWA gets a Google
- * ID token via @react-oauth/google, POSTs it to Rails
- * `/v1/auth/google`, which verifies against Google's JWKS, finds or
- * creates the User, and returns a Rails JWT pair.
+ * Two ways in, both ending in the same session: Google OAuth (the PWA gets an
+ * ID token, POSTs it to /v1/auth/google, which verifies it against Google's
+ * JWKS and returns a JWT pair) and email with a password.
  *
- * v1.x lift: stack the Mysten zkLogin proof on top of the Google ID
- * token before exchanging — same surface here, the swap happens in
- * `signInWithGoogleCredential` below.
+ * A session is a pair of tokens and who they belong to. It used to also carry
+ * a Sui address and a flag saying whether that address had been derived
+ * properly or fallen back to a development salt; both are gone with the chain
+ * they were for.
  */
 
 import {
@@ -21,76 +21,32 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { decodeJwt } from "jose";
-import { sha256 } from "@noble/hashes/sha2.js";
-import { jwtToAddress } from "@mysten/sui/zklogin";
-import {
-  completeZkLoginSession,
-  readSession as readZkLoginSession,
-  isZkLoginSessionExpired,
-} from "./zklogin";
 
 export interface Session {
   jwt: string;
   refreshJwt: string;
   email: string;
   scope: string;
-  evmAddress?: string;
-  /**
-   * Sui address bound to this session.
-   *
-   *   - If `zkLoginReady === true`: this address was derived through
-   *     the proper zkLogin pipeline (nonce-bound JWT + real Mysten
-   *     salt) and CAN be used to sign on-chain txs via
-   *     `executeZkLoginTx` (lib/zklogin.ts).
-   *   - If `zkLoginReady === false`: the address came from the
-   *     `devSalt` fallback. Real-shape and stable per-user, but the
-   *     prover will reject signatures until the user signs in again
-   *     through the full OAuth+nonce flow.
-   *
-   * Empty string if derivation failed entirely.
-   */
-  suiAddress: string;
-
-  /**
-   * True when the address was produced by the full zkLogin pipeline.
-   * Components that need to sign Sui txs should gate on this flag and
-   * surface a "complete sign-in for on-chain signing" CTA otherwise.
-   */
-  zkLoginReady?: boolean;
-}
-
-/**
- * Deterministic per-user dev salt. `sub` is the Google account id;
- * we hash it with a fixed app-scoped string and truncate to 16 bytes
- * (the size zkLogin expects for the user salt). Production swap-in:
- * call the real salt service (lib/zklogin.ts `fetchSalt`).
- */
-function devSalt(sub: string): string {
-  const hash = sha256(new TextEncoder().encode("tapp.dev.salt.v1:" + sub));
-  let n = BigInt(0);
-  const eight = BigInt(8);
-  for (let i = 0; i < 16; i++) n = (n << eight) | BigInt(hash[i]);
-  return n.toString();
-}
-
-function deriveSuiAddress(idToken: string): string {
-  try {
-    const claims = decodeJwt(idToken);
-    const sub = typeof claims.sub === "string" ? claims.sub : null;
-    if (!sub) return "";
-    return jwtToAddress(idToken, devSalt(sub), false);
-  } catch (err) {
-    if (typeof console !== "undefined") {
-      console.warn("zkLogin address derivation failed:", err);
-    }
-    return "";
-  }
 }
 
 const STORAGE_KEY = "tapp.session.v1";
-const API_BASE =
-  process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
+/**
+ * Where the API lives. Required, and not defaulted to localhost.
+ *
+ * A build with this unset used to ship silently and send every request to a
+ * machine the user does not have, which reads as "the network is down" rather
+ * than "this was built without an API URL".
+ */
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL;
+
+function apiBase(): string {
+  if (!API_BASE) {
+    throw new Error(
+      "This app was built without NEXT_PUBLIC_API_BASE_URL set, so it does not know where the API is.",
+    );
+  }
+  return API_BASE;
+}
 
 interface GoogleAuthResponse {
   access_token: string;
@@ -106,67 +62,9 @@ interface RailsEnvelope<T> {
   data?: T;
 }
 
-/**
- * Full sign-in completion. Used by the OAuth callback in
- * `app/sign-in/page.tsx`. Two things in sequence:
- *
- *   1. Complete the in-flight zkLogin session — verifies the JWT's
- *      `nonce` matches the ephemeral pubkey we generated before the
- *      redirect, fetches the user's salt from Mysten's salt service,
- *      and derives the *real* Sui address.
- *   2. Exchange the same Google ID token with Rails for the cardholder
- *      API JWT (this is what /v1/cards/* and /v1/wallet/* expect).
- *
- * If zkLogin completion fails (no in-flight session, nonce mismatch,
- * salt service down), we fall back to the dev-grade derivation so
- * sign-in still works — but the resulting address won't be signable
- * for on-chain operations. The caller can see this by checking
- * `Session.zkLoginReady`.
- */
-export async function completeAuth(idToken: string): Promise<Session> {
-  // Rails sign-in first — we need its JWT to authorize the Shinami
-  // wallet/proof proxies in the next step. Without this ordering,
-  // completeZkLoginSession would have no bearer token to send.
-  const railsSession = await signInWithGoogleCredential(idToken);
-
-  let zkAddress: string | null = null;
-  try {
-    const zk = await completeZkLoginSession(idToken, railsSession.jwt);
-    zkAddress = zk.suiAddress ?? null;
-  } catch (err) {
-    if (typeof console !== "undefined") {
-      console.warn(
-        "zkLogin completion failed — sign-in continues with dev-grade address. " +
-          "On-chain signing will be blocked until this is resolved.",
-        err,
-      );
-    }
-  }
-
-  if (!zkAddress) return railsSession;
-
-  // Re-persist the session with the proper zkLogin-derived address.
-  const upgraded: Session = {
-    ...railsSession,
-    suiAddress: zkAddress,
-    zkLoginReady: true,
-  };
-  if (typeof window !== "undefined") {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(upgraded));
-  }
-  return upgraded;
-}
-
-/**
- * Exchange a Google ID-token credential for a Rails session JWT.
- * `presetAddress` lets the caller plug in a zkLogin-derived address
- * (proper) instead of the dev-salt fallback.
- */
-export async function signInWithGoogleCredential(
-  idToken: string,
-  presetAddress?: string | null,
-): Promise<Session> {
-  const res = await fetch(`${API_BASE}/v1/auth/google`, {
+/** Exchange a Google ID-token credential for an API session. */
+export async function signInWithGoogleCredential(idToken: string): Promise<Session> {
+  const res = await fetch(`${apiBase()}/v1/auth/google`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -185,8 +83,6 @@ export async function signInWithGoogleCredential(
     refreshJwt: body.data.refresh_token,
     email: body.data.email,
     scope: body.data.scope,
-    suiAddress: presetAddress || deriveSuiAddress(idToken),
-    zkLoginReady: !!presetAddress,
   };
   if (typeof window !== "undefined") {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(session));
@@ -222,7 +118,7 @@ export async function signInWithEmailAndPassword(
   email: string,
   pass: string,
 ): Promise<Session> {
-  const res = await fetch(`${API_BASE}/v1/auth/login`, {
+  const res = await fetch(`${apiBase()}/v1/auth/login`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -245,9 +141,6 @@ export async function signInWithEmailAndPassword(
     refreshJwt: body.data.refreshToken,
     email: email,
     scope: (body.data.scopes || ["sender"]).join(" "),
-    evmAddress: body.data.evmAddress,
-    suiAddress: body.data.evmAddress || "",
-    zkLoginReady: true,
   };
   if (typeof window !== "undefined") {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(session));
@@ -261,7 +154,7 @@ export async function signUpWithEmailAndPassword(
   firstName = "Cardholder",
   lastName = "User",
 ): Promise<Session> {
-  const res = await fetch(`${API_BASE}/v1/auth/register`, {
+  const res = await fetch(`${apiBase()}/v1/auth/register`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -290,9 +183,6 @@ export async function signUpWithEmailAndPassword(
     refreshJwt: body.data.refreshToken,
     email: body.data.email,
     scope: "sender",
-    evmAddress: body.data.evmAddress,
-    suiAddress: body.data.evmAddress || "",
-    zkLoginReady: true,
   };
   if (typeof window !== "undefined") {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(session));
@@ -303,7 +193,7 @@ export async function signUpWithEmailAndPassword(
 export async function requestPasswordReset(
   email: string,
 ): Promise<{ message: string; devOtp?: string }> {
-  const res = await fetch(`${API_BASE}/v1/auth/reset-password-token`, {
+  const res = await fetch(`${apiBase()}/v1/auth/reset-password-token`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -331,7 +221,7 @@ export async function completePasswordReset(
   resetToken: string,
   pass: string,
 ): Promise<void> {
-  const res = await fetch(`${API_BASE}/v1/auth/reset-password`, {
+  const res = await fetch(`${apiBase()}/v1/auth/reset-password`, {
     method: "PATCH",
     headers: {
       "Content-Type": "application/json",
@@ -431,7 +321,7 @@ async function doRefresh(): Promise<string | null> {
 
   let res: Response;
   try {
-    res = await fetch(`${API_BASE}/v1/auth/refresh`, {
+    res = await fetch(`${apiBase()}/v1/auth/refresh`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -472,11 +362,7 @@ function readSession(): Session | null {
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY);
     if (!raw) return null;
-    const parsed = JSON.parse(raw) as Session;
-    
-    // Authenticated session is active and ready on Base.
-    parsed.zkLoginReady = true;
-    return parsed;
+    return JSON.parse(raw) as Session;
   } catch {
     return null;
   }

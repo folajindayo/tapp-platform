@@ -21,16 +21,20 @@ import {
   slideInOut,
 } from "@/components/ui/AnimatedComponents";
 import { useSession } from "@/lib/auth";
-import { useWallet, shortenAddress } from "@/lib/wallet";
+import { useCard, useDepositAddress } from "@/lib/ledger";
 import { Web3Avatar } from "@/components/ui/Web3Avatar";
 
 export default function SettingsPage() {
   const router = useRouter();
   const { hydrated, session, clear } = useSession();
-  const wallet = useWallet();
+  const deposit = useDepositAddress();
+  const card = useCard();
   const [copied, setCopied] = useState(false);
 
-  const displayAddress = wallet.data?.evm_address || wallet.data?.sui_address || "";
+  // The deposit address, which is the only address a holder has. There is no
+  // per-user wallet any more -- the treasury is pooled and this is a derived
+  // address that credits their ledger balance when USDC lands on it.
+  const displayAddress = deposit.data?.address ?? "";
 
   const copyToClipboard = async () => {
     if (!displayAddress) return;
@@ -63,7 +67,7 @@ export default function SettingsPage() {
         </Link>
 
         <div className="flex items-center gap-3">
-          <Web3Avatar address={session.suiAddress || session.email} size={42} />
+          <Web3Avatar address={session.email} size={42} />
           <div className="grid gap-0.5">
             <h1 className="text-xl font-medium">Settings</h1>
             <p className="break-all text-sm text-gray-500 dark:text-white/50">
@@ -78,19 +82,19 @@ export default function SettingsPage() {
             icon={<PiCreditCardBold />}
             title="Linked Tapp Card"
             subtitle={
-              wallet.data?.has_linked_card
+              card.data
                 ? "Manage your physical card"
                 : "Link a card for contactless spending"
             }
             badge={
-              wallet.data?.has_linked_card ? (
+              card.data ? (
                 <StatusChip tone="success">Linked</StatusChip>
               ) : (
                 <StatusChip>None</StatusChip>
               )
             }
           />
-          {wallet.data?.has_linked_card && (
+          {card.data && (
             <SettingsRow
               href="/settings/limits"
               icon={<PiSlidersHorizontalBold />}
@@ -109,9 +113,9 @@ export default function SettingsPage() {
         <div className="grid gap-2 rounded-3xl border border-gray-200 p-4 dark:border-white/10">
           <div className="flex items-center justify-between">
             <p className="text-xs font-medium uppercase tracking-wider text-gray-400 dark:text-white/30">
-              Wallet address
+              Deposit address
             </p>
-            {wallet.data && (
+            {deposit.data && (
               <button
                 type="button"
                 onClick={copyToClipboard}
@@ -139,7 +143,11 @@ export default function SettingsPage() {
             {displayAddress || "—"}
           </p>
           <p className="text-xs text-gray-500 dark:text-white/50">
-            {displayAddress ? shortenAddress(displayAddress) : ""} · Base Mainnet
+            {deposit.data
+              ? `USDC on ${deposit.data.network}`
+              : deposit.isError
+                ? "Couldn't load your address"
+                : "Loading…"}
           </p>
         </div>
 

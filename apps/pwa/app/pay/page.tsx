@@ -10,9 +10,10 @@ import { InputError } from "@/components/ui/InputError";
 import { useSession } from "@/lib/auth";
 
 /**
- * Pay flow entry — full-screen scanner. We accept either a full URL
- * (https://app.usetapp.xyz/order/abc-123) or a bare order id and
- * route to /order/[id].
+ * Pay flow entry — full-screen scanner.
+ *
+ * Accepts either a checkout URL as the merchant app broadcasts it
+ * (https://…/pay/<uuid>) or a bare id typed in, and routes to /pay/[id].
  */
 export default function PayPage() {
   const router = useRouter();
@@ -27,22 +28,22 @@ export default function PayPage() {
 
   function handleResult(text: string) {
     setScanning(false);
-    const id = extractOrderId(text);
+    const id = extractCheckoutId(text);
     if (!id) {
-      setError("That QR doesn't look like a Tapp order. Try again.");
+      setError("That QR isn't a Tapp payment request. Try again.");
       return;
     }
-    router.replace(`/order/${encodeURIComponent(id)}`);
+    router.replace(`/pay/${encodeURIComponent(id)}`);
   }
 
   function submitManual() {
     if (!manual.trim()) return;
-    const id = extractOrderId(manual.trim());
+    const id = extractCheckoutId(manual.trim());
     if (!id) {
-      setError("Couldn't read that link. Paste a Tapp order URL.");
+      setError("Couldn't read that link. Paste a Tapp payment link.");
       return;
     }
-    router.replace(`/order/${encodeURIComponent(id)}`);
+    router.replace(`/pay/${encodeURIComponent(id)}`);
   }
 
   if (!hydrated || !session) return <Screen />;
@@ -60,7 +61,7 @@ export default function PayPage() {
     <Screen>
       <div className="grid gap-6 py-10 text-sm text-neutral-900 dark:text-white">
         <div className="space-y-2">
-          <h1 className="text-xl font-medium">Paste an order link</h1>
+          <h1 className="text-xl font-medium">Paste a payment link</h1>
           <p className="text-sm text-gray-500 dark:text-white/50">
             Or restart the scanner.
           </p>
@@ -108,18 +109,27 @@ export default function PayPage() {
   );
 }
 
-function extractOrderId(text: string): string | null {
+/**
+ * A checkout id, from a scanned URL or something typed in.
+ *
+ * A checkout id is a UUID, so that is what is accepted. The predecessor
+ * matched any 4-64 characters of [A-Za-z0-9_-], which let a QR code from
+ * anywhere at all route the app to a detail page that then 404'd -- the error
+ * arrived one screen too late to say anything useful.
+ */
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function extractCheckoutId(text: string): string | null {
   const trimmed = text.trim();
   if (!trimmed) return null;
   try {
-    const u = new URL(trimmed);
-    // Match `/order/<id>` or `/o/<id>` at the end of the path.
-    const m = u.pathname.match(/\/(?:order|o)\/([^/]+)\/?$/);
-    if (m?.[1]) return decodeURIComponent(m[1]);
+    const url = new URL(trimmed);
+    const match = url.pathname.match(/\/pay\/([^/]+)\/?$/);
+    const id = match?.[1] ? decodeURIComponent(match[1]) : null;
+    if (id && UUID.test(id)) return id;
+    return null;
   } catch {
-    // Not a URL — fall through and treat as a bare id.
+    // Not a URL -- treat it as a bare id.
   }
-  // Plain id: allow safe characters only.
-  if (/^[A-Za-z0-9_-]{4,64}$/.test(trimmed)) return trimmed;
-  return null;
+  return UUID.test(trimmed) ? trimmed : null;
 }

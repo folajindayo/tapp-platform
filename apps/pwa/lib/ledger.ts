@@ -18,15 +18,15 @@
 import { useQuery } from "@tanstack/react-query";
 import { useSession } from "./auth";
 import {
-  request,
+  activityApi,
   balancesApi,
   cardsApi,
   cashApi,
   depositsApi,
   type CurrencyBalance,
   type Currency,
-  type Money,
 } from "./api";
+export type { Movement, ActivityPage } from "./api";
 
 /** How often a balance re-reads itself while somebody is watching it. */
 const BALANCE_POLL_MS = 8_000;
@@ -72,31 +72,6 @@ export const worthShowing = (b: CurrencyBalance) =>
 // Activity
 // -----------------------------------------------------------------------------
 
-/**
- * One movement of the holder's money, exactly as the ledger recorded it.
- *
- * `amount` is signed from their point of view: positive arrived, negative
- * left. `reason` is the ledger's own vocabulary -- "tap.debit",
- * "handover.settled", "fx.bought" -- and the part before the dot is the
- * domain, which is what the UI switches on for an icon.
- */
-export interface Movement {
-  id: number;
-  txId: string;
-  amount: Money;
-  /** Which of their accounts moved: available, escrow, obligation. */
-  account: "available" | "escrow" | "obligation";
-  reason: string;
-  refType?: string;
-  refId?: string;
-  at: string;
-}
-
-export interface ActivityPage {
-  movements: Movement[];
-  nextCursor?: string;
-}
-
 export function useActivity(limit = 30) {
   const { session, hydrated } = useSession();
   return useQuery({
@@ -106,14 +81,6 @@ export function useActivity(limit = 30) {
     refetchInterval: ACTIVITY_POLL_MS,
   });
 }
-
-const activityApi = {
-  page: (jwt: string, limit: number, cursor?: string) => {
-    const params = new URLSearchParams({ limit: String(limit) });
-    if (cursor) params.set("cursor", cursor);
-    return request<ActivityPage>("GET", `/v1/me/activity?${params}`, { token: jwt });
-  },
-};
 
 // -----------------------------------------------------------------------------
 // Card

@@ -2,7 +2,6 @@ import type { Metadata, Viewport } from "next";
 import { DM_Sans, Inter } from "next/font/google";
 import "./globals.css";
 import { QueryProvider } from "@/lib/query-provider";
-import { GoogleProvider } from "@/lib/google-provider";
 import { SessionProvider } from "@/lib/auth";
 import { ServiceWorkerRegistrar } from "./register-sw";
 import { ThemeProvider } from "@/components/ThemeProvider";
@@ -68,18 +67,16 @@ export default function RootLayout({
       className={`${inter.variable} ${dmSans.variable} h-full antialiased`}
       suppressHydrationWarning
     >
-      <body className="min-h-full bg-white text-neutral-900 transition-colors dark:bg-neutral-900 dark:text-white">
+      <body className="min-h-full bg-[var(--surface)] text-[var(--fg)] transition-colors">
         <ThemeProvider>
-          <GoogleProvider>
-            <SessionProvider>
-              <QueryProvider>
-                <AppShell>{children}</AppShell>
-                <BottomNav />
-                <LogoOutlineBg />
-                <CookieConsent />
-              </QueryProvider>
-            </SessionProvider>
-          </GoogleProvider>
+          <SessionProvider>
+            <QueryProvider>
+              <AppShell>{children}</AppShell>
+              <BottomNav />
+              <LogoOutlineBg />
+              <CookieConsent />
+            </QueryProvider>
+          </SessionProvider>
         </ThemeProvider>
         <ServiceWorkerRegistrar />
       </body>

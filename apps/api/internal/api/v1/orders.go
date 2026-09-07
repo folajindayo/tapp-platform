@@ -1,6 +1,7 @@
 package v1
 
 import (
+	"context"
 	"errors"
 	"net/http"
 
@@ -199,10 +200,21 @@ type openCheckoutRequest struct {
 type checkoutResponse struct {
 	ID          string `json:"id"`
 	CheckoutURL string `json:"checkout_url"`
-	Amount      string `json:"amount"`
-	Currency    string `json:"currency"`
-	State       string `json:"state"`
-	ExpiresAt   string `json:"expires_at"`
+
+	// Amount is the money type, so the payer's screen shows the same rendering
+	// the receipt will. The string form is kept alongside for the merchant app,
+	// which reads it into a display it already has.
+	Amount    money.Amount `json:"amount"`
+	Display   string       `json:"amount_display"`
+	Currency  string       `json:"currency"`
+	Narration string       `json:"narration,omitempty"`
+
+	// MerchantName is who the payer is paying. Empty when we cannot say --
+	// the screen then says "this merchant" rather than inventing a name.
+	MerchantName string `json:"merchant_name"`
+
+	State     string `json:"state"`
+	ExpiresAt string `json:"expires_at"`
 }
 
 // Open creates a payment request for the merchant to broadcast.
@@ -237,7 +249,7 @@ func (h *CheckoutHandler) Open(ctx *gin.Context) {
 		writeCheckoutError(ctx, err)
 		return
 	}
-	u.APIResponse(ctx, http.StatusCreated, "success", "Ready to accept", h.view(c))
+	u.APIResponse(ctx, http.StatusCreated, "success", "Ready to accept", h.view(ctx.Request.Context(), c))
 }
 
 // Get is what the payer's phone opens.
@@ -252,7 +264,7 @@ func (h *CheckoutHandler) Get(ctx *gin.Context) {
 		writeCheckoutError(ctx, err)
 		return
 	}
-	u.APIResponse(ctx, http.StatusOK, "success", "Payment request", h.view(c))
+	u.APIResponse(ctx, http.StatusOK, "success", "Payment request", h.view(ctx.Request.Context(), c))
 }
 
 // Pay settles it from the payer's balance.
@@ -271,14 +283,20 @@ func (h *CheckoutHandler) Pay(ctx *gin.Context) {
 		writeCheckoutError(ctx, err)
 		return
 	}
-	u.APIResponse(ctx, http.StatusOK, "success", "Paid", h.view(c))
+	u.APIResponse(ctx, http.StatusOK, "success", "Paid", h.view(ctx.Request.Context(), c))
 }
 
-func (h *CheckoutHandler) view(c *checkout.Checkout) checkoutResponse {
+func (h *CheckoutHandler) view(ctx context.Context, c *checkout.Checkout) checkoutResponse {
 	return checkoutResponse{
-		ID: c.ID.String(), CheckoutURL: h.CheckoutBaseURL + "/pay/" + c.ID.String(),
-		Amount: c.Amount.String(), Currency: string(c.Amount.Currency()),
-		State: string(c.State), ExpiresAt: c.ExpiresAt.UTC().Format("2006-01-02T15:04:05Z"),
+		ID:           c.ID.String(),
+		CheckoutURL:  h.CheckoutBaseURL + "/pay/" + c.ID.String(),
+		Amount:       c.Amount,
+		Display:      c.Amount.String(),
+		Currency:     string(c.Amount.Currency()),
+		Narration:    c.Narration,
+		MerchantName: MerchantName(ctx, c.MerchantID),
+		State:        string(c.State),
+		ExpiresAt:    c.ExpiresAt.UTC().Format("2006-01-02T15:04:05Z"),
 	}
 }
 

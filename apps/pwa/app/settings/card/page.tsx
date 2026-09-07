@@ -22,12 +22,10 @@ import {
 import { useSession } from "@/lib/auth";
 import { cardsApi, type CardSummary } from "@/lib/api";
 import { formatNgn } from "@/lib/utils";
-import { formatUsdc, useWallet } from "@/lib/wallet";
 
 export default function SettingsCardPage() {
   const router = useRouter();
   const { hydrated, session } = useSession();
-  const wallet = useWallet();
 
   useEffect(() => {
     if (hydrated && !session) router.replace("/sign-in?next=/settings/card");
@@ -69,10 +67,7 @@ export default function SettingsCardPage() {
         ) : card.isError || !card.data ? (
           <NoCardState />
         ) : (
-          <CardDetail
-            card={card.data}
-            walletBalance={wallet.data?.usdc_subunit ?? 0}
-          />
+          <CardDetail card={card.data} />
         )}
       </AnimatedComponent>
     </Screen>
@@ -100,13 +95,7 @@ function NoCardState() {
   );
 }
 
-function CardDetail({
-  card,
-  walletBalance,
-}: {
-  card: CardSummary;
-  walletBalance: number;
-}) {
+function CardDetail({ card }: { card: CardSummary }) {
   return (
     <>
       <div className="flex items-center justify-between">
@@ -122,6 +111,7 @@ function CardDetail({
           { label: "Per-tap limit",     value: <span className="tabular-nums">{formatNgn(card.per_tap_limit_subunit / 100)}</span> },
           { label: "Step-up above",     value: <span className="tabular-nums">{formatNgn(card.step_up_threshold_subunit / 100)}</span> },
           { label: "Spent today",       value: <span className="tabular-nums">{formatNgn(card.spent_today_subunit / 100)}</span> },
+          { label: "Spendable now",     value: <span className="tabular-nums">{card.spendable.display}</span> },
           { label: "PIN attempts left", value: card.pin_attempts_remaining },
         ]}
       />

@@ -9,9 +9,12 @@
 export * from "./http";
 export * from "./money";
 
+export * from "./activity";
 export * from "./agents";
 export * from "./balances";
 export * from "./cards";
 export * from "./cash";
+export * from "./checkout";
 export * from "./convert";
 export * from "./deposits";
+export * from "./withdrawals";

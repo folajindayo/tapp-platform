@@ -86,6 +86,18 @@ func RegisterRoutes(route *gin.Engine) {
 			Token: "USDC", User: apiv1.UserFromContext,
 		}
 		v1.GET("deposits/address", middleware.JWTMiddleware, deposits.Address)
+
+		// The other direction. Registered alongside deposits and under the
+		// same `rail != nil` guard: with no chain configured there is nowhere
+		// for a withdrawal to go, and an endpoint that always answers 503
+		// reads as an outage rather than as a feature that is switched off.
+		if rail.Withdrawals != nil {
+			withdraw := &apiv1.WithdrawHandler{
+				Svc: rail.Withdrawals, User: apiv1.UserFromContext,
+			}
+			v1.POST("withdrawals", middleware.JWTMiddleware, withdraw.Open)
+			v1.GET("withdrawals/:id", middleware.JWTMiddleware, withdraw.Get)
+		}
 	}
 
 	// Cash pledges. Not registered at all when there is no recogniser: a
@@ -100,6 +112,23 @@ func RegisterRoutes(route *gin.Engine) {
 		pledges.POST("handovers/:id/confirm", cashHandler.ConfirmByTrader)
 		pledges.POST("handovers/:id/receive", cashHandler.ConfirmByAgent)
 	}
+	// Phone-to-phone checkout. The merchant opens a request and broadcasts the
+	// URL; this is what opens on the payer's phone.
+	//
+	// Reading one is public: somebody has to see what they are being asked for
+	// before they decide whether to sign in and pay it. Paying one is not.
+	publicCheckout := &apiv1.CheckoutHandler{
+		Svc: &checkout.Service{
+			Pool: storage.Pool,
+			Fee:  tap.BasisPointFee(config.OrderConfig().CardFeeBPS),
+		},
+		Merchant:        apiv1.MerchantFromContext,
+		User:            apiv1.UserFromContext,
+		CheckoutBaseURL: config.CheckoutBaseURL(),
+	}
+	v1.GET("checkouts/:id", publicCheckout.Get)
+	v1.POST("checkouts/:id/pay", middleware.JWTMiddleware, publicCheckout.Pay)
+
 	v1.GET("orders/:id", ctrl.GetLockPaymentOrderStatus)
 	// Public order-scoped SSE — customer checkout PWA subscribes after
 	// submitting their on-chain payment to advance through the bridge

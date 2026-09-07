@@ -24,8 +24,6 @@ export default function LinkSignPage() {
   );
 }
 
-const DEMO_MODE = process.env.NEXT_PUBLIC_DEMO_LINK === "1";
-
 function Body() {
   const router = useRouter();
   const params = useSearchParams();

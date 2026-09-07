@@ -6,7 +6,7 @@ import { motion } from "framer-motion";
 import {
   PiWalletFill,
   PiClockCounterClockwiseBold,
-  PiQrCodeBold,
+  PiMoneyWavyBold,
   PiCreditCardBold,
   PiGearSixBold,
 } from "react-icons/pi";
@@ -23,10 +23,16 @@ interface Tab {
   prominent?: boolean;
 }
 
+// Cash sits in the middle, and it is the prominent one.
+//
+// This is a naira product before it is a crypto one: the largest group of
+// people it is for hold physical notes and want them in a balance. Putting
+// that behind a settings menu, with a QR scanner in the prominent slot, had
+// the priorities exactly backwards.
 const TABS: Tab[] = [
   { href: "/",              label: "Wallet",   icon: PiWalletFill,                match: (p) => p === "/" },
-  { href: "/history",       label: "Activity", icon: PiClockCounterClockwiseBold, match: (p) => p === "/history" || p.startsWith("/tx/") },
-  { href: "/pay",           label: "Pay",      icon: PiQrCodeBold,                match: (p) => p === "/pay" || p.startsWith("/order/"), prominent: true },
+  { href: "/history",       label: "Activity", icon: PiClockCounterClockwiseBold, match: (p) => p === "/history" },
+  { href: "/cash",          label: "Cash",     icon: PiMoneyWavyBold,             match: (p) => p.startsWith("/cash") || p.startsWith("/agents"), prominent: true },
   { href: "/settings/card", label: "Card",     icon: PiCreditCardBold,            match: (p) => p === "/settings/card" || p.startsWith("/settings/limits") },
   { href: "/settings",      label: "Settings", icon: PiGearSixBold,               match: (p) => (p === "/settings" || p.startsWith("/settings/")) && !p.startsWith("/settings/card") && !p.startsWith("/settings/limits") },
 ];
@@ -35,7 +41,10 @@ export function shouldShowBottomNav(pathname: string): boolean {
   if (pathname.startsWith("/demo-deck")) return false;
   if (pathname.startsWith("/sign-in")) return false;
   if (pathname.startsWith("/link")) return false;
-  if (pathname.startsWith("/order/")) return false;
+  // A payment request opened from somebody else's phone is a single-purpose
+  // screen. Offering navigation away from it mid-payment is an invitation to
+  // lose the thread.
+  if (pathname.startsWith("/pay/")) return false;
   if (pathname.startsWith("/cards/")) return false;
   return true;
 }
@@ -50,7 +59,7 @@ export function BottomNav() {
   return (
     <nav
       aria-label="Primary"
-      className="fixed inset-x-0 bottom-0 z-30 border-t border-gray-200 bg-white transition-colors dark:border-white/10 dark:bg-neutral-900"
+      className="fixed inset-x-0 bottom-0 z-30 border-t border-[var(--line)] bg-[var(--surface)] transition-colors"
     >
       <ul className="mx-auto flex w-full max-w-mobile items-end justify-between px-3 pt-2 pb-[max(env(safe-area-inset-bottom),0.5rem)]">
         {TABS.map((tab) =>
@@ -84,31 +93,27 @@ function RegularTab({ tab, pathname }: { tab: Tab; pathname: string }) {
             <motion.span
               layoutId="bn-active-pill"
               transition={SPRINGS.default}
-              className="absolute inset-0 rounded-2xl bg-blue-50 dark:bg-blue-500/15"
+              className="absolute inset-0 rounded-2xl bg-[var(--accent-wash)]"
               aria-hidden
             />
           ) : null}
           {active && reduced ? (
             <span
               aria-hidden
-              className="absolute inset-0 rounded-2xl bg-blue-50 dark:bg-blue-500/15"
+              className="absolute inset-0 rounded-2xl bg-[var(--accent-wash)]"
             />
           ) : null}
           <Icon
             className={cn(
               "relative z-10 text-2xl transition-colors",
-              active
-                ? "text-blue-600 dark:text-blue-400"
-                : "text-gray-400 dark:text-white/40",
+              active ? "text-[var(--accent)]" : "text-[var(--fg-subtle)]",
             )}
           />
         </span>
         <span
           className={cn(
             "text-[11px] font-medium leading-none transition-colors",
-            active
-              ? "text-neutral-900 dark:text-white"
-              : "text-gray-400 dark:text-white/40",
+            active ? "text-[var(--fg)]" : "text-[var(--fg-subtle)]",
           )}
         >
           {tab.label}
@@ -137,18 +142,16 @@ function ProminentTab({ tab, pathname }: { tab: Tab; pathname: string }) {
         >
           <span
             aria-hidden
-            className="absolute inset-0 rounded-2xl bg-blue-600/10 dark:bg-blue-500/15"
+            className="absolute inset-0 rounded-2xl bg-[var(--accent-wash)]"
           />
           <Icon
-            className="relative z-10 text-2xl text-blue-600 dark:text-blue-400"
+            className="relative z-10 text-2xl text-[var(--accent)]"
           />
         </motion.span>
         <span
           className={cn(
             "text-[11px] font-medium leading-none transition-colors",
-            active
-              ? "text-neutral-900 dark:text-white"
-              : "text-gray-500 dark:text-white/60",
+            active ? "text-[var(--fg)]" : "text-[var(--fg-muted)]",
           )}
         >
           {tab.label}
