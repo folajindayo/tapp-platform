@@ -174,6 +174,15 @@ func senderRoutes(route *gin.Engine) {
 	me.POST("tap", senderCtrl.InitiateTapPayment)
 	me.GET("payments/stream", senderCtrl.StreamPayments)
 
+	// Currency conversion. Two steps by design: a price is offered, then
+	// accepted. Quoting and executing in one call would convert at whatever
+	// the rate happened to be when the request arrived, which is what the
+	// predecessor did and why no conversion could be reconciled afterwards.
+	if convertHandler := apiv1.NewConvertHandler(); convertHandler != nil {
+		me.POST("convert/quote", convertHandler.Quote)
+		me.POST("convert", convertHandler.Execute)
+	}
+
 	// Card payments. The ledger authorises the debit in one transaction and
 	// the bank rail settles behind it; nothing here waits on a chain.
 	//
