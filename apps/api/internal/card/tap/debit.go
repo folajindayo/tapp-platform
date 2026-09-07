@@ -132,6 +132,20 @@ func (s *Service) Debit(ctx context.Context, req Request) (*Receipt, error) {
 			return nil
 		}
 
+		// 6b. And what their identity supports. The card's own limits bound
+		//     one piece of plastic; this bounds the person, across every card
+		//     and every other way they can move money.
+		if s.Limits != nil {
+			allowed, reason, err := s.Limits.Check(ctx, *k.Cardholder, req.Amount)
+			if err != nil {
+				return err
+			}
+			if !allowed {
+				refusal = fmt.Errorf("%w: %s", ErrIdentityLimitReached, reason)
+				return nil
+			}
+		}
+
 		// 7.
 		fee := s.Fee.FeeFor(req.Amount)
 		tapID := uuid.New()

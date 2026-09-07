@@ -40,6 +40,12 @@ var (
 	// ErrTokenStale means the card presented a token we do not hold. The
 	// cardholder is told to re-sync; repeated occurrences lock the card.
 	ErrTokenStale = errors.New("card must be re-synced")
+
+	// ErrIdentityLimitReached means the amount is beyond what this person's
+	// verification supports. Distinct from the card's own daily limit, because
+	// the way out differs: one is waiting until tomorrow, the other is
+	// verifying an identity.
+	ErrIdentityLimitReached = errors.New("identity verification limit reached")
 )
 
 // FeePolicy decides the platform's cut of a tap.
@@ -52,10 +58,19 @@ type BasisPointFee int
 
 func (b BasisPointFee) FeeFor(a money.Amount) money.Amount { return money.FeeFor(a, int(b)) }
 
+// Limiter answers whether a person's identity supports an amount. Optional:
+// a service with none enforces only the card's own limits, which is the
+// correct behaviour before KYC is switched on rather than a silent bypass --
+// the card limits are still enforced, and they are lower.
+type Limiter interface {
+	Check(ctx context.Context, user uuid.UUID, amount money.Amount) (allowed bool, reason string, err error)
+}
+
 // Service performs card payments.
 type Service struct {
-	Pool *pgxpool.Pool
-	Fee  FeePolicy
+	Pool   *pgxpool.Pool
+	Fee    FeePolicy
+	Limits Limiter
 	// Now is injectable so lockout and daily-window behaviour can be tested
 	// without waiting a day. Nil means time.Now.
 	Now func() time.Time

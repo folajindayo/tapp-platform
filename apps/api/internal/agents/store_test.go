@@ -5,6 +5,7 @@ import (
 	"errors"
 	"math"
 	"os"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -39,9 +40,24 @@ func testStore(t *testing.T) *Store {
 	return &Store{Pool: pool}
 }
 
-// Somewhere in Lagos, offset by metres so each test's agents are its own.
-func lagos(dLatM, dLngM float64) (float64, float64) {
-	return 6.5244 + dLatM/111_000, 3.3792 + dLngM/111_000
+// Each test gets its own patch of map.
+//
+// Agents accumulate: the database is not reset between runs, and every test
+// that registers one leaves it there. Sharing an origin meant a later test's
+// search returned dozens of earlier tests' agents, and the result limit then
+// truncated the ones it was actually looking for. Spacing the origins a degree
+// apart -- about 111km, far beyond any search radius here -- makes each test
+// blind to the others.
+var testOrigin atomic.Int64
+
+func ownPatch(t *testing.T) (float64, float64) {
+	t.Helper()
+	n := float64(testOrigin.Add(1))
+	lat, lng := 5.0+n*0.5, 4.0+n*0.5
+	if lat > MaxLat-1 || lng > MaxLng-1 {
+		t.Fatalf("ran out of test origins at %d", int(n))
+	}
+	return lat, lng
 }
 
 func register(t *testing.T, s *Store, name string, lat, lng float64, verified bool) *Agent {
@@ -76,7 +92,7 @@ func TestDistanceIsAccurate(t *testing.T) {
 
 func TestNearbyReturnsTheClosestFirst(t *testing.T) {
 	s := testStore(t)
-	centreLat, centreLng := lagos(0, 0)
+	centreLat, centreLng := ownPatch(t)
 
 	far := register(t, s, "far", mustOffset(centreLat, 3000), centreLng, true)
 	near := register(t, s, "near", mustOffset(centreLat, 300), centreLng, true)
@@ -104,7 +120,7 @@ func TestNearbyReturnsTheClosestFirst(t *testing.T) {
 // the corners a search would return agents up to 40% further than asked.
 func TestTheRadiusIsACircleNotASquare(t *testing.T) {
 	s := testStore(t)
-	centreLat, centreLng := lagos(0, 0)
+	centreLat, centreLng := ownPatch(t)
 
 	// 900m north AND 900m east is about 1270m away: inside the bounding box,
 	// outside the 1000m radius.
@@ -132,7 +148,7 @@ func TestTheRadiusIsACircleNotASquare(t *testing.T) {
 // anonymous counterparty that tying handovers to premises removes.
 func TestUnverifiedAgentsAreNotReturned(t *testing.T) {
 	s := testStore(t)
-	centreLat, centreLng := lagos(0, 0)
+	centreLat, centreLng := ownPatch(t)
 	unverified := register(t, s, "unverified", mustOffset(centreLat, 100), centreLng, false)
 
 	found, err := s.Nearby(context.Background(), Search{Lat: centreLat, Lng: centreLng, RadiusM: 2000})
@@ -165,7 +181,7 @@ func TestUnverifiedAgentsAreNotReturned(t *testing.T) {
 func TestAnAgentWhoCannotPayIsNotOffered(t *testing.T) {
 	s := testStore(t)
 	ctx := context.Background()
-	centreLat, centreLng := lagos(0, 0)
+	centreLat, centreLng := ownPatch(t)
 
 	poor := register(t, s, "poor", mustOffset(centreLat, 100), centreLng, true)
 	rich := register(t, s, "rich", mustOffset(centreLat, 2000), centreLng, true)
@@ -201,7 +217,7 @@ func TestAnAgentWhoCannotPayIsNotOffered(t *testing.T) {
 
 func TestOpeningHoursAreRespected(t *testing.T) {
 	s := testStore(t)
-	centreLat, centreLng := lagos(0, 0)
+	centreLat, centreLng := ownPatch(t)
 	a := register(t, s, "shop", mustOffset(centreLat, 100), centreLng, true)
 
 	atNoon := time.Date(2026, 1, 5, 12, 0, 0, 0, time.Local)
