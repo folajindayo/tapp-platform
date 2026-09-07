@@ -226,6 +226,38 @@ func (tcu *TappCardUpdate) ClearTokenRotatedAt() *TappCardUpdate {
 	return tcu
 }
 
+// SetPendingTokenCiphertext sets the "pending_token_ciphertext" field.
+func (tcu *TappCardUpdate) SetPendingTokenCiphertext(b []byte) *TappCardUpdate {
+	tcu.mutation.SetPendingTokenCiphertext(b)
+	return tcu
+}
+
+// ClearPendingTokenCiphertext clears the value of the "pending_token_ciphertext" field.
+func (tcu *TappCardUpdate) ClearPendingTokenCiphertext() *TappCardUpdate {
+	tcu.mutation.ClearPendingTokenCiphertext()
+	return tcu
+}
+
+// SetPendingTokenIssuedAt sets the "pending_token_issued_at" field.
+func (tcu *TappCardUpdate) SetPendingTokenIssuedAt(t time.Time) *TappCardUpdate {
+	tcu.mutation.SetPendingTokenIssuedAt(t)
+	return tcu
+}
+
+// SetNillablePendingTokenIssuedAt sets the "pending_token_issued_at" field if the given value is not nil.
+func (tcu *TappCardUpdate) SetNillablePendingTokenIssuedAt(t *time.Time) *TappCardUpdate {
+	if t != nil {
+		tcu.SetPendingTokenIssuedAt(*t)
+	}
+	return tcu
+}
+
+// ClearPendingTokenIssuedAt clears the value of the "pending_token_issued_at" field.
+func (tcu *TappCardUpdate) ClearPendingTokenIssuedAt() *TappCardUpdate {
+	tcu.mutation.ClearPendingTokenIssuedAt()
+	return tcu
+}
+
 // SetTokenMismatchCount sets the "token_mismatch_count" field.
 func (tcu *TappCardUpdate) SetTokenMismatchCount(i int) *TappCardUpdate {
 	tcu.mutation.ResetTokenMismatchCount()
@@ -594,6 +626,18 @@ func (tcu *TappCardUpdate) sqlSave(ctx context.Context) (n int, err error) {
 	if tcu.mutation.TokenRotatedAtCleared() {
 		_spec.ClearField(tappcard.FieldTokenRotatedAt, field.TypeTime)
 	}
+	if value, ok := tcu.mutation.PendingTokenCiphertext(); ok {
+		_spec.SetField(tappcard.FieldPendingTokenCiphertext, field.TypeBytes, value)
+	}
+	if tcu.mutation.PendingTokenCiphertextCleared() {
+		_spec.ClearField(tappcard.FieldPendingTokenCiphertext, field.TypeBytes)
+	}
+	if value, ok := tcu.mutation.PendingTokenIssuedAt(); ok {
+		_spec.SetField(tappcard.FieldPendingTokenIssuedAt, field.TypeTime, value)
+	}
+	if tcu.mutation.PendingTokenIssuedAtCleared() {
+		_spec.ClearField(tappcard.FieldPendingTokenIssuedAt, field.TypeTime)
+	}
 	if value, ok := tcu.mutation.TokenMismatchCount(); ok {
 		_spec.SetField(tappcard.FieldTokenMismatchCount, field.TypeInt, value)
 	}
@@ -919,6 +963,38 @@ func (tcuo *TappCardUpdateOne) SetNillableTokenRotatedAt(t *time.Time) *TappCard
 // ClearTokenRotatedAt clears the value of the "token_rotated_at" field.
 func (tcuo *TappCardUpdateOne) ClearTokenRotatedAt() *TappCardUpdateOne {
 	tcuo.mutation.ClearTokenRotatedAt()
+	return tcuo
+}
+
+// SetPendingTokenCiphertext sets the "pending_token_ciphertext" field.
+func (tcuo *TappCardUpdateOne) SetPendingTokenCiphertext(b []byte) *TappCardUpdateOne {
+	tcuo.mutation.SetPendingTokenCiphertext(b)
+	return tcuo
+}
+
+// ClearPendingTokenCiphertext clears the value of the "pending_token_ciphertext" field.
+func (tcuo *TappCardUpdateOne) ClearPendingTokenCiphertext() *TappCardUpdateOne {
+	tcuo.mutation.ClearPendingTokenCiphertext()
+	return tcuo
+}
+
+// SetPendingTokenIssuedAt sets the "pending_token_issued_at" field.
+func (tcuo *TappCardUpdateOne) SetPendingTokenIssuedAt(t time.Time) *TappCardUpdateOne {
+	tcuo.mutation.SetPendingTokenIssuedAt(t)
+	return tcuo
+}
+
+// SetNillablePendingTokenIssuedAt sets the "pending_token_issued_at" field if the given value is not nil.
+func (tcuo *TappCardUpdateOne) SetNillablePendingTokenIssuedAt(t *time.Time) *TappCardUpdateOne {
+	if t != nil {
+		tcuo.SetPendingTokenIssuedAt(*t)
+	}
+	return tcuo
+}
+
+// ClearPendingTokenIssuedAt clears the value of the "pending_token_issued_at" field.
+func (tcuo *TappCardUpdateOne) ClearPendingTokenIssuedAt() *TappCardUpdateOne {
+	tcuo.mutation.ClearPendingTokenIssuedAt()
 	return tcuo
 }
 
@@ -1319,6 +1395,18 @@ func (tcuo *TappCardUpdateOne) sqlSave(ctx context.Context) (_node *TappCard, er
 	}
 	if tcuo.mutation.TokenRotatedAtCleared() {
 		_spec.ClearField(tappcard.FieldTokenRotatedAt, field.TypeTime)
+	}
+	if value, ok := tcuo.mutation.PendingTokenCiphertext(); ok {
+		_spec.SetField(tappcard.FieldPendingTokenCiphertext, field.TypeBytes, value)
+	}
+	if tcuo.mutation.PendingTokenCiphertextCleared() {
+		_spec.ClearField(tappcard.FieldPendingTokenCiphertext, field.TypeBytes)
+	}
+	if value, ok := tcuo.mutation.PendingTokenIssuedAt(); ok {
+		_spec.SetField(tappcard.FieldPendingTokenIssuedAt, field.TypeTime, value)
+	}
+	if tcuo.mutation.PendingTokenIssuedAtCleared() {
+		_spec.ClearField(tappcard.FieldPendingTokenIssuedAt, field.TypeTime)
 	}
 	if value, ok := tcuo.mutation.TokenMismatchCount(); ok {
 		_spec.SetField(tappcard.FieldTokenMismatchCount, field.TypeInt, value)

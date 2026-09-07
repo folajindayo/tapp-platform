@@ -47,6 +47,10 @@ type TappCard struct {
 	CurrentTokenCiphertext *[]byte `json:"current_token_ciphertext,omitempty"`
 	// TokenRotatedAt holds the value of the "token_rotated_at" field.
 	TokenRotatedAt *time.Time `json:"token_rotated_at,omitempty"`
+	// PendingTokenCiphertext holds the value of the "pending_token_ciphertext" field.
+	PendingTokenCiphertext *[]byte `json:"pending_token_ciphertext,omitempty"`
+	// PendingTokenIssuedAt holds the value of the "pending_token_issued_at" field.
+	PendingTokenIssuedAt *time.Time `json:"pending_token_issued_at,omitempty"`
 	// TokenMismatchCount holds the value of the "token_mismatch_count" field.
 	TokenMismatchCount int `json:"token_mismatch_count,omitempty"`
 	// DailyLimitSubunit holds the value of the "daily_limit_subunit" field.
@@ -104,7 +108,7 @@ func (*TappCard) scanValues(columns []string) ([]any, error) {
 	values := make([]any, len(columns))
 	for i := range columns {
 		switch columns[i] {
-		case tappcard.FieldCardUIDHash, tappcard.FieldLinkingProof, tappcard.FieldPinVerifier, tappcard.FieldCardPassword, tappcard.FieldCurrentTokenCiphertext:
+		case tappcard.FieldCardUIDHash, tappcard.FieldLinkingProof, tappcard.FieldPinVerifier, tappcard.FieldCardPassword, tappcard.FieldCurrentTokenCiphertext, tappcard.FieldPendingTokenCiphertext:
 			values[i] = new([]byte)
 		case tappcard.FieldNeedsResync:
 			values[i] = new(sql.NullBool)
@@ -112,7 +116,7 @@ func (*TappCard) scanValues(columns []string) ([]any, error) {
 			values[i] = new(sql.NullInt64)
 		case tappcard.FieldActivationToken, tappcard.FieldStatus, tappcard.FieldCapObjectID, tappcard.FieldCoinType:
 			values[i] = new(sql.NullString)
-		case tappcard.FieldCreatedAt, tappcard.FieldUpdatedAt, tappcard.FieldLockedUntil, tappcard.FieldTokenRotatedAt:
+		case tappcard.FieldCreatedAt, tappcard.FieldUpdatedAt, tappcard.FieldLockedUntil, tappcard.FieldTokenRotatedAt, tappcard.FieldPendingTokenIssuedAt:
 			values[i] = new(sql.NullTime)
 		case tappcard.FieldID:
 			values[i] = new(uuid.UUID)
@@ -226,6 +230,19 @@ func (tc *TappCard) assignValues(columns []string, values []any) error {
 			} else if value.Valid {
 				tc.TokenRotatedAt = new(time.Time)
 				*tc.TokenRotatedAt = value.Time
+			}
+		case tappcard.FieldPendingTokenCiphertext:
+			if value, ok := values[i].(*[]byte); !ok {
+				return fmt.Errorf("unexpected type %T for field pending_token_ciphertext", values[i])
+			} else if value != nil {
+				tc.PendingTokenCiphertext = value
+			}
+		case tappcard.FieldPendingTokenIssuedAt:
+			if value, ok := values[i].(*sql.NullTime); !ok {
+				return fmt.Errorf("unexpected type %T for field pending_token_issued_at", values[i])
+			} else if value.Valid {
+				tc.PendingTokenIssuedAt = new(time.Time)
+				*tc.PendingTokenIssuedAt = value.Time
 			}
 		case tappcard.FieldTokenMismatchCount:
 			if value, ok := values[i].(*sql.NullInt64); !ok {
@@ -379,6 +396,16 @@ func (tc *TappCard) String() string {
 	builder.WriteString(", ")
 	if v := tc.TokenRotatedAt; v != nil {
 		builder.WriteString("token_rotated_at=")
+		builder.WriteString(v.Format(time.ANSIC))
+	}
+	builder.WriteString(", ")
+	if v := tc.PendingTokenCiphertext; v != nil {
+		builder.WriteString("pending_token_ciphertext=")
+		builder.WriteString(fmt.Sprintf("%v", *v))
+	}
+	builder.WriteString(", ")
+	if v := tc.PendingTokenIssuedAt; v != nil {
+		builder.WriteString("pending_token_issued_at=")
 		builder.WriteString(v.Format(time.ANSIC))
 	}
 	builder.WriteString(", ")

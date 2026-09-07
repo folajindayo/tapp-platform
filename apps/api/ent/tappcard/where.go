@@ -121,6 +121,16 @@ func TokenRotatedAt(v time.Time) predicate.TappCard {
 	return predicate.TappCard(sql.FieldEQ(FieldTokenRotatedAt, v))
 }
 
+// PendingTokenCiphertext applies equality check predicate on the "pending_token_ciphertext" field. It's identical to PendingTokenCiphertextEQ.
+func PendingTokenCiphertext(v []byte) predicate.TappCard {
+	return predicate.TappCard(sql.FieldEQ(FieldPendingTokenCiphertext, v))
+}
+
+// PendingTokenIssuedAt applies equality check predicate on the "pending_token_issued_at" field. It's identical to PendingTokenIssuedAtEQ.
+func PendingTokenIssuedAt(v time.Time) predicate.TappCard {
+	return predicate.TappCard(sql.FieldEQ(FieldPendingTokenIssuedAt, v))
+}
+
 // TokenMismatchCount applies equality check predicate on the "token_mismatch_count" field. It's identical to TokenMismatchCountEQ.
 func TokenMismatchCount(v int) predicate.TappCard {
 	return predicate.TappCard(sql.FieldEQ(FieldTokenMismatchCount, v))
@@ -859,6 +869,106 @@ func TokenRotatedAtIsNil() predicate.TappCard {
 // TokenRotatedAtNotNil applies the NotNil predicate on the "token_rotated_at" field.
 func TokenRotatedAtNotNil() predicate.TappCard {
 	return predicate.TappCard(sql.FieldNotNull(FieldTokenRotatedAt))
+}
+
+// PendingTokenCiphertextEQ applies the EQ predicate on the "pending_token_ciphertext" field.
+func PendingTokenCiphertextEQ(v []byte) predicate.TappCard {
+	return predicate.TappCard(sql.FieldEQ(FieldPendingTokenCiphertext, v))
+}
+
+// PendingTokenCiphertextNEQ applies the NEQ predicate on the "pending_token_ciphertext" field.
+func PendingTokenCiphertextNEQ(v []byte) predicate.TappCard {
+	return predicate.TappCard(sql.FieldNEQ(FieldPendingTokenCiphertext, v))
+}
+
+// PendingTokenCiphertextIn applies the In predicate on the "pending_token_ciphertext" field.
+func PendingTokenCiphertextIn(vs ...[]byte) predicate.TappCard {
+	return predicate.TappCard(sql.FieldIn(FieldPendingTokenCiphertext, vs...))
+}
+
+// PendingTokenCiphertextNotIn applies the NotIn predicate on the "pending_token_ciphertext" field.
+func PendingTokenCiphertextNotIn(vs ...[]byte) predicate.TappCard {
+	return predicate.TappCard(sql.FieldNotIn(FieldPendingTokenCiphertext, vs...))
+}
+
+// PendingTokenCiphertextGT applies the GT predicate on the "pending_token_ciphertext" field.
+func PendingTokenCiphertextGT(v []byte) predicate.TappCard {
+	return predicate.TappCard(sql.FieldGT(FieldPendingTokenCiphertext, v))
+}
+
+// PendingTokenCiphertextGTE applies the GTE predicate on the "pending_token_ciphertext" field.
+func PendingTokenCiphertextGTE(v []byte) predicate.TappCard {
+	return predicate.TappCard(sql.FieldGTE(FieldPendingTokenCiphertext, v))
+}
+
+// PendingTokenCiphertextLT applies the LT predicate on the "pending_token_ciphertext" field.
+func PendingTokenCiphertextLT(v []byte) predicate.TappCard {
+	return predicate.TappCard(sql.FieldLT(FieldPendingTokenCiphertext, v))
+}
+
+// PendingTokenCiphertextLTE applies the LTE predicate on the "pending_token_ciphertext" field.
+func PendingTokenCiphertextLTE(v []byte) predicate.TappCard {
+	return predicate.TappCard(sql.FieldLTE(FieldPendingTokenCiphertext, v))
+}
+
+// PendingTokenCiphertextIsNil applies the IsNil predicate on the "pending_token_ciphertext" field.
+func PendingTokenCiphertextIsNil() predicate.TappCard {
+	return predicate.TappCard(sql.FieldIsNull(FieldPendingTokenCiphertext))
+}
+
+// PendingTokenCiphertextNotNil applies the NotNil predicate on the "pending_token_ciphertext" field.
+func PendingTokenCiphertextNotNil() predicate.TappCard {
+	return predicate.TappCard(sql.FieldNotNull(FieldPendingTokenCiphertext))
+}
+
+// PendingTokenIssuedAtEQ applies the EQ predicate on the "pending_token_issued_at" field.
+func PendingTokenIssuedAtEQ(v time.Time) predicate.TappCard {
+	return predicate.TappCard(sql.FieldEQ(FieldPendingTokenIssuedAt, v))
+}
+
+// PendingTokenIssuedAtNEQ applies the NEQ predicate on the "pending_token_issued_at" field.
+func PendingTokenIssuedAtNEQ(v time.Time) predicate.TappCard {
+	return predicate.TappCard(sql.FieldNEQ(FieldPendingTokenIssuedAt, v))
+}
+
+// PendingTokenIssuedAtIn applies the In predicate on the "pending_token_issued_at" field.
+func PendingTokenIssuedAtIn(vs ...time.Time) predicate.TappCard {
+	return predicate.TappCard(sql.FieldIn(FieldPendingTokenIssuedAt, vs...))
+}
+
+// PendingTokenIssuedAtNotIn applies the NotIn predicate on the "pending_token_issued_at" field.
+func PendingTokenIssuedAtNotIn(vs ...time.Time) predicate.TappCard {
+	return predicate.TappCard(sql.FieldNotIn(FieldPendingTokenIssuedAt, vs...))
+}
+
+// PendingTokenIssuedAtGT applies the GT predicate on the "pending_token_issued_at" field.
+func PendingTokenIssuedAtGT(v time.Time) predicate.TappCard {
+	return predicate.TappCard(sql.FieldGT(FieldPendingTokenIssuedAt, v))
+}
+
+// PendingTokenIssuedAtGTE applies the GTE predicate on the "pending_token_issued_at" field.
+func PendingTokenIssuedAtGTE(v time.Time) predicate.TappCard {
+	return predicate.TappCard(sql.FieldGTE(FieldPendingTokenIssuedAt, v))
+}
+
+// PendingTokenIssuedAtLT applies the LT predicate on the "pending_token_issued_at" field.
+func PendingTokenIssuedAtLT(v time.Time) predicate.TappCard {
+	return predicate.TappCard(sql.FieldLT(FieldPendingTokenIssuedAt, v))
+}
+
+// PendingTokenIssuedAtLTE applies the LTE predicate on the "pending_token_issued_at" field.
+func PendingTokenIssuedAtLTE(v time.Time) predicate.TappCard {
+	return predicate.TappCard(sql.FieldLTE(FieldPendingTokenIssuedAt, v))
+}
+
+// PendingTokenIssuedAtIsNil applies the IsNil predicate on the "pending_token_issued_at" field.
+func PendingTokenIssuedAtIsNil() predicate.TappCard {
+	return predicate.TappCard(sql.FieldIsNull(FieldPendingTokenIssuedAt))
+}
+
+// PendingTokenIssuedAtNotNil applies the NotNil predicate on the "pending_token_issued_at" field.
+func PendingTokenIssuedAtNotNil() predicate.TappCard {
+	return predicate.TappCard(sql.FieldNotNull(FieldPendingTokenIssuedAt))
 }
 
 // TokenMismatchCountEQ applies the EQ predicate on the "token_mismatch_count" field.

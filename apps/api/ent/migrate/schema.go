@@ -783,7 +783,7 @@ var (
 		{Name: "updated_at", Type: field.TypeTime},
 		{Name: "activation_token", Type: field.TypeString, Unique: true},
 		{Name: "status", Type: field.TypeEnum, Enums: []string{"issued", "claimed", "live", "revoked", "locked"}, Default: "issued"},
-		{Name: "card_uid_hash", Type: field.TypeBytes, Nullable: true, Size: 32},
+		{Name: "card_uid_hash", Type: field.TypeBytes, Unique: true, Nullable: true, Size: 32},
 		{Name: "cap_object_id", Type: field.TypeString, Nullable: true},
 		{Name: "coin_type", Type: field.TypeString, Nullable: true},
 		{Name: "linking_proof", Type: field.TypeBytes, Nullable: true, Size: 32},
@@ -793,6 +793,8 @@ var (
 		{Name: "card_password", Type: field.TypeBytes, Nullable: true, Size: 4},
 		{Name: "current_token_ciphertext", Type: field.TypeBytes, Nullable: true},
 		{Name: "token_rotated_at", Type: field.TypeTime, Nullable: true},
+		{Name: "pending_token_ciphertext", Type: field.TypeBytes, Nullable: true},
+		{Name: "pending_token_issued_at", Type: field.TypeTime, Nullable: true},
 		{Name: "token_mismatch_count", Type: field.TypeInt, Default: 0},
 		{Name: "daily_limit_subunit", Type: field.TypeUint64, Default: 0},
 		{Name: "per_tap_limit_subunit", Type: field.TypeUint64, Default: 0},
@@ -810,7 +812,7 @@ var (
 		ForeignKeys: []*schema.ForeignKey{
 			{
 				Symbol:     "tapp_cards_users_tapp_cards",
-				Columns:    []*schema.Column{TappCardsColumns[22]},
+				Columns:    []*schema.Column{TappCardsColumns[24]},
 				RefColumns: []*schema.Column{UsersColumns[0]},
 				OnDelete:   schema.SetNull,
 			},
@@ -820,11 +822,6 @@ var (
 				Name:    "tappcard_activation_token",
 				Unique:  false,
 				Columns: []*schema.Column{TappCardsColumns[3]},
-			},
-			{
-				Name:    "tappcard_card_uid_hash",
-				Unique:  false,
-				Columns: []*schema.Column{TappCardsColumns[5]},
 			},
 		},
 	}

@@ -71,19 +71,19 @@ func (c *UsersController) GetUser(ctx *gin.Context) {
 
 	for _, card := range user.Edges.TappCards {
 		cardMap := gin.H{
-			"id":                         card.ID.String(),
-			"status":                     card.Status.String(),
-			"needs_resync":               card.NeedsResync,
-			"pin_attempts_remaining":     card.PinAttemptsRemaining,
-			"token_mismatch_count":       card.TokenMismatchCount,
-			"created_at":                 card.CreatedAt.Format(tsLayout),
-			"cap_object_id":              "",
-			"coin_type":                  "",
-			"on_chain_balance":           "0",
-			"daily_limit_subunit":        card.DailyLimitSubunit,
-			"per_tap_limit_subunit":      card.PerTapLimitSubunit,
-			"step_up_threshold_subunit":  card.StepUpThresholdSubunit,
-			"spent_today_subunit":        card.SpentTodaySubunit,
+			"id":                        card.ID.String(),
+			"status":                    card.Status.String(),
+			"needs_resync":              card.NeedsResync,
+			"pin_attempts_remaining":    card.PinAttemptsRemaining,
+			"token_mismatch_count":      card.TokenMismatchCount,
+			"created_at":                card.CreatedAt.Format(tsLayout),
+			"cap_object_id":             "",
+			"coin_type":                 "",
+			"on_chain_balance":          "0",
+			"daily_limit_subunit":       card.DailyLimitSubunit,
+			"per_tap_limit_subunit":     card.PerTapLimitSubunit,
+			"step_up_threshold_subunit": card.StepUpThresholdSubunit,
+			"spent_today_subunit":       operatorSpentToday(ctx, card.ID),
 		}
 
 		if card.CapObjectID != nil {

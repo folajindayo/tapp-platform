@@ -25269,6 +25269,8 @@ type TappCardMutation struct {
 	card_password                *[]byte
 	current_token_ciphertext     *[]byte
 	token_rotated_at             *time.Time
+	pending_token_ciphertext     *[]byte
+	pending_token_issued_at      *time.Time
 	token_mismatch_count         *int
 	addtoken_mismatch_count      *int
 	daily_limit_subunit          *uint64
@@ -26038,6 +26040,104 @@ func (m *TappCardMutation) ResetTokenRotatedAt() {
 	delete(m.clearedFields, tappcard.FieldTokenRotatedAt)
 }
 
+// SetPendingTokenCiphertext sets the "pending_token_ciphertext" field.
+func (m *TappCardMutation) SetPendingTokenCiphertext(b []byte) {
+	m.pending_token_ciphertext = &b
+}
+
+// PendingTokenCiphertext returns the value of the "pending_token_ciphertext" field in the mutation.
+func (m *TappCardMutation) PendingTokenCiphertext() (r []byte, exists bool) {
+	v := m.pending_token_ciphertext
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldPendingTokenCiphertext returns the old "pending_token_ciphertext" field's value of the TappCard entity.
+// If the TappCard object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *TappCardMutation) OldPendingTokenCiphertext(ctx context.Context) (v *[]byte, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldPendingTokenCiphertext is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldPendingTokenCiphertext requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldPendingTokenCiphertext: %w", err)
+	}
+	return oldValue.PendingTokenCiphertext, nil
+}
+
+// ClearPendingTokenCiphertext clears the value of the "pending_token_ciphertext" field.
+func (m *TappCardMutation) ClearPendingTokenCiphertext() {
+	m.pending_token_ciphertext = nil
+	m.clearedFields[tappcard.FieldPendingTokenCiphertext] = struct{}{}
+}
+
+// PendingTokenCiphertextCleared returns if the "pending_token_ciphertext" field was cleared in this mutation.
+func (m *TappCardMutation) PendingTokenCiphertextCleared() bool {
+	_, ok := m.clearedFields[tappcard.FieldPendingTokenCiphertext]
+	return ok
+}
+
+// ResetPendingTokenCiphertext resets all changes to the "pending_token_ciphertext" field.
+func (m *TappCardMutation) ResetPendingTokenCiphertext() {
+	m.pending_token_ciphertext = nil
+	delete(m.clearedFields, tappcard.FieldPendingTokenCiphertext)
+}
+
+// SetPendingTokenIssuedAt sets the "pending_token_issued_at" field.
+func (m *TappCardMutation) SetPendingTokenIssuedAt(t time.Time) {
+	m.pending_token_issued_at = &t
+}
+
+// PendingTokenIssuedAt returns the value of the "pending_token_issued_at" field in the mutation.
+func (m *TappCardMutation) PendingTokenIssuedAt() (r time.Time, exists bool) {
+	v := m.pending_token_issued_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldPendingTokenIssuedAt returns the old "pending_token_issued_at" field's value of the TappCard entity.
+// If the TappCard object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *TappCardMutation) OldPendingTokenIssuedAt(ctx context.Context) (v *time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldPendingTokenIssuedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldPendingTokenIssuedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldPendingTokenIssuedAt: %w", err)
+	}
+	return oldValue.PendingTokenIssuedAt, nil
+}
+
+// ClearPendingTokenIssuedAt clears the value of the "pending_token_issued_at" field.
+func (m *TappCardMutation) ClearPendingTokenIssuedAt() {
+	m.pending_token_issued_at = nil
+	m.clearedFields[tappcard.FieldPendingTokenIssuedAt] = struct{}{}
+}
+
+// PendingTokenIssuedAtCleared returns if the "pending_token_issued_at" field was cleared in this mutation.
+func (m *TappCardMutation) PendingTokenIssuedAtCleared() bool {
+	_, ok := m.clearedFields[tappcard.FieldPendingTokenIssuedAt]
+	return ok
+}
+
+// ResetPendingTokenIssuedAt resets all changes to the "pending_token_issued_at" field.
+func (m *TappCardMutation) ResetPendingTokenIssuedAt() {
+	m.pending_token_issued_at = nil
+	delete(m.clearedFields, tappcard.FieldPendingTokenIssuedAt)
+}
+
 // SetTokenMismatchCount sets the "token_mismatch_count" field.
 func (m *TappCardMutation) SetTokenMismatchCount(i int) {
 	m.token_mismatch_count = &i
@@ -26537,7 +26637,7 @@ func (m *TappCardMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *TappCardMutation) Fields() []string {
-	fields := make([]string, 0, 21)
+	fields := make([]string, 0, 23)
 	if m.created_at != nil {
 		fields = append(fields, tappcard.FieldCreatedAt)
 	}
@@ -26579,6 +26679,12 @@ func (m *TappCardMutation) Fields() []string {
 	}
 	if m.token_rotated_at != nil {
 		fields = append(fields, tappcard.FieldTokenRotatedAt)
+	}
+	if m.pending_token_ciphertext != nil {
+		fields = append(fields, tappcard.FieldPendingTokenCiphertext)
+	}
+	if m.pending_token_issued_at != nil {
+		fields = append(fields, tappcard.FieldPendingTokenIssuedAt)
 	}
 	if m.token_mismatch_count != nil {
 		fields = append(fields, tappcard.FieldTokenMismatchCount)
@@ -26637,6 +26743,10 @@ func (m *TappCardMutation) Field(name string) (ent.Value, bool) {
 		return m.CurrentTokenCiphertext()
 	case tappcard.FieldTokenRotatedAt:
 		return m.TokenRotatedAt()
+	case tappcard.FieldPendingTokenCiphertext:
+		return m.PendingTokenCiphertext()
+	case tappcard.FieldPendingTokenIssuedAt:
+		return m.PendingTokenIssuedAt()
 	case tappcard.FieldTokenMismatchCount:
 		return m.TokenMismatchCount()
 	case tappcard.FieldDailyLimitSubunit:
@@ -26688,6 +26798,10 @@ func (m *TappCardMutation) OldField(ctx context.Context, name string) (ent.Value
 		return m.OldCurrentTokenCiphertext(ctx)
 	case tappcard.FieldTokenRotatedAt:
 		return m.OldTokenRotatedAt(ctx)
+	case tappcard.FieldPendingTokenCiphertext:
+		return m.OldPendingTokenCiphertext(ctx)
+	case tappcard.FieldPendingTokenIssuedAt:
+		return m.OldPendingTokenIssuedAt(ctx)
 	case tappcard.FieldTokenMismatchCount:
 		return m.OldTokenMismatchCount(ctx)
 	case tappcard.FieldDailyLimitSubunit:
@@ -26808,6 +26922,20 @@ func (m *TappCardMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetTokenRotatedAt(v)
+		return nil
+	case tappcard.FieldPendingTokenCiphertext:
+		v, ok := value.([]byte)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetPendingTokenCiphertext(v)
+		return nil
+	case tappcard.FieldPendingTokenIssuedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetPendingTokenIssuedAt(v)
 		return nil
 	case tappcard.FieldTokenMismatchCount:
 		v, ok := value.(int)
@@ -27002,6 +27130,12 @@ func (m *TappCardMutation) ClearedFields() []string {
 	if m.FieldCleared(tappcard.FieldTokenRotatedAt) {
 		fields = append(fields, tappcard.FieldTokenRotatedAt)
 	}
+	if m.FieldCleared(tappcard.FieldPendingTokenCiphertext) {
+		fields = append(fields, tappcard.FieldPendingTokenCiphertext)
+	}
+	if m.FieldCleared(tappcard.FieldPendingTokenIssuedAt) {
+		fields = append(fields, tappcard.FieldPendingTokenIssuedAt)
+	}
 	return fields
 }
 
@@ -27042,6 +27176,12 @@ func (m *TappCardMutation) ClearField(name string) error {
 		return nil
 	case tappcard.FieldTokenRotatedAt:
 		m.ClearTokenRotatedAt()
+		return nil
+	case tappcard.FieldPendingTokenCiphertext:
+		m.ClearPendingTokenCiphertext()
+		return nil
+	case tappcard.FieldPendingTokenIssuedAt:
+		m.ClearPendingTokenIssuedAt()
 		return nil
 	}
 	return fmt.Errorf("unknown TappCard nullable field %s", name)
@@ -27092,6 +27232,12 @@ func (m *TappCardMutation) ResetField(name string) error {
 		return nil
 	case tappcard.FieldTokenRotatedAt:
 		m.ResetTokenRotatedAt()
+		return nil
+	case tappcard.FieldPendingTokenCiphertext:
+		m.ResetPendingTokenCiphertext()
+		return nil
+	case tappcard.FieldPendingTokenIssuedAt:
+		m.ResetPendingTokenIssuedAt()
 		return nil
 	case tappcard.FieldTokenMismatchCount:
 		m.ResetTokenMismatchCount()

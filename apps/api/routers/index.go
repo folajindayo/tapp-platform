@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/usezoracle/tapp/api/config"
 	"github.com/usezoracle/tapp/api/controllers"
 	"github.com/usezoracle/tapp/api/controllers/accounts"
 	adminCtrl "github.com/usezoracle/tapp/api/controllers/admin"
@@ -13,12 +14,15 @@ import (
 	"github.com/usezoracle/tapp/api/controllers/provider"
 	"github.com/usezoracle/tapp/api/controllers/sender"
 	apiv1 "github.com/usezoracle/tapp/api/internal/api/v1"
+	"github.com/usezoracle/tapp/api/internal/card/tap"
 	"github.com/usezoracle/tapp/api/routers/middleware"
+	"github.com/usezoracle/tapp/api/storage"
 	u "github.com/usezoracle/tapp/api/utils"
 )
 
 // RegisterRoutes add all routing list here automatically get main router
 func RegisterRoutes(route *gin.Engine) {
+
 	route.NoRoute(func(ctx *gin.Context) {
 		u.APIResponse(ctx, http.StatusNotFound, "error", "Route Not Found", nil)
 	})
@@ -170,10 +174,23 @@ func senderRoutes(route *gin.Engine) {
 	me.POST("tap", senderCtrl.InitiateTapPayment)
 	me.GET("payments/stream", senderCtrl.StreamPayments)
 
-	// Tap Card vertical (replaces the 501 stub on /tap-card).
-	me.GET("tap-card/nonce", cardsCtrl.TapCardNonce)
-	me.POST("tap-card", cardsCtrl.TapCardDebit)
-	me.POST("tap-card/:order_id/token-ack", cardsCtrl.TapCardTokenAck)
+	// Card payments. The ledger authorises the debit in one transaction and
+	// the bank rail settles behind it; nothing here waits on a chain.
+	//
+	// The fee is configuration, not a constant buried in the handler -- the
+	// predecessor applied a hardcoded 100 basis points inline, with a comment
+	// apologising for it.
+	tapHandler := &apiv1.TapHandler{
+		Svc: &tap.Service{
+			Pool: storage.Pool,
+			Fee:  tap.BasisPointFee(config.OrderConfig().CardFeeBPS),
+		},
+		Merchant: apiv1.MerchantFromContext,
+	}
+	me.GET("tap-card/nonce", tapHandler.Challenge)
+	me.POST("tap-card", tapHandler.Debit)
+	me.POST("tap-card/:tap_id/token-ack", tapHandler.Acknowledge)
+	me.POST("tap-card/:tap_id/reverse", tapHandler.Reverse)
 	me.GET("tap-card/step-up", cardsCtrl.TapCardStepUpPoll)
 }
 

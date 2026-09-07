@@ -608,33 +608,33 @@ func init() {
 	// tappcard.CardPasswordValidator is a validator for the "card_password" field. It is called by the builders before save.
 	tappcard.CardPasswordValidator = tappcardDescCardPassword.Validators[0].(func([]byte) error)
 	// tappcardDescTokenMismatchCount is the schema descriptor for token_mismatch_count field.
-	tappcardDescTokenMismatchCount := tappcardFields[13].Descriptor()
+	tappcardDescTokenMismatchCount := tappcardFields[15].Descriptor()
 	// tappcard.DefaultTokenMismatchCount holds the default value on creation for the token_mismatch_count field.
 	tappcard.DefaultTokenMismatchCount = tappcardDescTokenMismatchCount.Default.(int)
 	// tappcard.TokenMismatchCountValidator is a validator for the "token_mismatch_count" field. It is called by the builders before save.
 	tappcard.TokenMismatchCountValidator = tappcardDescTokenMismatchCount.Validators[0].(func(int) error)
 	// tappcardDescDailyLimitSubunit is the schema descriptor for daily_limit_subunit field.
-	tappcardDescDailyLimitSubunit := tappcardFields[14].Descriptor()
+	tappcardDescDailyLimitSubunit := tappcardFields[16].Descriptor()
 	// tappcard.DefaultDailyLimitSubunit holds the default value on creation for the daily_limit_subunit field.
 	tappcard.DefaultDailyLimitSubunit = tappcardDescDailyLimitSubunit.Default.(uint64)
 	// tappcardDescPerTapLimitSubunit is the schema descriptor for per_tap_limit_subunit field.
-	tappcardDescPerTapLimitSubunit := tappcardFields[15].Descriptor()
+	tappcardDescPerTapLimitSubunit := tappcardFields[17].Descriptor()
 	// tappcard.DefaultPerTapLimitSubunit holds the default value on creation for the per_tap_limit_subunit field.
 	tappcard.DefaultPerTapLimitSubunit = tappcardDescPerTapLimitSubunit.Default.(uint64)
 	// tappcardDescStepUpThresholdSubunit is the schema descriptor for step_up_threshold_subunit field.
-	tappcardDescStepUpThresholdSubunit := tappcardFields[16].Descriptor()
+	tappcardDescStepUpThresholdSubunit := tappcardFields[18].Descriptor()
 	// tappcard.DefaultStepUpThresholdSubunit holds the default value on creation for the step_up_threshold_subunit field.
 	tappcard.DefaultStepUpThresholdSubunit = tappcardDescStepUpThresholdSubunit.Default.(uint64)
 	// tappcardDescSpentTodaySubunit is the schema descriptor for spent_today_subunit field.
-	tappcardDescSpentTodaySubunit := tappcardFields[17].Descriptor()
+	tappcardDescSpentTodaySubunit := tappcardFields[19].Descriptor()
 	// tappcard.DefaultSpentTodaySubunit holds the default value on creation for the spent_today_subunit field.
 	tappcard.DefaultSpentTodaySubunit = tappcardDescSpentTodaySubunit.Default.(uint64)
 	// tappcardDescDayIndex is the schema descriptor for day_index field.
-	tappcardDescDayIndex := tappcardFields[18].Descriptor()
+	tappcardDescDayIndex := tappcardFields[20].Descriptor()
 	// tappcard.DefaultDayIndex holds the default value on creation for the day_index field.
 	tappcard.DefaultDayIndex = tappcardDescDayIndex.Default.(uint64)
 	// tappcardDescNeedsResync is the schema descriptor for needs_resync field.
-	tappcardDescNeedsResync := tappcardFields[19].Descriptor()
+	tappcardDescNeedsResync := tappcardFields[21].Descriptor()
 	// tappcard.DefaultNeedsResync holds the default value on creation for the needs_resync field.
 	tappcard.DefaultNeedsResync = tappcardDescNeedsResync.Default.(bool)
 	// tappcardDescID is the schema descriptor for id field.

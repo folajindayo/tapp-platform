@@ -56,8 +56,15 @@ func (TappCard) Fields() []ent.Field {
 		// sha256 of the NTAG215 factory UID. Same hash the merchant
 		// app computes from the read UID; lets us look up the card
 		// without ever storing the raw UID.
+		//
+		// Unique. It was previously only indexed, which meant two rows
+		// could claim one physical card -- and because the debit path
+		// looks the card up with Only(), the second one turned every
+		// tap of that card into "card not recognised" rather than a
+		// conflict anybody could diagnose.
 		field.Bytes("card_uid_hash").
 			MaxLen(32).
+			Unique().
 			Optional().
 			Nillable(),
 
@@ -128,13 +135,56 @@ func (TappCard) Fields() []ent.Field {
 			Optional().
 			Nillable(),
 
+		// The token issued by the most recent debit but not yet
+		// confirmed written to the card.
+		//
+		// A debit hands the merchant app a fresh token to write over
+		// NFC, and that write can fail -- the customer lifts the card
+		// early, the phone loses the field. Rotating current_token
+		// immediately, as this used to, meant a failed write left a
+		// perfectly legitimate card permanently out of sync, and sent
+		// its holder into a Web NFC resync flow that iOS cannot run at
+		// all.
+		//
+		// So the new token lands here and BOTH are accepted until the
+		// merchant app confirms the write, at which point it is
+		// promoted and the old one retired. A failed write costs
+		// nothing; the card simply presents the old token next time.
+		//
+		// This does widen the replay window to two tokens between a
+		// debit and its acknowledgement. That is the right trade: a
+		// replay is caught on the following tap either way, whereas
+		// the desync it replaces was permanent, common, and
+		// unrecoverable on half the phones in the market.
+		field.Bytes("pending_token_ciphertext").
+			Optional().
+			Nillable(),
+
+		field.Time("pending_token_issued_at").
+			Optional().
+			Nillable(),
+
 		// Count of how many consecutive token-mismatch reads we've
 		// seen. >3 in a sliding 1h window → status=locked.
 		field.Int("token_mismatch_count").
 			Default(0).
 			NonNegative(),
 
-		// ----- Cached limits (Move is source of truth, off-chain mirror for fast pre-checks) -----
+		// ----- Limits -----
+		//
+		// The limits themselves live here. What the card has SPENT does
+		// not: spent_today_subunit and day_index below are legacy and
+		// no longer read.
+		//
+		// They were a counter incremented on every debit and compared
+		// against a daily cap -- with no transaction around the read
+		// and the write, so two concurrent taps both saw the same
+		// figure and both concluded there was room. The day_index was
+		// never compared either, so the counter never reset.
+		//
+		// Spend is now derived from the ledger inside the debit
+		// transaction. A number computed from the entries cannot drift
+		// from them, and cannot be raced.
 
 		field.Uint64("daily_limit_subunit").
 			Default(0),
@@ -142,6 +192,8 @@ func (TappCard) Fields() []ent.Field {
 			Default(0),
 		field.Uint64("step_up_threshold_subunit").
 			Default(0),
+		// Deprecated: no longer read. Retained so existing rows keep
+		// their history until a migration drops the columns.
 		field.Uint64("spent_today_subunit").
 			Default(0),
 		field.Uint64("day_index").
@@ -174,6 +226,6 @@ func (TappCard) Edges() []ent.Edge {
 func (TappCard) Indexes() []ent.Index {
 	return []ent.Index{
 		index.Fields("activation_token"),
-		index.Fields("card_uid_hash"),
+		// card_uid_hash carries a unique constraint, which indexes it.
 	}
 }

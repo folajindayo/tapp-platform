@@ -30,6 +30,8 @@ import (
 	"github.com/usezoracle/tapp/api/ent/cardservernonce"
 	"github.com/usezoracle/tapp/api/ent/tappcard"
 	userEnt "github.com/usezoracle/tapp/api/ent/user"
+	tapsvc "github.com/usezoracle/tapp/api/internal/card/tap"
+	"github.com/usezoracle/tapp/api/internal/money"
 	svc "github.com/usezoracle/tapp/api/services"
 	"github.com/usezoracle/tapp/api/storage"
 	u "github.com/usezoracle/tapp/api/utils"
@@ -286,7 +288,7 @@ func (ctrl *Controller) Me(ctx *gin.Context) {
 		DailyLimitSubunit:      card.DailyLimitSubunit,
 		PerTapLimitSubunit:     card.PerTapLimitSubunit,
 		StepUpThresholdSubunit: card.StepUpThresholdSubunit,
-		SpentTodaySubunit:      card.SpentTodaySubunit,
+		SpentTodaySubunit:      spentTodayMinor(ctx, card.ID),
 		NeedsResync:            card.NeedsResync,
 		PinAttemptsRemaining:   card.PinAttemptsRemaining,
 		OnChainBalance:         "0",
@@ -887,4 +889,28 @@ func uint64ToString(n uint64) string {
 		n /= 10
 	}
 	return digits
+}
+
+// spentTodayMinor reads what this card has spent today from the tap record.
+//
+// The card row carries a spent_today_subunit column that is no longer written:
+// it was a counter incremented outside any transaction, raced by concurrent
+// taps, and compared against a day index that was never checked, so it never
+// reset. Reporting it now would show every cardholder a permanent zero.
+//
+// A read failure reports zero and logs. This is a display field on a summary
+// screen; failing the whole request because one number could not be computed
+// would be a worse answer than an incomplete summary, and nothing decides
+// anything on the basis of it -- the limit itself is enforced inside the debit
+// transaction, from the same source.
+func spentTodayMinor(ctx *gin.Context, cardID uuid.UUID) uint64 {
+	spent, err := tapsvc.SpentToday(ctx.Request.Context(), storage.Pool, cardID, money.NGN, time.Now())
+	if err != nil {
+		logger.Errorf("cardholder: today's spend for card %s: %v", cardID, err)
+		return 0
+	}
+	if spent.Minor() < 0 {
+		return 0
+	}
+	return uint64(spent.Minor())
 }

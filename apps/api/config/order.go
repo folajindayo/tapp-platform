@@ -15,6 +15,16 @@ import (
 // TronProApiKey, ActiveAAService) have been removed during the Sui port.
 // Sui equivalents are below.
 type OrderConfiguration struct {
+	// CardFeeBPS is the platform's cut of a card payment, in basis points of
+	// the amount. Taken out of what the merchant receives, never added on top,
+	// so one definition of "amount" holds across cards, transfers and cash.
+	//
+	// Its predecessor was cardCollectionBufferBPS, a constant of 100 applied
+	// inside the debit handler that bundled a 50bp fee with 50bp of FX drift
+	// headroom. Drift is the rate engine's problem and is priced into a quote;
+	// this is only the fee.
+	CardFeeBPS int
+
 	// Generic, chain-agnostic.
 	OrderFulfillmentValidity         time.Duration
 	ReceiveAddressValidity           time.Duration
@@ -35,37 +45,35 @@ type OrderConfiguration struct {
 	SuiAggregatorPrivateKey []byte // raw 32-byte Ed25519 seed; hex-decoded from SUI_AGGREGATOR_PRIVATE_KEY env var
 
 	// LiFi (Route A bridging).
-	LiFiBaseURL  string
-	LiFiAPIKey   string // optional; free tier when empty (rate-limited)
+	LiFiBaseURL string
+	LiFiAPIKey  string // optional; free tier when empty (rate-limited)
 
 	// Direct-CCTP bridge fallback (services/route_a_cctp.go) — engages
 	// only after repeated LiFi quote failures on USDC-source orders.
 	CCTPFallbackEnabled bool   // kill switch; default true
 	CCTPIrisURL         string // optional override of Circle's attestation host (tests/proxies)
 
-
-
 	// Shinami Gas Station — sponsors all aggregator-initiated Move
 	// calls (CreateOrder, SettleOrder, RefundOrder, DebitCard). When
 	// empty, the OrderSui code path falls back to a typed error so
 	// misconfiguration surfaces immediately rather than silently
 	// failing. See services/shinami_gas/client.go.
-	ShinamiGasAPIKey string
+	ShinamiGasAPIKey  string
 	ShinamiGasBaseURL string
 
 	// Base — Route A's EVM destination chain. Same env block works for
 	// Base mainnet (8453) and Base Sepolia (84532); flip BASE_CHAIN_ID
 	// + BASE_GATEWAY_CONTRACT + BASE_USDC_CONTRACT + BASE_RPC_URL to
 	// switch networks. USDC on Base is 6-decimal native Circle.
-	BaseRpcURL              string
-	BaseAggregatorAddress   string // our Base hot wallet; receives bridged USDC
-	BaseGatewayContract     string // settlement Gateway proxy on the active network
-	BaseUSDCContract        string // Circle USDC ERC-20 on the active network
-	BaseChainID             int64  // 8453 mainnet, 84532 Sepolia
-	BaseSignerKey           string // hex private key for the aggregator wallet (signs approve + createOrder)
-	BaseSenderFeeBPS        int64  // sender fee skim charged on each order, in basis points (50 = 0.5%)
+	BaseRpcURL                string
+	BaseAggregatorAddress     string // our Base hot wallet; receives bridged USDC
+	BaseGatewayContract       string // settlement Gateway proxy on the active network
+	BaseUSDCContract          string // Circle USDC ERC-20 on the active network
+	BaseChainID               int64  // 8453 mainnet, 84532 Sepolia
+	BaseSignerKey             string // hex private key for the aggregator wallet (signs approve + createOrder)
+	BaseSenderFeeBPS          int64  // sender fee skim charged on each order, in basis points (50 = 0.5%)
 	BaseNativeLowThresholdWei string // big.Int as string; below this we Slack-alert ops (native = ETH on Base)
-	BaseUSDCDecimals        int    // 6 on Base for Circle native USDC
+	BaseUSDCDecimals          int    // 6 on Base for Circle native USDC
 
 	// Settlement aggregator (default upstream: api.paycrest.io).
 	SettlementAPIURL           string
@@ -81,6 +89,7 @@ func OrderConfig() *OrderConfiguration {
 	viper.SetDefault("ORDER_FULFILLMENT_VALIDITY", 10)
 	viper.SetDefault("BUCKET_QUEUE_REBUILD_INTERVAL", 1)
 	viper.SetDefault("REFUND_CANCELLATION_COUNT", 3)
+	viper.SetDefault("CARD_FEE_BPS", 50) // 0.5% of a card payment
 	viper.SetDefault("NETWORK_FEE", 0.05)
 	viper.SetDefault("PERCENT_DEVIATION_FROM_EXTERNAL_RATE", 0.01)
 	viper.SetDefault("PERCENT_DEVIATION_FROM_MARKET_RATE", 0.1)
@@ -92,10 +101,10 @@ func OrderConfig() *OrderConfiguration {
 	viper.SetDefault("SUI_RPC_URL", "https://fullnode.testnet.sui.io:443")
 	viper.SetDefault("LIFI_BASE_URL", "https://li.quest/v1")
 	viper.SetDefault("CCTP_FALLBACK_ENABLED", true)
-	viper.SetDefault("BASE_RPC_URL", "https://sepolia.base.org")                       // Sepolia default; mainnet = https://mainnet.base.org
-	viper.SetDefault("BASE_CHAIN_ID", 84532)                                           // Base Sepolia; mainnet = 8453
-	viper.SetDefault("BASE_SENDER_FEE_BPS", 50)                                        // 0.5% sender fee
-	viper.SetDefault("BASE_NATIVE_LOW_THRESHOLD_WEI", "10000000000000000")             // 0.01 ETH (Base L2 gas is cheap)
+	viper.SetDefault("BASE_RPC_URL", "https://sepolia.base.org")           // Sepolia default; mainnet = https://mainnet.base.org
+	viper.SetDefault("BASE_CHAIN_ID", 84532)                               // Base Sepolia; mainnet = 8453
+	viper.SetDefault("BASE_SENDER_FEE_BPS", 50)                            // 0.5% sender fee
+	viper.SetDefault("BASE_NATIVE_LOW_THRESHOLD_WEI", "10000000000000000") // 0.01 ETH (Base L2 gas is cheap)
 	viper.SetDefault("BASE_USDC_DECIMALS", 6)
 	viper.SetDefault("SETTLEMENT_API_URL", "https://api.paycrest.io")
 	viper.SetDefault("SETTLEMENT_PUBKEY_CACHE_TTL_SECONDS", 3600)
@@ -113,6 +122,7 @@ func OrderConfig() *OrderConfiguration {
 	}
 
 	return &OrderConfiguration{
+		CardFeeBPS:                       viper.GetInt("CARD_FEE_BPS"),
 		OrderFulfillmentValidity:         time.Duration(viper.GetInt("ORDER_FULFILLMENT_VALIDITY")) * time.Minute,
 		ReceiveAddressValidity:           time.Duration(viper.GetInt("RECEIVE_ADDRESS_VALIDITY")) * time.Minute,
 		OrderRequestValidity:             time.Duration(viper.GetInt("ORDER_REQUEST_VALIDITY")) * time.Second,

@@ -174,6 +174,26 @@ func (tcc *TappCardCreate) SetNillableTokenRotatedAt(t *time.Time) *TappCardCrea
 	return tcc
 }
 
+// SetPendingTokenCiphertext sets the "pending_token_ciphertext" field.
+func (tcc *TappCardCreate) SetPendingTokenCiphertext(b []byte) *TappCardCreate {
+	tcc.mutation.SetPendingTokenCiphertext(b)
+	return tcc
+}
+
+// SetPendingTokenIssuedAt sets the "pending_token_issued_at" field.
+func (tcc *TappCardCreate) SetPendingTokenIssuedAt(t time.Time) *TappCardCreate {
+	tcc.mutation.SetPendingTokenIssuedAt(t)
+	return tcc
+}
+
+// SetNillablePendingTokenIssuedAt sets the "pending_token_issued_at" field if the given value is not nil.
+func (tcc *TappCardCreate) SetNillablePendingTokenIssuedAt(t *time.Time) *TappCardCreate {
+	if t != nil {
+		tcc.SetPendingTokenIssuedAt(*t)
+	}
+	return tcc
+}
+
 // SetTokenMismatchCount sets the "token_mismatch_count" field.
 func (tcc *TappCardCreate) SetTokenMismatchCount(i int) *TappCardCreate {
 	tcc.mutation.SetTokenMismatchCount(i)
@@ -575,6 +595,14 @@ func (tcc *TappCardCreate) createSpec() (*TappCard, *sqlgraph.CreateSpec) {
 		_spec.SetField(tappcard.FieldTokenRotatedAt, field.TypeTime, value)
 		_node.TokenRotatedAt = &value
 	}
+	if value, ok := tcc.mutation.PendingTokenCiphertext(); ok {
+		_spec.SetField(tappcard.FieldPendingTokenCiphertext, field.TypeBytes, value)
+		_node.PendingTokenCiphertext = &value
+	}
+	if value, ok := tcc.mutation.PendingTokenIssuedAt(); ok {
+		_spec.SetField(tappcard.FieldPendingTokenIssuedAt, field.TypeTime, value)
+		_node.PendingTokenIssuedAt = &value
+	}
 	if value, ok := tcc.mutation.TokenMismatchCount(); ok {
 		_spec.SetField(tappcard.FieldTokenMismatchCount, field.TypeInt, value)
 		_node.TokenMismatchCount = value
@@ -901,6 +929,42 @@ func (u *TappCardUpsert) UpdateTokenRotatedAt() *TappCardUpsert {
 // ClearTokenRotatedAt clears the value of the "token_rotated_at" field.
 func (u *TappCardUpsert) ClearTokenRotatedAt() *TappCardUpsert {
 	u.SetNull(tappcard.FieldTokenRotatedAt)
+	return u
+}
+
+// SetPendingTokenCiphertext sets the "pending_token_ciphertext" field.
+func (u *TappCardUpsert) SetPendingTokenCiphertext(v []byte) *TappCardUpsert {
+	u.Set(tappcard.FieldPendingTokenCiphertext, v)
+	return u
+}
+
+// UpdatePendingTokenCiphertext sets the "pending_token_ciphertext" field to the value that was provided on create.
+func (u *TappCardUpsert) UpdatePendingTokenCiphertext() *TappCardUpsert {
+	u.SetExcluded(tappcard.FieldPendingTokenCiphertext)
+	return u
+}
+
+// ClearPendingTokenCiphertext clears the value of the "pending_token_ciphertext" field.
+func (u *TappCardUpsert) ClearPendingTokenCiphertext() *TappCardUpsert {
+	u.SetNull(tappcard.FieldPendingTokenCiphertext)
+	return u
+}
+
+// SetPendingTokenIssuedAt sets the "pending_token_issued_at" field.
+func (u *TappCardUpsert) SetPendingTokenIssuedAt(v time.Time) *TappCardUpsert {
+	u.Set(tappcard.FieldPendingTokenIssuedAt, v)
+	return u
+}
+
+// UpdatePendingTokenIssuedAt sets the "pending_token_issued_at" field to the value that was provided on create.
+func (u *TappCardUpsert) UpdatePendingTokenIssuedAt() *TappCardUpsert {
+	u.SetExcluded(tappcard.FieldPendingTokenIssuedAt)
+	return u
+}
+
+// ClearPendingTokenIssuedAt clears the value of the "pending_token_issued_at" field.
+func (u *TappCardUpsert) ClearPendingTokenIssuedAt() *TappCardUpsert {
+	u.SetNull(tappcard.FieldPendingTokenIssuedAt)
 	return u
 }
 
@@ -1324,6 +1388,48 @@ func (u *TappCardUpsertOne) UpdateTokenRotatedAt() *TappCardUpsertOne {
 func (u *TappCardUpsertOne) ClearTokenRotatedAt() *TappCardUpsertOne {
 	return u.Update(func(s *TappCardUpsert) {
 		s.ClearTokenRotatedAt()
+	})
+}
+
+// SetPendingTokenCiphertext sets the "pending_token_ciphertext" field.
+func (u *TappCardUpsertOne) SetPendingTokenCiphertext(v []byte) *TappCardUpsertOne {
+	return u.Update(func(s *TappCardUpsert) {
+		s.SetPendingTokenCiphertext(v)
+	})
+}
+
+// UpdatePendingTokenCiphertext sets the "pending_token_ciphertext" field to the value that was provided on create.
+func (u *TappCardUpsertOne) UpdatePendingTokenCiphertext() *TappCardUpsertOne {
+	return u.Update(func(s *TappCardUpsert) {
+		s.UpdatePendingTokenCiphertext()
+	})
+}
+
+// ClearPendingTokenCiphertext clears the value of the "pending_token_ciphertext" field.
+func (u *TappCardUpsertOne) ClearPendingTokenCiphertext() *TappCardUpsertOne {
+	return u.Update(func(s *TappCardUpsert) {
+		s.ClearPendingTokenCiphertext()
+	})
+}
+
+// SetPendingTokenIssuedAt sets the "pending_token_issued_at" field.
+func (u *TappCardUpsertOne) SetPendingTokenIssuedAt(v time.Time) *TappCardUpsertOne {
+	return u.Update(func(s *TappCardUpsert) {
+		s.SetPendingTokenIssuedAt(v)
+	})
+}
+
+// UpdatePendingTokenIssuedAt sets the "pending_token_issued_at" field to the value that was provided on create.
+func (u *TappCardUpsertOne) UpdatePendingTokenIssuedAt() *TappCardUpsertOne {
+	return u.Update(func(s *TappCardUpsert) {
+		s.UpdatePendingTokenIssuedAt()
+	})
+}
+
+// ClearPendingTokenIssuedAt clears the value of the "pending_token_issued_at" field.
+func (u *TappCardUpsertOne) ClearPendingTokenIssuedAt() *TappCardUpsertOne {
+	return u.Update(func(s *TappCardUpsert) {
+		s.ClearPendingTokenIssuedAt()
 	})
 }
 
@@ -1934,6 +2040,48 @@ func (u *TappCardUpsertBulk) UpdateTokenRotatedAt() *TappCardUpsertBulk {
 func (u *TappCardUpsertBulk) ClearTokenRotatedAt() *TappCardUpsertBulk {
 	return u.Update(func(s *TappCardUpsert) {
 		s.ClearTokenRotatedAt()
+	})
+}
+
+// SetPendingTokenCiphertext sets the "pending_token_ciphertext" field.
+func (u *TappCardUpsertBulk) SetPendingTokenCiphertext(v []byte) *TappCardUpsertBulk {
+	return u.Update(func(s *TappCardUpsert) {
+		s.SetPendingTokenCiphertext(v)
+	})
+}
+
+// UpdatePendingTokenCiphertext sets the "pending_token_ciphertext" field to the value that was provided on create.
+func (u *TappCardUpsertBulk) UpdatePendingTokenCiphertext() *TappCardUpsertBulk {
+	return u.Update(func(s *TappCardUpsert) {
+		s.UpdatePendingTokenCiphertext()
+	})
+}
+
+// ClearPendingTokenCiphertext clears the value of the "pending_token_ciphertext" field.
+func (u *TappCardUpsertBulk) ClearPendingTokenCiphertext() *TappCardUpsertBulk {
+	return u.Update(func(s *TappCardUpsert) {
+		s.ClearPendingTokenCiphertext()
+	})
+}
+
+// SetPendingTokenIssuedAt sets the "pending_token_issued_at" field.
+func (u *TappCardUpsertBulk) SetPendingTokenIssuedAt(v time.Time) *TappCardUpsertBulk {
+	return u.Update(func(s *TappCardUpsert) {
+		s.SetPendingTokenIssuedAt(v)
+	})
+}
+
+// UpdatePendingTokenIssuedAt sets the "pending_token_issued_at" field to the value that was provided on create.
+func (u *TappCardUpsertBulk) UpdatePendingTokenIssuedAt() *TappCardUpsertBulk {
+	return u.Update(func(s *TappCardUpsert) {
+		s.UpdatePendingTokenIssuedAt()
+	})
+}
+
+// ClearPendingTokenIssuedAt clears the value of the "pending_token_issued_at" field.
+func (u *TappCardUpsertBulk) ClearPendingTokenIssuedAt() *TappCardUpsertBulk {
+	return u.Update(func(s *TappCardUpsert) {
+		s.ClearPendingTokenIssuedAt()
 	})
 }
 

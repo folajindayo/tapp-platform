@@ -15,6 +15,8 @@ import (
 	"github.com/usezoracle/tapp/api/ent"
 	"github.com/usezoracle/tapp/api/ent/tappcard"
 	userEnt "github.com/usezoracle/tapp/api/ent/user"
+	tapsvc "github.com/usezoracle/tapp/api/internal/card/tap"
+	"github.com/usezoracle/tapp/api/internal/money"
 	"github.com/usezoracle/tapp/api/storage"
 	u "github.com/usezoracle/tapp/api/utils"
 	"github.com/usezoracle/tapp/api/utils/logger"
@@ -73,7 +75,7 @@ func cardView(ctx *gin.Context, card *ent.TappCard) gin.H {
 		"daily_limit_subunit":       card.DailyLimitSubunit,
 		"per_tap_limit_subunit":     card.PerTapLimitSubunit,
 		"step_up_threshold_subunit": card.StepUpThresholdSubunit,
-		"spent_today_subunit":       card.SpentTodaySubunit,
+		"spent_today_subunit":       operatorSpentToday(ctx, card.ID),
 	}
 
 	if card.CapObjectID != nil {
@@ -290,4 +292,22 @@ func (c *CardOpsController) SetStatus(ctx *gin.Context) {
 	})
 	fresh, _ := c.load(ctx)
 	u.APIResponse(ctx, http.StatusOK, "success", "card status updated", cardView(ctx, fresh))
+}
+
+// operatorSpentToday reads a card's spend for the day from the tap record.
+//
+// The stored spent_today_subunit column is no longer written -- it was a
+// racy counter whose day index was never compared, so it never reset. An
+// operator looking at a card needs the real figure, and it comes from the same
+// query the debit path enforces the limit with.
+func operatorSpentToday(ctx *gin.Context, cardID uuid.UUID) uint64 {
+	spent, err := tapsvc.SpentToday(ctx.Request.Context(), storage.Pool, cardID, money.NGN, time.Now())
+	if err != nil {
+		logger.Errorf("admin: today's spend for card %s: %v", cardID, err)
+		return 0
+	}
+	if spent.Minor() < 0 {
+		return 0
+	}
+	return uint64(spent.Minor())
 }

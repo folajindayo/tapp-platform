@@ -44,6 +44,10 @@ const (
 	FieldCurrentTokenCiphertext = "current_token_ciphertext"
 	// FieldTokenRotatedAt holds the string denoting the token_rotated_at field in the database.
 	FieldTokenRotatedAt = "token_rotated_at"
+	// FieldPendingTokenCiphertext holds the string denoting the pending_token_ciphertext field in the database.
+	FieldPendingTokenCiphertext = "pending_token_ciphertext"
+	// FieldPendingTokenIssuedAt holds the string denoting the pending_token_issued_at field in the database.
+	FieldPendingTokenIssuedAt = "pending_token_issued_at"
 	// FieldTokenMismatchCount holds the string denoting the token_mismatch_count field in the database.
 	FieldTokenMismatchCount = "token_mismatch_count"
 	// FieldDailyLimitSubunit holds the string denoting the daily_limit_subunit field in the database.
@@ -97,6 +101,8 @@ var Columns = []string{
 	FieldCardPassword,
 	FieldCurrentTokenCiphertext,
 	FieldTokenRotatedAt,
+	FieldPendingTokenCiphertext,
+	FieldPendingTokenIssuedAt,
 	FieldTokenMismatchCount,
 	FieldDailyLimitSubunit,
 	FieldPerTapLimitSubunit,
@@ -248,6 +254,11 @@ func ByLockedUntil(opts ...sql.OrderTermOption) OrderOption {
 // ByTokenRotatedAt orders the results by the token_rotated_at field.
 func ByTokenRotatedAt(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldTokenRotatedAt, opts...).ToFunc()
+}
+
+// ByPendingTokenIssuedAt orders the results by the pending_token_issued_at field.
+func ByPendingTokenIssuedAt(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldPendingTokenIssuedAt, opts...).ToFunc()
 }
 
 // ByTokenMismatchCount orders the results by the token_mismatch_count field.
