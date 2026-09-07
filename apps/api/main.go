@@ -11,6 +11,7 @@ import (
 	"github.com/usezoracle/tapp/api/config"
 	apiv1 "github.com/usezoracle/tapp/api/internal/api/v1"
 	"github.com/usezoracle/tapp/api/internal/cash"
+	"github.com/usezoracle/tapp/api/internal/settlement"
 	"github.com/usezoracle/tapp/api/routers"
 	"github.com/usezoracle/tapp/api/services"
 	"github.com/usezoracle/tapp/api/services/baas"
@@ -98,6 +99,12 @@ func main() {
 		if baseRail != nil {
 			go baseRail.Watcher.Run(context.Background(), apiv1.BasePollInterval())
 		}
+
+		// Deliver what the ledger says is owed. Until this runs, merchants
+		// accrue money that nothing pays out -- which is the one state where
+		// the system is wrong rather than merely incomplete.
+		go (&settlement.Worker{Pool: storage.Pool, Rail: baas.Default()}).
+			Run(context.Background(), settlementInterval())
 	}
 
 	// Run the server
@@ -167,6 +174,16 @@ func cashSweepInterval() time.Duration {
 	if seconds < 5 {
 		// A sweep every second or two would hammer the database for no gain;
 		// the shortest handover window is measured in minutes.
+		seconds = 5
+	}
+	return time.Duration(seconds) * time.Second
+}
+
+// settlementInterval is how often owed money is pushed to banks.
+func settlementInterval() time.Duration {
+	viper.SetDefault("SETTLEMENT_INTERVAL_SECONDS", 20)
+	seconds := viper.GetInt("SETTLEMENT_INTERVAL_SECONDS")
+	if seconds < 5 {
 		seconds = 5
 	}
 	return time.Duration(seconds) * time.Second

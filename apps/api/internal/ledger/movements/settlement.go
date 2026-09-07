@@ -127,3 +127,49 @@ func MerchantSettled(
 		{AccountID: payable, Amount: amount, Reason: "merchant_payout.owed_to_bank"},
 	})
 }
+
+// MerchantPayoutReturned puts a failed payout back to what the merchant is
+// owed.
+//
+// They earned it and we could not deliver it, so it returns to
+// merchant_payable rather than staying in `payable` or vanishing. Leaving it
+// in payable would be the platform quietly holding money it neither earned nor
+// delivered, and it would go on looking like an outstanding obligation nobody
+// was acting on.
+func MerchantPayoutReturned(
+	ctx context.Context,
+	tx pgx.Tx,
+	merchant uuid.UUID,
+	amount money.Amount,
+	payoutID uuid.UUID,
+	reason string,
+) (uuid.UUID, error) {
+	if reason == "" {
+		return uuid.Nil, fmt.Errorf("movements: a returned payout must say why")
+	}
+
+	c := amount.Currency()
+	r := newResolver(ctx, tx)
+
+	payable := r.account(ledger.System(), ledger.KindPayable, c)
+	if r.err != nil {
+		return uuid.Nil, r.err
+	}
+	if err := ensureFunds(ctx, tx, payable, amount); err != nil {
+		return uuid.Nil, err
+	}
+
+	owed := r.account(ledger.Merchant(merchant), ledger.KindMerchantPayable, c)
+	if r.err != nil {
+		return uuid.Nil, r.err
+	}
+
+	return ledger.Post(ctx, tx, ledger.Ref{
+		Type:    "merchant_payout_returned",
+		ID:      &payoutID,
+		IdemKey: "merchant_payout_returned:" + payoutID.String(),
+	}, []ledger.Entry{
+		{AccountID: payable, Amount: amount.Neg(), Reason: "merchant_payout.returned:" + reason},
+		{AccountID: owed, Amount: amount, Reason: "merchant_payout.still_owed"},
+	})
+}
