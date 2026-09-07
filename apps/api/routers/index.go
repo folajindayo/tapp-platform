@@ -1,10 +1,12 @@
 package routers
 
 import (
+	"context"
 	"net/http"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"github.com/usezoracle/tapp/api/config"
 	"github.com/usezoracle/tapp/api/controllers"
 	"github.com/usezoracle/tapp/api/controllers/accounts"
@@ -15,7 +17,10 @@ import (
 	"github.com/usezoracle/tapp/api/controllers/sender"
 	"github.com/usezoracle/tapp/api/internal/agents"
 	apiv1 "github.com/usezoracle/tapp/api/internal/api/v1"
+	"github.com/usezoracle/tapp/api/internal/card/link"
 	"github.com/usezoracle/tapp/api/internal/card/tap"
+	"github.com/usezoracle/tapp/api/internal/identity/kyc"
+	"github.com/usezoracle/tapp/api/internal/identity/limits"
 	"github.com/usezoracle/tapp/api/routers/middleware"
 	"github.com/usezoracle/tapp/api/storage"
 	u "github.com/usezoracle/tapp/api/utils"
@@ -268,8 +273,30 @@ func cardsRoutes(route *gin.Engine) {
 	// Cardholder (PWA): JWT-authenticated via /v1/auth/google.
 	cardholder := route.Group("/v1/cards/")
 	cardholder.Use(middleware.JWTMiddleware)
-	cardholder.POST("link/claim", cardsCtrl.Claim)
-	cardholder.POST("link/complete", cardsCtrl.LinkComplete)
+	// Card linking is one resumable session rather than four unrelated
+	// endpoints with no state between them. A dropped connection resumes
+	// instead of repeating a ceremony that generates a secret, writes it to a
+	// chip over NFC, and commits a PIN proof.
+	linkHandler := &apiv1.LinkHandler{
+		Svc: &link.Service{
+			Pool: storage.Pool,
+			// The most a card may be set up to spend is what its holder's
+			// identity supports. Passing it in keeps the linking package
+			// unaware that verification has tiers at all.
+			MaxDailyMinor: func(ctx context.Context, user uuid.UUID) (int64, error) {
+				tier, err := (&kyc.Store{Pool: storage.Pool}).TierOf(ctx, user)
+				if err != nil {
+					return 0, err
+				}
+				return limits.NGNPolicy().For(tier).Daily.Minor(), nil
+			},
+		},
+		User: apiv1.UserFromContext,
+	}
+	cardholder.POST("link/sessions", linkHandler.Start)
+	cardholder.GET("link/sessions/:id", linkHandler.Get)
+	cardholder.POST("link/sessions/:id/provision", linkHandler.Provision)
+	cardholder.POST("link/sessions/:id/activate", linkHandler.Activate)
 	cardholder.GET("me", cardsCtrl.Me)
 	cardholder.GET("reclaimable", cardsCtrl.Reclaimable)
 	cardholder.POST("reset", cardsCtrl.Reset)
