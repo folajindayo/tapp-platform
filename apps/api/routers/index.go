@@ -13,6 +13,7 @@ import (
 	"github.com/usezoracle/tapp/api/controllers/lp"
 	"github.com/usezoracle/tapp/api/controllers/provider"
 	"github.com/usezoracle/tapp/api/controllers/sender"
+	"github.com/usezoracle/tapp/api/internal/agents"
 	apiv1 "github.com/usezoracle/tapp/api/internal/api/v1"
 	"github.com/usezoracle/tapp/api/internal/card/tap"
 	"github.com/usezoracle/tapp/api/routers/middleware"
@@ -56,6 +57,16 @@ func RegisterRoutes(route *gin.Engine) {
 	v1.GET("rates/:token/:amount/:fiat", ctrl.GetTokenRate)
 	v1.GET("pubkey", ctrl.GetAggregatorPublicKey)
 	v1.POST("verify-account", ctrl.VerifyAccount)
+
+	// The agent network. Finding somewhere to hand cash to is a public
+	// question -- a trader deciding whether this product is usable in their
+	// market should not have to sign up first to find out.
+	agentHandler := &apiv1.AgentHandler{
+		Store: &agents.Store{Pool: storage.Pool},
+		User:  apiv1.UserFromContext,
+	}
+	v1.GET("agents/nearby", agentHandler.Nearby)
+	v1.POST("agents", middleware.JWTMiddleware, agentHandler.Register)
 	v1.GET("orders/:id", ctrl.GetLockPaymentOrderStatus)
 	// Public order-scoped SSE — customer checkout PWA subscribes after
 	// submitting their on-chain payment to advance through the bridge
@@ -284,6 +295,16 @@ func cardsRoutes(route *gin.Engine) {
 	// is enforced by a database trigger, so it can only fail if something
 	// wrote around the ledger, and it answers non-2xx when it does.
 	adminConsole.GET("ledger/audit", apiv1.LedgerAudit)
+
+	// Verifying premises and putting float behind them are operator
+	// decisions: the first is what makes an agent able to take handovers at
+	// all, and the second moves real capital.
+	adminAgents := &apiv1.AgentHandler{
+		Store: &agents.Store{Pool: storage.Pool},
+		User:  apiv1.UserFromContext,
+	}
+	adminConsole.POST("agents/:id/verify", adminAgents.Verify)
+	adminConsole.POST("agents/:id/allocate", adminAgents.Allocate)
 
 	txCtrl := adminCtrl.NewTransactionsController()
 	adminConsole.GET("transactions", txCtrl.GetTransactions)
