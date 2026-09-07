@@ -66,20 +66,11 @@ type ReceiveAddress func(*sql.Selector)
 // RefreshToken is the predicate function for refreshtoken builders.
 type RefreshToken func(*sql.Selector)
 
-// RouteAEvent is the predicate function for routeaevent builders.
-type RouteAEvent func(*sql.Selector)
-
-// RouteAOrder is the predicate function for routeaorder builders.
-type RouteAOrder func(*sql.Selector)
-
 // SenderOrderToken is the predicate function for senderordertoken builders.
 type SenderOrderToken func(*sql.Selector)
 
 // SenderProfile is the predicate function for senderprofile builders.
 type SenderProfile func(*sql.Selector)
-
-// SuiReceiveAddress is the predicate function for suireceiveaddress builders.
-type SuiReceiveAddress func(*sql.Selector)
 
 // TappCard is the predicate function for tappcard builders.
 type TappCard func(*sql.Selector)

@@ -9,14 +9,15 @@ import (
 	"time"
 
 	_ "github.com/mattn/go-sqlite3"
+	"github.com/shopspring/decimal"
 	"github.com/usezoracle/tapp/api/ent"
 	"github.com/usezoracle/tapp/api/routers/middleware"
 	"github.com/usezoracle/tapp/api/services"
 	db "github.com/usezoracle/tapp/api/storage"
 	"github.com/usezoracle/tapp/api/types"
-	"github.com/shopspring/decimal"
 
 	"github.com/gin-gonic/gin"
+	"github.com/stretchr/testify/assert"
 	"github.com/usezoracle/tapp/api/ent/enttest"
 	"github.com/usezoracle/tapp/api/ent/providerprofile"
 	"github.com/usezoracle/tapp/api/ent/senderordertoken"
@@ -25,7 +26,6 @@ import (
 	"github.com/usezoracle/tapp/api/ent/user"
 	"github.com/usezoracle/tapp/api/utils/test"
 	"github.com/usezoracle/tapp/api/utils/token"
-	"github.com/stretchr/testify/assert"
 )
 
 var testCtx = struct {

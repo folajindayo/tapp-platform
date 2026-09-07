@@ -213,11 +213,17 @@ func (s *ExecuteOrderService) SettleAfterPayout(ctx context.Context, orderID uui
 		return fmt.Errorf("settle-after-payout %s: set validated: %w", orderID, err)
 	}
 
-	// Release the LP's USDC. The OrderSettled event then drives the order to
-	// settled via the indexer.
-	if err := NewOrderSui().SettleOrder(ctx, orderID); err != nil {
-		logger.Errorf("settle-after-payout %s: SettleOrder: %v", orderID, err)
-		return err
+	// There is no on-chain leg to release any more.
+	//
+	// This used to call SettleOrder on a Sui escrow, and an indexer watching
+	// for the resulting event drove the order to settled. With the escrow gone
+	// the order is settled here, directly, at the point the fiat payout is
+	// confirmed -- which was always the moment that actually mattered. The
+	// chain leg only ever mirrored it, one event and one indexer later.
+	if err := db.Client.LockPaymentOrder.UpdateOneID(orderID).
+		SetStatus(lockpaymentorder.StatusSettled).
+		Exec(ctx); err != nil {
+		return fmt.Errorf("settle-after-payout %s: set settled: %w", orderID, err)
 	}
 	return nil
 }

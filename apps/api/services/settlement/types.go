@@ -56,12 +56,12 @@ type orderResponse = envelope[OrderInfo]
 // OrderInfo is the projected subset of the aggregator's order document we
 // actually consume. Add fields here as we surface them.
 type OrderInfo struct {
-	OrderID    string      `json:"orderId"`
-	ChainID    int64       `json:"chainId"`
-	Status     OrderStatus `json:"status"`
-	Token      string      `json:"token"`
-	Amount     string      `json:"amount"`
-	Rate       string      `json:"rate"`
-	TxHash     string      `json:"txHash"`
-	UpdatedAt  string      `json:"updatedAt"`
+	OrderID   string      `json:"orderId"`
+	ChainID   int64       `json:"chainId"`
+	Status    OrderStatus `json:"status"`
+	Token     string      `json:"token"`
+	Amount    string      `json:"amount"`
+	Rate      string      `json:"rate"`
+	TxHash    string      `json:"txHash"`
+	UpdatedAt string      `json:"updatedAt"`
 }

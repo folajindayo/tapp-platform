@@ -10,17 +10,17 @@ import (
 	"github.com/google/uuid"
 	"github.com/jarcoal/httpmock"
 	_ "github.com/mattn/go-sqlite3"
+	"github.com/shopspring/decimal"
 	"github.com/usezoracle/tapp/api/config"
 	"github.com/usezoracle/tapp/api/ent"
 	db "github.com/usezoracle/tapp/api/storage"
 	"github.com/usezoracle/tapp/api/types"
-	"github.com/shopspring/decimal"
 
 	"github.com/gin-gonic/gin"
+	"github.com/stretchr/testify/assert"
 	"github.com/usezoracle/tapp/api/ent/enttest"
 	"github.com/usezoracle/tapp/api/ent/identityverificationrequest"
 	"github.com/usezoracle/tapp/api/utils/test"
-	"github.com/stretchr/testify/assert"
 )
 
 var testCtx = struct {
@@ -317,8 +317,8 @@ func TestIndex(t *testing.T) {
 		assert.Equal(t, http.StatusOK, res.Code)
 
 		var response struct {
-			Status  string `json:"status"`
-			Message string `json:"message"`
+			Status  string                 `json:"status"`
+			Message string                 `json:"message"`
 			Data    map[string]interface{} `json:"data"`
 		}
 		err = json.Unmarshal(res.Body.Bytes(), &response)

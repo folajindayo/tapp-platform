@@ -18,7 +18,6 @@ import (
 	"github.com/usezoracle/tapp/api/ent/token"
 	"github.com/usezoracle/tapp/api/ent/transactionlog"
 	"github.com/usezoracle/tapp/api/services/baas"
-	orderService "github.com/usezoracle/tapp/api/services/order"
 	"github.com/usezoracle/tapp/api/storage"
 	"github.com/usezoracle/tapp/api/types"
 	u "github.com/usezoracle/tapp/api/utils"
@@ -425,18 +424,15 @@ func (ctrl *ProviderController) FulfillOrder(ctx *gin.Context) {
 			return
 		}
 
-		// Settle order or fail silently
-		go func() {
-			var err error
-			if strings.HasPrefix(fulfillment.Edges.Order.Edges.Token.Edges.Network.Identifier, "tron") {
-				err = orderService.NewOrderSui().SettleOrder(ctx, orderID)
-			} else {
-				err = orderService.NewOrderSui().SettleOrder(ctx, orderID)
-			}
-			if err != nil {
-				logger.Errorf("FulfillOrder.SettleOrder: %v", err)
-			}
-		}()
+		// There is no escrow to release. The order is settled when the fiat
+		// payout is confirmed, which ExecuteOrderService now does directly --
+		// the chain leg only ever mirrored that moment, one event and one
+		// indexer later.
+		//
+		// Note the branch this replaces: both arms of its if/else called the
+		// same function. It read as though tron and everything else were
+		// handled differently and they were not, which is the kind of thing
+		// that survives because nobody can tell it is doing nothing.
 
 	} else if payload.ValidationStatus == lockorderfulfillment.ValidationStatusFailed {
 		_, err = fulfillment.Update().
@@ -608,17 +604,10 @@ func (ctrl *ProviderController) CancelOrder(ctx *gin.Context) {
 	// Check if order cancellation count is equal or greater than RefundCancellationCount in config,
 	// and the order has not been refunded, then trigger refund
 	if order.CancellationCount >= orderConf.RefundCancellationCount && order.Status == lockpaymentorder.StatusCancelled {
-		go func() {
-			var err error
-			if strings.HasPrefix(order.Edges.Token.Edges.Network.Identifier, "tron") {
-				err = orderService.NewOrderSui().RefundOrder(ctx, order.GatewayID)
-			} else {
-				err = orderService.NewOrderSui().RefundOrder(ctx, order.GatewayID)
-			}
-			if err != nil {
-				logger.Errorf("CancelOrder.RefundOrder(%v): %v", orderID, err)
-			}
-		}()
+		// Refunds are a ledger movement now, not an escrow release. A
+		// cancelled order that was never funded has nothing to return; one
+		// that was is refunded by the settlement path that took the money.
+		logger.Infof("CancelOrder: order %s passed the cancellation threshold", orderID)
 	}
 
 	// Push provider ID to order exclude list

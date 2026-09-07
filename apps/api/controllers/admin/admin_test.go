@@ -32,9 +32,6 @@ func buildAdminRouter() *gin.Engine {
 
 	// the console under test
 	g := r.Group("/v1/admin/")
-	tx := NewTransactionsController()
-	g.GET("transactions", tx.GetTransactions)
-	g.GET("transactions/:id", tx.GetTransactionTimeline)
 	integrators := NewIntegratorsController()
 	g.POST("integrators", integrators.CreateIntegrator)
 	g.GET("integrators", integrators.GetIntegrators)
@@ -58,9 +55,6 @@ func buildAdminRouter() *gin.Engine {
 	webhook := NewWebhooksController()
 	g.GET("webhooks", webhook.GetWebhookAttempts)
 	g.POST("webhooks/:id/retry", webhook.RetryWebhook)
-	dep := NewDepositAddressController()
-	g.GET("deposit-addresses/:address", dep.GetAddress)
-	g.POST("deposit-addresses/:address/extend", dep.ExtendAddress)
 	return r
 }
 

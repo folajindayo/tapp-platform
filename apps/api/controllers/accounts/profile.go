@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/shopspring/decimal"
 	"github.com/usezoracle/tapp/api/config"
 	"github.com/usezoracle/tapp/api/ent"
 	"github.com/usezoracle/tapp/api/ent/fiatcurrency"
@@ -21,7 +22,6 @@ import (
 	"github.com/usezoracle/tapp/api/types"
 	u "github.com/usezoracle/tapp/api/utils"
 	"github.com/usezoracle/tapp/api/utils/logger"
-	"github.com/shopspring/decimal"
 
 	"github.com/gin-gonic/gin"
 )

@@ -17,9 +17,7 @@ import (
 	"github.com/usezoracle/tapp/api/ent/paymentorder"
 	"github.com/usezoracle/tapp/api/ent/paymentorderrecipient"
 	"github.com/usezoracle/tapp/api/ent/receiveaddress"
-	"github.com/usezoracle/tapp/api/ent/routeaorder"
 	"github.com/usezoracle/tapp/api/ent/senderprofile"
-	"github.com/usezoracle/tapp/api/ent/suireceiveaddress"
 	"github.com/usezoracle/tapp/api/ent/token"
 	"github.com/usezoracle/tapp/api/ent/transactionlog"
 )
@@ -293,44 +291,6 @@ func (poc *PaymentOrderCreate) SetNillableReceiveAddressID(id *int) *PaymentOrde
 // SetReceiveAddress sets the "receive_address" edge to the ReceiveAddress entity.
 func (poc *PaymentOrderCreate) SetReceiveAddress(r *ReceiveAddress) *PaymentOrderCreate {
 	return poc.SetReceiveAddressID(r.ID)
-}
-
-// SetSuiReceiveAddressID sets the "sui_receive_address" edge to the SuiReceiveAddress entity by ID.
-func (poc *PaymentOrderCreate) SetSuiReceiveAddressID(id int) *PaymentOrderCreate {
-	poc.mutation.SetSuiReceiveAddressID(id)
-	return poc
-}
-
-// SetNillableSuiReceiveAddressID sets the "sui_receive_address" edge to the SuiReceiveAddress entity by ID if the given value is not nil.
-func (poc *PaymentOrderCreate) SetNillableSuiReceiveAddressID(id *int) *PaymentOrderCreate {
-	if id != nil {
-		poc = poc.SetSuiReceiveAddressID(*id)
-	}
-	return poc
-}
-
-// SetSuiReceiveAddress sets the "sui_receive_address" edge to the SuiReceiveAddress entity.
-func (poc *PaymentOrderCreate) SetSuiReceiveAddress(s *SuiReceiveAddress) *PaymentOrderCreate {
-	return poc.SetSuiReceiveAddressID(s.ID)
-}
-
-// SetRouteAOrderID sets the "route_a_order" edge to the RouteAOrder entity by ID.
-func (poc *PaymentOrderCreate) SetRouteAOrderID(id int) *PaymentOrderCreate {
-	poc.mutation.SetRouteAOrderID(id)
-	return poc
-}
-
-// SetNillableRouteAOrderID sets the "route_a_order" edge to the RouteAOrder entity by ID if the given value is not nil.
-func (poc *PaymentOrderCreate) SetNillableRouteAOrderID(id *int) *PaymentOrderCreate {
-	if id != nil {
-		poc = poc.SetRouteAOrderID(*id)
-	}
-	return poc
-}
-
-// SetRouteAOrder sets the "route_a_order" edge to the RouteAOrder entity.
-func (poc *PaymentOrderCreate) SetRouteAOrder(r *RouteAOrder) *PaymentOrderCreate {
-	return poc.SetRouteAOrderID(r.ID)
 }
 
 // SetRecipientID sets the "recipient" edge to the PaymentOrderRecipient entity by ID.
@@ -670,38 +630,6 @@ func (poc *PaymentOrderCreate) createSpec() (*PaymentOrder, *sqlgraph.CreateSpec
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(receiveaddress.FieldID, field.TypeInt),
-			},
-		}
-		for _, k := range nodes {
-			edge.Target.Nodes = append(edge.Target.Nodes, k)
-		}
-		_spec.Edges = append(_spec.Edges, edge)
-	}
-	if nodes := poc.mutation.SuiReceiveAddressIDs(); len(nodes) > 0 {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.O2O,
-			Inverse: false,
-			Table:   paymentorder.SuiReceiveAddressTable,
-			Columns: []string{paymentorder.SuiReceiveAddressColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(suireceiveaddress.FieldID, field.TypeInt),
-			},
-		}
-		for _, k := range nodes {
-			edge.Target.Nodes = append(edge.Target.Nodes, k)
-		}
-		_spec.Edges = append(_spec.Edges, edge)
-	}
-	if nodes := poc.mutation.RouteAOrderIDs(); len(nodes) > 0 {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.O2O,
-			Inverse: false,
-			Table:   paymentorder.RouteAOrderTable,
-			Columns: []string{paymentorder.RouteAOrderColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(routeaorder.FieldID, field.TypeInt),
 			},
 		}
 		for _, k := range nodes {

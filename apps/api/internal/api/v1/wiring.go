@@ -33,10 +33,7 @@ func NewConvertHandler() *ConvertHandler {
 		return nil
 	}
 
-	return &ConvertHandler{
-		Quoter: &rates.Quoter{Engine: engine, Spread: spread, Pool: storage.Pool},
-		User:   UserFromContext,
-	}
+	return &ConvertHandler{Quoter: SharedQuoter(), User: UserFromContext}
 }
 
 // UserFromContext resolves the authenticated caller's user id.
@@ -57,4 +54,26 @@ func UserFromContext(ctx *gin.Context) (uuid.UUID, bool) {
 	}
 	u.APIResponse(ctx, http.StatusUnauthorized, "error", "Not authenticated", nil)
 	return uuid.Nil, false
+}
+
+// sharedQuoter is the process-wide price engine, built once.
+//
+// One instance, because a quote issued by one and redeemed by another would
+// be redeemed against a different spread table -- and the price somebody was
+// shown must be the price they get.
+var sharedQuoter *rates.Quoter
+
+// SharedQuoter returns it, building it on first use. Nil when no rate sources
+// are configured, in which case a conversion cannot be priced and an order
+// that needs one is refused rather than guessed at.
+func SharedQuoter() *rates.Quoter {
+	if sharedQuoter != nil {
+		return sharedQuoter
+	}
+	engine, spread, err := configureRates()
+	if err != nil || len(engine.Sources) == 0 || len(spread) == 0 {
+		return nil
+	}
+	sharedQuoter = &rates.Quoter{Engine: engine, Spread: spread, Pool: storage.Pool}
+	return sharedQuoter
 }

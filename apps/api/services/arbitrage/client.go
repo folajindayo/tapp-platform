@@ -57,9 +57,9 @@ func (c *Client) getJSON(ctx context.Context, url string, out any) error {
 // outcomes/outcomePrices as JSON *strings* (e.g. "[\"0.61\", \"0.39\"]"), so we
 // take them as strings and parse defensively.
 type polymarketMarket struct {
-	ConditionID    string `json:"conditionId"`
-	Question       string `json:"question"`
-	Slug           string `json:"slug"`
+	ConditionID   string      `json:"conditionId"`
+	Question      string      `json:"question"`
+	Slug          string      `json:"slug"`
 	Outcomes      string      `json:"outcomes"`
 	OutcomePrices string      `json:"outcomePrices"`
 	Liquidity     json.Number `json:"liquidityNum,omitempty"`

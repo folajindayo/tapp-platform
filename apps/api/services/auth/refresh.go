@@ -207,4 +207,3 @@ func revokeFamily(ctx context.Context, familyID uuid.UUID, _ string) error {
 		Save(ctx)
 	return err
 }
-

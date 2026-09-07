@@ -1,6 +1,5 @@
 package tasks
 
-// (import block — shinamiGas added for the gas-fund cron)
 import (
 	"context"
 	"fmt"
@@ -26,7 +25,6 @@ import (
 	"github.com/usezoracle/tapp/api/services"
 	"github.com/usezoracle/tapp/api/services/baas"
 	orderpkg "github.com/usezoracle/tapp/api/services/order"
-	shinamiGas "github.com/usezoracle/tapp/api/services/shinami_gas"
 	"github.com/usezoracle/tapp/api/storage"
 	"github.com/usezoracle/tapp/api/types"
 	"github.com/usezoracle/tapp/api/utils"
@@ -776,141 +774,15 @@ func StartCronJobs() {
 		logger.Errorf("StartCronJobs: %v", err)
 	}
 
-	// Sui chain event indexer — long-lived WebSocket subscription to the
-	// Gateway package's four Move events (OrderCreated, OrderSettled,
-	// OrderRefunded, SenderFeeTransferred). Replaces the legacy EVM/Tron
-	// polling jobs (IndexBlockchainEvents) which were
-	// removed during the Sui port. The indexer runs as a goroutine for the
-	// lifetime of the process; cancel-on-signal would be a server-shutdown
-	// concern handled by main.
-	suiNetwork := "sui-mainnet"
-	if serverConf.Environment != "production" {
-		suiNetwork = "sui-testnet"
-	}
-	// Skip the indexer entirely if the Move package isn't deployed yet —
-	// without a package ID it can't subscribe to anything useful, and
-	// the block-vision SDK's WS error path will take down the process
-	// when handed an HTTPS URL instead of WSS. Lets local dev boot
-	// against a non-deployed Gateway.
-	if orderConf.SuiGatewayPackageID != "" && (orderConf.SuiWsURL != "" || orderConf.SuiGrpcURL != "") {
-		suiIndexer := services.NewSuiEventIndexer(
-			orderConf.SuiWsURL,
-			orderConf.SuiGrpcURL,
-			orderConf.SuiGrpcToken,
-			orderConf.SuiGatewayPackageID,
-			suiNetwork,
-		)
-		go func() {
-			if err := suiIndexer.Start(context.Background()); err != nil && err != context.Canceled {
-				logger.Errorf("StartCronJobs: sui event indexer exited: %v", err)
-			}
-		}()
-	} else {
-		if orderConf.SuiGatewayPackageID == "" {
-			logger.Infof("StartCronJobs: SUI_GATEWAY_PACKAGE_ID empty — skipping event indexer")
-		} else {
-			logger.Infof("StartCronJobs: SUI_WS_URL and SUI_GRPC_URL empty — skipping event indexer")
-		}
-	}
-
-	// Compute market rate every 30 minutes.
-	if _, err := scheduler.Cron("*/30 * * * *").Do(ComputeMarketRate); err != nil {
-		logger.Errorf("StartCronJobs: %v", err)
-	}
-
-	// Refresh provision bucket priority queues every N hours (as defined by BucketQueueRebuildInterval).
-	if _, err := scheduler.Cron(fmt.Sprintf("0 */%d * * *", orderConf.BucketQueueRebuildInterval)).
-		Do(priorityQueue.ProcessBucketQueues); err != nil {
-		logger.Errorf("StartCronJobs: %v", err)
-	}
-
-	// Retry failed webhook notifications every 59 minutes.
-	if _, err := scheduler.Cron("*/59 * * * *").Do(RetryFailedWebhookNotifications); err != nil {
-		logger.Errorf("StartCronJobs: %v", err)
-	}
-
-	// Reassign unvalidated order requests every 2 minutes.
-	if _, err := scheduler.Cron("*/2 * * * *").Do(ReassignUnvalidatedLockOrders); err != nil {
-		logger.Errorf("StartCronJobs: %v", err)
-	}
-
-	// Sui deposit watcher — every minute, scans active SuiReceiveAddress rows
-	// for incoming Coin<USDC> deposits, flips status to 'deposited', then
-	// forwards via OrderSui.CreateOrder into the Gateway escrow. Path-2
-	// (exchange / external wallet) deposit flow only; Path-1 PTB-direct
-	// deposits arrive via the SuiEventIndexer's OrderCreated subscription.
+	// The Sui event indexer, the Sui deposit watcher, the Route A dispatcher
+	// and the Base gas-balance alert all went with the chain they served.
 	//
-	// Same gate as the indexer above — `sui.NewSuiClient` internally
-	// initializes a WebSocket subscriber that calls `log.Fatalf` on
-	// an https:// URL (block-vision SDK behavior). Without the
-	// Gateway deployed the watcher has nothing to do anyway.
-	if orderConf.SuiGatewayPackageID != "" {
-		depositWatcher := services.NewSuiDepositWatcher()
-		if _, err := scheduler.Cron("*/1 * * * *").Do(func() {
-			if err := depositWatcher.CheckDeposits(context.Background()); err != nil {
-				logger.Errorf("StartCronJobs: sui deposit watcher: %v", err)
-			}
-		}); err != nil {
-			logger.Errorf("StartCronJobs: %v", err)
-		}
-	} else {
-		logger.Infof("StartCronJobs: SUI_GATEWAY_PACKAGE_ID empty — skipping deposit watcher")
-	}
-
-	// Route A dispatcher — every 10 seconds, advances RouteAOrder rows
-	// through pending → bridging → bridged → dispatching → settled.
-	// A tick with no actionable orders is five cheap DB queries, so the
-	// short interval costs nothing idle but collapses the per-hop wait
-	// (burn → attest → mint → dispatch each used to idle up to 60s at
-	// a tick boundary; now ≤10s). Tick itself skips when a previous
-	// run is still in flight and holds the cross-instance Redis lease.
-	routeAD := services.NewRouteADispatcher()
-	if _, err := scheduler.Every(2).Minutes().Do(func() {
-		if err := routeAD.Tick(context.Background()); err != nil {
-			logger.Errorf("StartCronJobs: route-a dispatcher: %v", err)
-		}
-	}); err != nil {
-		logger.Errorf("StartCronJobs: %v", err)
-	}
-
-	// Base aggregator wallet low-balance alert — every 5 minutes. Logs
-	// Errorf when ETH balance drops below BASE_NATIVE_LOW_THRESHOLD_WEI
-	// so ops can top up before createOrder txs start running out of gas.
-	if _, err := scheduler.Cron("*/5 * * * *").Do(func() {
-		if err := routeAD.CheckNativeBalance(context.Background()); err != nil {
-			logger.Errorf("StartCronJobs: route-a native balance check: %v", err)
-		}
-	}); err != nil {
-		logger.Errorf("StartCronJobs: %v", err)
-	}
-
-	// Shinami Gas Station fund balance alert — every 5 min. Every
-	// aggregator-initiated Move call (CreateOrder, SettleOrder,
-	// RefundOrder, DebitCard) is now sponsored by the Shinami fund
-	// tied to SHINAMI_GAS_API_KEY. If the fund runs dry, ALL of those
-	// stall silently. Threshold: 1 SUI (1_000_000_000 MIST) — generous
-	// for a few hundred txs at typical mainnet gas cost.
-	if orderConf.ShinamiGasAPIKey != "" {
-		gasClient := shinamiGas.New(orderConf.ShinamiGasAPIKey, orderConf.ShinamiGasBaseURL)
-		const lowFundThresholdMist = int64(1_000_000_000) // 1 SUI
-		if _, err := scheduler.Cron("*/5 * * * *").Do(func() {
-			fund, err := gasClient.GetFund(context.Background())
-			if err != nil {
-				logger.Errorf("StartCronJobs: shinami gas fund check: %v", err)
-				return
-			}
-			if fund.Balance < lowFundThresholdMist {
-				balanceDec := decimal.NewFromInt(fund.Balance).Shift(-9)
-				inFlightDec := decimal.NewFromInt(fund.InFlight).Shift(-9)
-				logger.Errorf("❌ Shinami gas fund LOW — %s (network=%s) balance=%s SUI, in_flight=%s SUI. Top up at depositAddress=%s. Below threshold ALL aggregator Move calls (CreateOrder, SettleOrder, RefundOrder, DebitCard) will start failing.",
-					fund.Name, fund.Network, balanceDec.String(), inFlightDec.String(), fund.DepositAddress)
-			}
-		}); err != nil {
-			logger.Errorf("StartCronJobs: %v", err)
-		}
-	} else {
-		logger.Infof("StartCronJobs: SHINAMI_GAS_API_KEY empty — skipping Shinami fund-balance cron (aggregator Move calls will fail at runtime)")
-	}
+	// The indexer watched a Move package for order events; the watcher polled
+	// one-time Sui addresses for deposits; the dispatcher advanced orders
+	// through bridging to Base. Deposits land on Base directly now and are
+	// read by internal/chain/base, and settlement is a ledger movement
+	// followed by a bank transfer -- so there is no bridge to advance and no
+	// events to index.
 
 	// Reconcile in-flight Route B fiat payouts as a backstop to the webhook.
 	if _, err := scheduler.Cron("*/2 * * * *").Do(ReconcileFiatPayouts); err != nil {

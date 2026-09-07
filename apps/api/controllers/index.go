@@ -13,7 +13,6 @@ import (
 	"strings"
 	"time"
 
-	suisigner "github.com/block-vision/sui-go-sdk/signer"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/google/uuid"
 	fastshot "github.com/opus-domini/fast-shot"
@@ -28,9 +27,6 @@ import (
 	"github.com/usezoracle/tapp/api/ent/providerprofile"
 	"github.com/usezoracle/tapp/api/ent/token"
 	svc "github.com/usezoracle/tapp/api/services"
-	"github.com/usezoracle/tapp/api/services/lifi"
-	orderSvc "github.com/usezoracle/tapp/api/services/order"
-	"github.com/usezoracle/tapp/api/services/settlement"
 	"github.com/usezoracle/tapp/api/storage"
 	"github.com/usezoracle/tapp/api/types"
 	u "github.com/usezoracle/tapp/api/utils"
@@ -54,7 +50,6 @@ type Controller struct {
 // NewController creates a new instance of AuthController with injected services
 func NewController() *Controller {
 	return &Controller{
-		orderService:          orderSvc.NewOrderSui(),
 		priorityQueueService:  svc.NewPriorityQueueService(),
 		receiveAddressService: svc.NewReceiveAddressService(),
 	}
@@ -162,39 +157,11 @@ func (ctrl *Controller) GetTokenRate(ctx *gin.Context) {
 	}
 
 	rateResponse := currency.MarketRate
+	// The Route A quote branch is gone with Sui. It priced a bridge from Sui
+	// USDC to Base USDC before settlement, and applied only to sui-* networks;
+	// deposits land on Base directly now, so there is nothing to bridge and
+	// nothing extra to price.
 	routeAQuoted := false
-	if strings.EqualFold(currency.Code, "NGN") &&
-		token.Edges.Network != nil &&
-		strings.HasPrefix(token.Edges.Network.Identifier, "sui-") {
-		if len(orderConf.SuiAggregatorPrivateKey) != 32 {
-			u.APIResponse(ctx, http.StatusServiceUnavailable, "error",
-				"Route A rate requires SUI_AGGREGATOR_PRIVATE_KEY to be configured", nil)
-			return
-		}
-		settlementTTL := time.Duration(orderConf.SettlementPubkeyTTLSeconds) * time.Second
-		settlementClient := settlement.New(orderConf.SettlementAPIURL, settlementTTL)
-		lifiClient := lifi.New(orderConf.LiFiAPIKey)
-		aggSigner := suisigner.NewSigner(orderConf.SuiAggregatorPrivateKey)
-		composite, _, qerr := svc.QuoteSuiTokenAmountForFiat(
-			ctx,
-			lifiClient,
-			settlementClient,
-			orderConf,
-			aggSigner.Address,
-			tokenAmount,
-			currency.MarketRate,
-			token.ContractAddress,
-			int32(token.Decimals),
-		)
-		if qerr != nil {
-			logger.Errorf("GetTokenRate.route_a_quote token=%s fiat=%s: %v", token.Symbol, tokenAmount, qerr)
-			u.APIResponse(ctx, http.StatusBadGateway, "error",
-				"Couldn't quote Route A settlement rate", nil)
-			return
-		}
-		rateResponse = composite.Rate
-		routeAQuoted = true
-	}
 
 	// get providerID from query params
 	providerID := ctx.Query("provider_id")
@@ -545,20 +512,16 @@ func (ctrl *Controller) GetLockPaymentOrderStatus(ctx *gin.Context) {
 				Query().
 				Where(paymentorder.IDEQ(poID)).
 				WithRecipient().
-				WithSuiReceiveAddress().
 				Only(ctx)
 			if err == nil {
 				if po.Edges.Recipient != nil {
 					merchantName = po.Edges.Recipient.AccountName
 				}
 				reference = po.Reference
-				if po.Edges.SuiReceiveAddress != nil {
-					expiresAt = po.Edges.SuiReceiveAddress.ValidUntil.UnixMilli()
-					receiveAddress = po.Edges.SuiReceiveAddress.Address
-					coinType = po.Edges.SuiReceiveAddress.CoinType
-				} else {
-					expiresAt = po.CreatedAt.Add(1 * time.Hour).UnixMilli()
-				}
+				// There is no one-time receive address to publish any more.
+				// A payer funds an order from their balance rather than by
+				// sending to an address the order minted for them.
+				expiresAt = po.CreatedAt.Add(1 * time.Hour).UnixMilli()
 				ngnRate, _ = po.Rate.Float64()
 			}
 		}
@@ -623,7 +586,6 @@ func (ctrl *Controller) GetLockPaymentOrderStatus(ctx *gin.Context) {
 			tq.WithNetwork()
 		}).
 		WithRecipient().
-		WithSuiReceiveAddress().
 		WithTransactions().
 		Only(ctx)
 	if err != nil {
@@ -655,13 +617,10 @@ func (ctrl *Controller) GetLockPaymentOrderStatus(ctx *gin.Context) {
 	}
 
 	expiresAt := po.CreatedAt.Add(1 * time.Hour).UnixMilli()
+	// No one-time receive address: a payer funds an order from their balance
+	// rather than by sending to an address the order minted for them.
 	var receiveAddress string
 	var coinType string
-	if po.Edges.SuiReceiveAddress != nil {
-		expiresAt = po.Edges.SuiReceiveAddress.ValidUntil.UnixMilli()
-		receiveAddress = po.Edges.SuiReceiveAddress.Address
-		coinType = po.Edges.SuiReceiveAddress.CoinType
-	}
 
 	ngnRate, _ := po.Rate.Float64()
 

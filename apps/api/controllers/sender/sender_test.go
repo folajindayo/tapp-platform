@@ -134,7 +134,6 @@ func TestSender(t *testing.T) {
 
 	// Create a new instance of the SenderController with the mock service
 	ctrl := NewSenderController()
-	router.POST("/sender/orders", ctrl.InitiatePaymentOrder)
 	router.GET("/sender/orders/:id", ctrl.GetPaymentOrderByID)
 	router.GET("/sender/orders", ctrl.GetPaymentOrders)
 	router.GET("/sender/stats", ctrl.Stats)

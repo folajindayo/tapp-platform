@@ -32,11 +32,8 @@ import (
 	"github.com/usezoracle/tapp/api/ent/provisionbucket"
 	"github.com/usezoracle/tapp/api/ent/receiveaddress"
 	"github.com/usezoracle/tapp/api/ent/refreshtoken"
-	"github.com/usezoracle/tapp/api/ent/routeaevent"
-	"github.com/usezoracle/tapp/api/ent/routeaorder"
 	"github.com/usezoracle/tapp/api/ent/senderordertoken"
 	"github.com/usezoracle/tapp/api/ent/senderprofile"
-	"github.com/usezoracle/tapp/api/ent/suireceiveaddress"
 	"github.com/usezoracle/tapp/api/ent/tappcard"
 	"github.com/usezoracle/tapp/api/ent/token"
 	"github.com/usezoracle/tapp/api/ent/transactionlog"
@@ -123,11 +120,8 @@ func checkColumn(table, column string) error {
 			provisionbucket.Table:             provisionbucket.ValidColumn,
 			receiveaddress.Table:              receiveaddress.ValidColumn,
 			refreshtoken.Table:                refreshtoken.ValidColumn,
-			routeaevent.Table:                 routeaevent.ValidColumn,
-			routeaorder.Table:                 routeaorder.ValidColumn,
 			senderordertoken.Table:            senderordertoken.ValidColumn,
 			senderprofile.Table:               senderprofile.ValidColumn,
-			suireceiveaddress.Table:           suireceiveaddress.ValidColumn,
 			tappcard.Table:                    tappcard.ValidColumn,
 			token.Table:                       token.ValidColumn,
 			transactionlog.Table:              transactionlog.ValidColumn,

@@ -326,8 +326,8 @@ func (c *ConfigController) GetRails(ctx *gin.Context) {
 		current = p.Name()
 	}
 	u.APIResponse(ctx, http.StatusOK, "success", "ok", gin.H{
-		"baas_provider": current,
-		"float_rail":    services.CurrentFloatRail(),
+		"baas_provider":             current,
+		"float_rail":                services.CurrentFloatRail(),
 		"fintava_float_institution": services.FintavaFloatInstitution(),
 		"rails": []gin.H{
 			{"value": "fintava", "configured": services.RailConfigured("fintava"), "switchable": true},

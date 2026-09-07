@@ -17,9 +17,7 @@ import (
 	"github.com/usezoracle/tapp/api/ent/paymentorderrecipient"
 	"github.com/usezoracle/tapp/api/ent/predicate"
 	"github.com/usezoracle/tapp/api/ent/receiveaddress"
-	"github.com/usezoracle/tapp/api/ent/routeaorder"
 	"github.com/usezoracle/tapp/api/ent/senderprofile"
-	"github.com/usezoracle/tapp/api/ent/suireceiveaddress"
 	"github.com/usezoracle/tapp/api/ent/token"
 	"github.com/usezoracle/tapp/api/ent/transactionlog"
 )
@@ -450,44 +448,6 @@ func (pou *PaymentOrderUpdate) SetReceiveAddress(r *ReceiveAddress) *PaymentOrde
 	return pou.SetReceiveAddressID(r.ID)
 }
 
-// SetSuiReceiveAddressID sets the "sui_receive_address" edge to the SuiReceiveAddress entity by ID.
-func (pou *PaymentOrderUpdate) SetSuiReceiveAddressID(id int) *PaymentOrderUpdate {
-	pou.mutation.SetSuiReceiveAddressID(id)
-	return pou
-}
-
-// SetNillableSuiReceiveAddressID sets the "sui_receive_address" edge to the SuiReceiveAddress entity by ID if the given value is not nil.
-func (pou *PaymentOrderUpdate) SetNillableSuiReceiveAddressID(id *int) *PaymentOrderUpdate {
-	if id != nil {
-		pou = pou.SetSuiReceiveAddressID(*id)
-	}
-	return pou
-}
-
-// SetSuiReceiveAddress sets the "sui_receive_address" edge to the SuiReceiveAddress entity.
-func (pou *PaymentOrderUpdate) SetSuiReceiveAddress(s *SuiReceiveAddress) *PaymentOrderUpdate {
-	return pou.SetSuiReceiveAddressID(s.ID)
-}
-
-// SetRouteAOrderID sets the "route_a_order" edge to the RouteAOrder entity by ID.
-func (pou *PaymentOrderUpdate) SetRouteAOrderID(id int) *PaymentOrderUpdate {
-	pou.mutation.SetRouteAOrderID(id)
-	return pou
-}
-
-// SetNillableRouteAOrderID sets the "route_a_order" edge to the RouteAOrder entity by ID if the given value is not nil.
-func (pou *PaymentOrderUpdate) SetNillableRouteAOrderID(id *int) *PaymentOrderUpdate {
-	if id != nil {
-		pou = pou.SetRouteAOrderID(*id)
-	}
-	return pou
-}
-
-// SetRouteAOrder sets the "route_a_order" edge to the RouteAOrder entity.
-func (pou *PaymentOrderUpdate) SetRouteAOrder(r *RouteAOrder) *PaymentOrderUpdate {
-	return pou.SetRouteAOrderID(r.ID)
-}
-
 // SetRecipientID sets the "recipient" edge to the PaymentOrderRecipient entity by ID.
 func (pou *PaymentOrderUpdate) SetRecipientID(id int) *PaymentOrderUpdate {
 	pou.mutation.SetRecipientID(id)
@@ -542,18 +502,6 @@ func (pou *PaymentOrderUpdate) ClearToken() *PaymentOrderUpdate {
 // ClearReceiveAddress clears the "receive_address" edge to the ReceiveAddress entity.
 func (pou *PaymentOrderUpdate) ClearReceiveAddress() *PaymentOrderUpdate {
 	pou.mutation.ClearReceiveAddress()
-	return pou
-}
-
-// ClearSuiReceiveAddress clears the "sui_receive_address" edge to the SuiReceiveAddress entity.
-func (pou *PaymentOrderUpdate) ClearSuiReceiveAddress() *PaymentOrderUpdate {
-	pou.mutation.ClearSuiReceiveAddress()
-	return pou
-}
-
-// ClearRouteAOrder clears the "route_a_order" edge to the RouteAOrder entity.
-func (pou *PaymentOrderUpdate) ClearRouteAOrder() *PaymentOrderUpdate {
-	pou.mutation.ClearRouteAOrder()
 	return pou
 }
 
@@ -865,64 +813,6 @@ func (pou *PaymentOrderUpdate) sqlSave(ctx context.Context) (n int, err error) {
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(receiveaddress.FieldID, field.TypeInt),
-			},
-		}
-		for _, k := range nodes {
-			edge.Target.Nodes = append(edge.Target.Nodes, k)
-		}
-		_spec.Edges.Add = append(_spec.Edges.Add, edge)
-	}
-	if pou.mutation.SuiReceiveAddressCleared() {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.O2O,
-			Inverse: false,
-			Table:   paymentorder.SuiReceiveAddressTable,
-			Columns: []string{paymentorder.SuiReceiveAddressColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(suireceiveaddress.FieldID, field.TypeInt),
-			},
-		}
-		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
-	}
-	if nodes := pou.mutation.SuiReceiveAddressIDs(); len(nodes) > 0 {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.O2O,
-			Inverse: false,
-			Table:   paymentorder.SuiReceiveAddressTable,
-			Columns: []string{paymentorder.SuiReceiveAddressColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(suireceiveaddress.FieldID, field.TypeInt),
-			},
-		}
-		for _, k := range nodes {
-			edge.Target.Nodes = append(edge.Target.Nodes, k)
-		}
-		_spec.Edges.Add = append(_spec.Edges.Add, edge)
-	}
-	if pou.mutation.RouteAOrderCleared() {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.O2O,
-			Inverse: false,
-			Table:   paymentorder.RouteAOrderTable,
-			Columns: []string{paymentorder.RouteAOrderColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(routeaorder.FieldID, field.TypeInt),
-			},
-		}
-		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
-	}
-	if nodes := pou.mutation.RouteAOrderIDs(); len(nodes) > 0 {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.O2O,
-			Inverse: false,
-			Table:   paymentorder.RouteAOrderTable,
-			Columns: []string{paymentorder.RouteAOrderColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(routeaorder.FieldID, field.TypeInt),
 			},
 		}
 		for _, k := range nodes {
@@ -1437,44 +1327,6 @@ func (pouo *PaymentOrderUpdateOne) SetReceiveAddress(r *ReceiveAddress) *Payment
 	return pouo.SetReceiveAddressID(r.ID)
 }
 
-// SetSuiReceiveAddressID sets the "sui_receive_address" edge to the SuiReceiveAddress entity by ID.
-func (pouo *PaymentOrderUpdateOne) SetSuiReceiveAddressID(id int) *PaymentOrderUpdateOne {
-	pouo.mutation.SetSuiReceiveAddressID(id)
-	return pouo
-}
-
-// SetNillableSuiReceiveAddressID sets the "sui_receive_address" edge to the SuiReceiveAddress entity by ID if the given value is not nil.
-func (pouo *PaymentOrderUpdateOne) SetNillableSuiReceiveAddressID(id *int) *PaymentOrderUpdateOne {
-	if id != nil {
-		pouo = pouo.SetSuiReceiveAddressID(*id)
-	}
-	return pouo
-}
-
-// SetSuiReceiveAddress sets the "sui_receive_address" edge to the SuiReceiveAddress entity.
-func (pouo *PaymentOrderUpdateOne) SetSuiReceiveAddress(s *SuiReceiveAddress) *PaymentOrderUpdateOne {
-	return pouo.SetSuiReceiveAddressID(s.ID)
-}
-
-// SetRouteAOrderID sets the "route_a_order" edge to the RouteAOrder entity by ID.
-func (pouo *PaymentOrderUpdateOne) SetRouteAOrderID(id int) *PaymentOrderUpdateOne {
-	pouo.mutation.SetRouteAOrderID(id)
-	return pouo
-}
-
-// SetNillableRouteAOrderID sets the "route_a_order" edge to the RouteAOrder entity by ID if the given value is not nil.
-func (pouo *PaymentOrderUpdateOne) SetNillableRouteAOrderID(id *int) *PaymentOrderUpdateOne {
-	if id != nil {
-		pouo = pouo.SetRouteAOrderID(*id)
-	}
-	return pouo
-}
-
-// SetRouteAOrder sets the "route_a_order" edge to the RouteAOrder entity.
-func (pouo *PaymentOrderUpdateOne) SetRouteAOrder(r *RouteAOrder) *PaymentOrderUpdateOne {
-	return pouo.SetRouteAOrderID(r.ID)
-}
-
 // SetRecipientID sets the "recipient" edge to the PaymentOrderRecipient entity by ID.
 func (pouo *PaymentOrderUpdateOne) SetRecipientID(id int) *PaymentOrderUpdateOne {
 	pouo.mutation.SetRecipientID(id)
@@ -1529,18 +1381,6 @@ func (pouo *PaymentOrderUpdateOne) ClearToken() *PaymentOrderUpdateOne {
 // ClearReceiveAddress clears the "receive_address" edge to the ReceiveAddress entity.
 func (pouo *PaymentOrderUpdateOne) ClearReceiveAddress() *PaymentOrderUpdateOne {
 	pouo.mutation.ClearReceiveAddress()
-	return pouo
-}
-
-// ClearSuiReceiveAddress clears the "sui_receive_address" edge to the SuiReceiveAddress entity.
-func (pouo *PaymentOrderUpdateOne) ClearSuiReceiveAddress() *PaymentOrderUpdateOne {
-	pouo.mutation.ClearSuiReceiveAddress()
-	return pouo
-}
-
-// ClearRouteAOrder clears the "route_a_order" edge to the RouteAOrder entity.
-func (pouo *PaymentOrderUpdateOne) ClearRouteAOrder() *PaymentOrderUpdateOne {
-	pouo.mutation.ClearRouteAOrder()
 	return pouo
 }
 
@@ -1882,64 +1722,6 @@ func (pouo *PaymentOrderUpdateOne) sqlSave(ctx context.Context) (_node *PaymentO
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(receiveaddress.FieldID, field.TypeInt),
-			},
-		}
-		for _, k := range nodes {
-			edge.Target.Nodes = append(edge.Target.Nodes, k)
-		}
-		_spec.Edges.Add = append(_spec.Edges.Add, edge)
-	}
-	if pouo.mutation.SuiReceiveAddressCleared() {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.O2O,
-			Inverse: false,
-			Table:   paymentorder.SuiReceiveAddressTable,
-			Columns: []string{paymentorder.SuiReceiveAddressColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(suireceiveaddress.FieldID, field.TypeInt),
-			},
-		}
-		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
-	}
-	if nodes := pouo.mutation.SuiReceiveAddressIDs(); len(nodes) > 0 {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.O2O,
-			Inverse: false,
-			Table:   paymentorder.SuiReceiveAddressTable,
-			Columns: []string{paymentorder.SuiReceiveAddressColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(suireceiveaddress.FieldID, field.TypeInt),
-			},
-		}
-		for _, k := range nodes {
-			edge.Target.Nodes = append(edge.Target.Nodes, k)
-		}
-		_spec.Edges.Add = append(_spec.Edges.Add, edge)
-	}
-	if pouo.mutation.RouteAOrderCleared() {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.O2O,
-			Inverse: false,
-			Table:   paymentorder.RouteAOrderTable,
-			Columns: []string{paymentorder.RouteAOrderColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(routeaorder.FieldID, field.TypeInt),
-			},
-		}
-		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
-	}
-	if nodes := pouo.mutation.RouteAOrderIDs(); len(nodes) > 0 {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.O2O,
-			Inverse: false,
-			Table:   paymentorder.RouteAOrderTable,
-			Columns: []string{paymentorder.RouteAOrderColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(routeaorder.FieldID, field.TypeInt),
 			},
 		}
 		for _, k := range nodes {

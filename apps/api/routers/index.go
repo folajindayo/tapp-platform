@@ -19,9 +19,13 @@ import (
 	apiv1 "github.com/usezoracle/tapp/api/internal/api/v1"
 	"github.com/usezoracle/tapp/api/internal/card/link"
 	"github.com/usezoracle/tapp/api/internal/card/tap"
+	"github.com/usezoracle/tapp/api/internal/checkout"
 	"github.com/usezoracle/tapp/api/internal/identity/kyc"
 	"github.com/usezoracle/tapp/api/internal/identity/limits"
+	"github.com/usezoracle/tapp/api/internal/orders"
+	"github.com/usezoracle/tapp/api/internal/settlement"
 	"github.com/usezoracle/tapp/api/routers/middleware"
+	"github.com/usezoracle/tapp/api/services/baas"
 	"github.com/usezoracle/tapp/api/storage"
 	u "github.com/usezoracle/tapp/api/utils"
 )
@@ -100,7 +104,7 @@ func RegisterRoutes(route *gin.Engine) {
 	// → settle pipeline in real time.
 	v1.GET("orders/:id/stream", ctrl.StreamOrderStatus)
 	// Customer "I sent it" ack — pre-emits payment.deposited so the
-	// merchant UI advances without waiting for the Sui indexer.
+	// merchant UI advances without waiting for the settlement worker.
 	v1.POST("orders/:id/confirm", ctrl.ConfirmOrderPayment)
 	v1.POST("gas-station/sponsor", middleware.JWTMiddleware, ctrl.SponsorTransaction)
 
@@ -197,8 +201,19 @@ func senderRoutes(route *gin.Engine) {
 	v1.Use(middleware.DynamicAuthMiddleware)
 	v1.Use(middleware.OnlySenderMiddleware)
 
-	v1.POST("orders", senderCtrl.InitiatePaymentOrder)
-	v1.POST("orders/route-a", senderCtrl.InitiateRouteAOrder)
+	orderHandler := &apiv1.OrderHandler{
+		Svc: &orders.Service{
+			Pool:       storage.Pool,
+			Quoter:     apiv1.SharedQuoter(),
+			Settlement: &settlement.Worker{Pool: storage.Pool, Rail: baas.Default()},
+		},
+		User: apiv1.UserFromContext,
+	}
+
+	// The offramp: value in, fiat out. One endpoint where there were two --
+	// the second existed only to choose the Route A bridge, and there is no
+	// bridge to choose.
+	v1.POST("orders", orderHandler.Create)
 	v1.GET("orders/:id", senderCtrl.GetPaymentOrderByID)
 	v1.GET("orders", senderCtrl.GetPaymentOrders)
 	v1.POST("orders/:id/cancel", senderCtrl.CancelOrder)
@@ -209,7 +224,16 @@ func senderRoutes(route *gin.Engine) {
 	me := v1.Group("me/")
 	me.POST("bank-account", senderCtrl.SaveMerchantBankAccount)
 	me.GET("bank-account", senderCtrl.GetMerchantBankAccount)
-	me.POST("tap", senderCtrl.InitiateTapPayment)
+	checkoutHandler := &apiv1.CheckoutHandler{
+		Svc: &checkout.Service{
+			Pool: storage.Pool,
+			Fee:  tap.BasisPointFee(config.OrderConfig().CardFeeBPS),
+		},
+		Merchant:        apiv1.MerchantFromContext,
+		User:            apiv1.UserFromContext,
+		CheckoutBaseURL: config.CheckoutBaseURL(),
+	}
+	me.POST("tap", checkoutHandler.Open)
 	me.GET("payments/stream", senderCtrl.StreamPayments)
 
 	// Currency conversion. Two steps by design: a price is offered, then
@@ -325,14 +349,9 @@ func cardsRoutes(route *gin.Engine) {
 	adminCards.POST(":id/status", cardOpsCtrl.SetStatus)
 	adminCards.POST(":id/resync", cardOpsCtrl.Resync)
 
-	// Admin: Route A operator console. Phase 1 ships read-only event
-	// timeline. Phase 6 will add retry/refund/force-state writers.
-	// See docs/route-a-hardening.md.
-	adminRouteA := route.Group("/v1/admin/route-a/")
-	adminRouteA.Use(cards.AdminTokenMiddleware)
-	adminRouteACtrl := adminCtrl.NewRouteAController()
-	adminRouteA.GET("orders/:id/events", adminRouteACtrl.GetOrderEvents)
-	adminRouteA.POST("orders/:id/force-state", adminRouteACtrl.ForceState)
+	// The Route A admin group is gone with the bridge it inspected: an event
+	// timeline for orders that no longer pass through a bridge, and a
+	// force-state control for a pipeline that no longer has stages.
 
 	// Admin: operator console — transaction timeline, funding dashboard +
 	// gated money-movement, config management, refunds. Shared-secret-gated;
@@ -355,9 +374,11 @@ func cardsRoutes(route *gin.Engine) {
 	adminConsole.POST("agents/:id/verify", adminAgents.Verify)
 	adminConsole.POST("agents/:id/allocate", adminAgents.Allocate)
 
-	txCtrl := adminCtrl.NewTransactionsController()
-	adminConsole.GET("transactions", txCtrl.GetTransactions)
-	adminConsole.GET("transactions/:id", txCtrl.GetTransactionTimeline)
+	// The transaction console and the deposit-address views went with Sui.
+	// Both were reads over Route A orders and Sui receive addresses; a
+	// ledger-backed replacement belongs on ledger_transactions and
+	// base_deposits, and shipping a half-ported version that silently showed
+	// an empty timeline would be worse than showing nothing.
 	integratorsCtrl := adminCtrl.NewIntegratorsController()
 	adminConsole.POST("integrators", integratorsCtrl.CreateIntegrator)
 	adminConsole.GET("integrators", integratorsCtrl.GetIntegrators)
@@ -413,7 +434,4 @@ func cardsRoutes(route *gin.Engine) {
 	adminConsole.GET("webhooks", webhookCtrl.GetWebhookAttempts)
 	adminConsole.POST("webhooks/:id/retry", webhookCtrl.RetryWebhook)
 
-	depAddrCtrl := adminCtrl.NewDepositAddressController()
-	adminConsole.GET("deposit-addresses/:address", depAddrCtrl.GetAddress)
-	adminConsole.POST("deposit-addresses/:address/extend", depAddrCtrl.ExtendAddress)
 }

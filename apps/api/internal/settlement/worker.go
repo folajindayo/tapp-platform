@@ -51,6 +51,24 @@ func (w *Worker) now() time.Time {
 // payout would be money owed that nothing ever delivers; a payout with no
 // reservation would be a delivery of money nobody set aside.
 func (w *Worker) Open(ctx context.Context, req Request) (*Payout, error) {
+	var p *Payout
+	err := movements.InTx(ctx, w.Pool, func(tx pgx.Tx) error {
+		var err error
+		p, err = w.OpenIn(ctx, tx, req)
+		return err
+	})
+	if err != nil {
+		return nil, err
+	}
+	return p, nil
+}
+
+// OpenIn is Open inside a caller's transaction.
+//
+// An order that debits somebody and raises a payout must do both or neither:
+// the first alone is money taken and not sent, the second alone is money sent
+// and not taken, and neither is recoverable by looking at the row afterwards.
+func (w *Worker) OpenIn(ctx context.Context, tx pgx.Tx, req Request) (*Payout, error) {
 	if err := req.Valid(); err != nil {
 		return nil, err
 	}
@@ -62,33 +80,29 @@ func (w *Worker) Open(ctx context.Context, req Request) (*Payout, error) {
 		State: Pending, CreatedAt: w.now(),
 	}
 
-	err := movements.InTx(ctx, w.Pool, func(tx pgx.Tx) error {
-		var reserveTx uuid.UUID
-		var err error
+	var reserveTx uuid.UUID
+	var err error
 
-		switch req.Beneficiary.Kind {
-		case Merchant:
-			reserveTx, err = movements.MerchantSettled(ctx, tx, req.Beneficiary.ID, req.Amount, p.ID)
-		case User:
-			reserveTx, err = movements.Withdraw(ctx, tx, req.Beneficiary.ID, req.Amount,
-				money.Zero(req.Amount.Currency()), p.ID)
-		}
-		if err != nil {
-			return err
-		}
-
-		_, err = tx.Exec(ctx, `
-			INSERT INTO payouts
-				(id, beneficiary_kind, beneficiary_id, currency, amount_minor,
-				 bank_code, account_number, account_name, narration, reserve_tx_id)
-			VALUES ($1, $2, $3, $4::currency, $5, $6, $7, $8, $9, $10)`,
-			p.ID, req.Beneficiary.Kind, req.Beneficiary.ID,
-			string(req.Amount.Currency()), req.Amount.Minor(),
-			req.BankCode, req.AccountNumber, req.AccountName,
-			nullIfEmpty(req.Narration), reserveTx)
-		return err
-	})
+	switch req.Beneficiary.Kind {
+	case Merchant:
+		reserveTx, err = movements.MerchantSettled(ctx, tx, req.Beneficiary.ID, req.Amount, p.ID)
+	case User:
+		reserveTx, err = movements.Withdraw(ctx, tx, req.Beneficiary.ID, req.Amount,
+			money.Zero(req.Amount.Currency()), p.ID)
+	}
 	if err != nil {
+		return nil, err
+	}
+
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO payouts
+			(id, beneficiary_kind, beneficiary_id, currency, amount_minor,
+			 bank_code, account_number, account_name, narration, reserve_tx_id)
+		VALUES ($1, $2, $3, $4::currency, $5, $6, $7, $8, $9, $10)`,
+		p.ID, req.Beneficiary.Kind, req.Beneficiary.ID,
+		string(req.Amount.Currency()), req.Amount.Minor(),
+		req.BankCode, req.AccountNumber, req.AccountName,
+		nullIfEmpty(req.Narration), reserveTx); err != nil {
 		return nil, err
 	}
 	return p, nil

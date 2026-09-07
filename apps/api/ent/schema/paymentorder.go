@@ -74,12 +74,6 @@ func (PaymentOrder) Edges() []ent.Edge {
 		edge.To("receive_address", ReceiveAddress.Type).
 			Unique().
 			Annotations(entsql.OnDelete(entsql.SetNull)),
-		edge.To("sui_receive_address", SuiReceiveAddress.Type).
-			Unique().
-			Annotations(entsql.OnDelete(entsql.SetNull)),
-		edge.To("route_a_order", RouteAOrder.Type).
-			Unique().
-			Annotations(entsql.OnDelete(entsql.Cascade)),
 		edge.To("recipient", PaymentOrderRecipient.Type).
 			Unique().
 			Annotations(entsql.OnDelete(entsql.Cascade)),

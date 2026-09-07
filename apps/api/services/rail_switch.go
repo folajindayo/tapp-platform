@@ -126,3 +126,11 @@ func BuildRail(name string) (baas.Provider, error) {
 		return nil, fmt.Errorf("rail %q is not live-switchable (safehaven is boot-only via BAAS_PROVIDER)", name)
 	}
 }
+
+// PlatformFloatRef is the reference under which the platform's own float
+// account is opened on a fiat rail.
+//
+// It lived in route_a_treasury.go, which went with Route A. The float itself
+// did not go anywhere -- it is the account payouts debit -- so the constant
+// that names it moves here rather than being reinvented at each call site.
+const PlatformFloatRef = "tapp-platform-float"

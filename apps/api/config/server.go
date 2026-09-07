@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/spf13/viper"
 )
@@ -71,4 +72,13 @@ func init() {
 	if err := SetupConfig(); err != nil {
 		panic(fmt.Sprintf("config SetupConfig() error: %s", err))
 	}
+}
+
+// CheckoutBaseURL is where a payer opens a payment request.
+//
+// The merchant app broadcasts it over NFC or shows it as a QR. Configured
+// rather than returned by an API, because the server does not know which
+// cardholder app a given merchant's customers use.
+func CheckoutBaseURL() string {
+	return strings.TrimRight(viper.GetString("CHECKOUT_BASE_URL"), "/")
 }

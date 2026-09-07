@@ -25,12 +25,9 @@ import (
 	"github.com/usezoracle/tapp/api/ent/provisionbucket"
 	"github.com/usezoracle/tapp/api/ent/receiveaddress"
 	"github.com/usezoracle/tapp/api/ent/refreshtoken"
-	"github.com/usezoracle/tapp/api/ent/routeaevent"
-	"github.com/usezoracle/tapp/api/ent/routeaorder"
 	"github.com/usezoracle/tapp/api/ent/schema"
 	"github.com/usezoracle/tapp/api/ent/senderordertoken"
 	"github.com/usezoracle/tapp/api/ent/senderprofile"
-	"github.com/usezoracle/tapp/api/ent/suireceiveaddress"
 	"github.com/usezoracle/tapp/api/ent/tappcard"
 	"github.com/usezoracle/tapp/api/ent/token"
 	"github.com/usezoracle/tapp/api/ent/transactionlog"
@@ -479,31 +476,6 @@ func init() {
 	refreshtokenDescID := refreshtokenFields[0].Descriptor()
 	// refreshtoken.DefaultID holds the default value on creation for the id field.
 	refreshtoken.DefaultID = refreshtokenDescID.Default.(func() uuid.UUID)
-	routeaeventFields := schema.RouteAEvent{}.Fields()
-	_ = routeaeventFields
-	// routeaeventDescCreatedAt is the schema descriptor for created_at field.
-	routeaeventDescCreatedAt := routeaeventFields[8].Descriptor()
-	// routeaevent.DefaultCreatedAt holds the default value on creation for the created_at field.
-	routeaevent.DefaultCreatedAt = routeaeventDescCreatedAt.Default.(func() time.Time)
-	routeaorderMixin := schema.RouteAOrder{}.Mixin()
-	routeaorderMixinFields0 := routeaorderMixin[0].Fields()
-	_ = routeaorderMixinFields0
-	routeaorderFields := schema.RouteAOrder{}.Fields()
-	_ = routeaorderFields
-	// routeaorderDescCreatedAt is the schema descriptor for created_at field.
-	routeaorderDescCreatedAt := routeaorderMixinFields0[0].Descriptor()
-	// routeaorder.DefaultCreatedAt holds the default value on creation for the created_at field.
-	routeaorder.DefaultCreatedAt = routeaorderDescCreatedAt.Default.(func() time.Time)
-	// routeaorderDescUpdatedAt is the schema descriptor for updated_at field.
-	routeaorderDescUpdatedAt := routeaorderMixinFields0[1].Descriptor()
-	// routeaorder.DefaultUpdatedAt holds the default value on creation for the updated_at field.
-	routeaorder.DefaultUpdatedAt = routeaorderDescUpdatedAt.Default.(func() time.Time)
-	// routeaorder.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
-	routeaorder.UpdateDefaultUpdatedAt = routeaorderDescUpdatedAt.UpdateDefault.(func() time.Time)
-	// routeaorderDescBridgeProvider is the schema descriptor for bridge_provider field.
-	routeaorderDescBridgeProvider := routeaorderFields[3].Descriptor()
-	// routeaorder.DefaultBridgeProvider holds the default value on creation for the bridge_provider field.
-	routeaorder.DefaultBridgeProvider = routeaorderDescBridgeProvider.Default.(string)
 	senderordertokenMixin := schema.SenderOrderToken{}.Mixin()
 	senderordertokenMixinFields0 := senderordertokenMixin[0].Fields()
 	_ = senderordertokenMixinFields0
@@ -551,21 +523,6 @@ func init() {
 	senderprofileDescID := senderprofileFields[0].Descriptor()
 	// senderprofile.DefaultID holds the default value on creation for the id field.
 	senderprofile.DefaultID = senderprofileDescID.Default.(func() uuid.UUID)
-	suireceiveaddressMixin := schema.SuiReceiveAddress{}.Mixin()
-	suireceiveaddressMixinFields0 := suireceiveaddressMixin[0].Fields()
-	_ = suireceiveaddressMixinFields0
-	suireceiveaddressFields := schema.SuiReceiveAddress{}.Fields()
-	_ = suireceiveaddressFields
-	// suireceiveaddressDescCreatedAt is the schema descriptor for created_at field.
-	suireceiveaddressDescCreatedAt := suireceiveaddressMixinFields0[0].Descriptor()
-	// suireceiveaddress.DefaultCreatedAt holds the default value on creation for the created_at field.
-	suireceiveaddress.DefaultCreatedAt = suireceiveaddressDescCreatedAt.Default.(func() time.Time)
-	// suireceiveaddressDescUpdatedAt is the schema descriptor for updated_at field.
-	suireceiveaddressDescUpdatedAt := suireceiveaddressMixinFields0[1].Descriptor()
-	// suireceiveaddress.DefaultUpdatedAt holds the default value on creation for the updated_at field.
-	suireceiveaddress.DefaultUpdatedAt = suireceiveaddressDescUpdatedAt.Default.(func() time.Time)
-	// suireceiveaddress.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
-	suireceiveaddress.UpdateDefaultUpdatedAt = suireceiveaddressDescUpdatedAt.UpdateDefault.(func() time.Time)
 	tappcardMixin := schema.TappCard{}.Mixin()
 	tappcardMixinFields0 := tappcardMixin[0].Fields()
 	_ = tappcardMixinFields0

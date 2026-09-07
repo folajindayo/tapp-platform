@@ -249,30 +249,6 @@ func (f RefreshTokenFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.RefreshTokenMutation", m)
 }
 
-// The RouteAEventFunc type is an adapter to allow the use of ordinary
-// function as RouteAEvent mutator.
-type RouteAEventFunc func(context.Context, *ent.RouteAEventMutation) (ent.Value, error)
-
-// Mutate calls f(ctx, m).
-func (f RouteAEventFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
-	if mv, ok := m.(*ent.RouteAEventMutation); ok {
-		return f(ctx, mv)
-	}
-	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.RouteAEventMutation", m)
-}
-
-// The RouteAOrderFunc type is an adapter to allow the use of ordinary
-// function as RouteAOrder mutator.
-type RouteAOrderFunc func(context.Context, *ent.RouteAOrderMutation) (ent.Value, error)
-
-// Mutate calls f(ctx, m).
-func (f RouteAOrderFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
-	if mv, ok := m.(*ent.RouteAOrderMutation); ok {
-		return f(ctx, mv)
-	}
-	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.RouteAOrderMutation", m)
-}
-
 // The SenderOrderTokenFunc type is an adapter to allow the use of ordinary
 // function as SenderOrderToken mutator.
 type SenderOrderTokenFunc func(context.Context, *ent.SenderOrderTokenMutation) (ent.Value, error)
@@ -295,18 +271,6 @@ func (f SenderProfileFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Valu
 		return f(ctx, mv)
 	}
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.SenderProfileMutation", m)
-}
-
-// The SuiReceiveAddressFunc type is an adapter to allow the use of ordinary
-// function as SuiReceiveAddress mutator.
-type SuiReceiveAddressFunc func(context.Context, *ent.SuiReceiveAddressMutation) (ent.Value, error)
-
-// Mutate calls f(ctx, m).
-func (f SuiReceiveAddressFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
-	if mv, ok := m.(*ent.SuiReceiveAddressMutation); ok {
-		return f(ctx, mv)
-	}
-	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.SuiReceiveAddressMutation", m)
 }
 
 // The TappCardFunc type is an adapter to allow the use of ordinary

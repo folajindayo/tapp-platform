@@ -52,16 +52,10 @@ type Tx struct {
 	ReceiveAddress *ReceiveAddressClient
 	// RefreshToken is the client for interacting with the RefreshToken builders.
 	RefreshToken *RefreshTokenClient
-	// RouteAEvent is the client for interacting with the RouteAEvent builders.
-	RouteAEvent *RouteAEventClient
-	// RouteAOrder is the client for interacting with the RouteAOrder builders.
-	RouteAOrder *RouteAOrderClient
 	// SenderOrderToken is the client for interacting with the SenderOrderToken builders.
 	SenderOrderToken *SenderOrderTokenClient
 	// SenderProfile is the client for interacting with the SenderProfile builders.
 	SenderProfile *SenderProfileClient
-	// SuiReceiveAddress is the client for interacting with the SuiReceiveAddress builders.
-	SuiReceiveAddress *SuiReceiveAddressClient
 	// TappCard is the client for interacting with the TappCard builders.
 	TappCard *TappCardClient
 	// Token is the client for interacting with the Token builders.
@@ -225,11 +219,8 @@ func (tx *Tx) init() {
 	tx.ProvisionBucket = NewProvisionBucketClient(tx.config)
 	tx.ReceiveAddress = NewReceiveAddressClient(tx.config)
 	tx.RefreshToken = NewRefreshTokenClient(tx.config)
-	tx.RouteAEvent = NewRouteAEventClient(tx.config)
-	tx.RouteAOrder = NewRouteAOrderClient(tx.config)
 	tx.SenderOrderToken = NewSenderOrderTokenClient(tx.config)
 	tx.SenderProfile = NewSenderProfileClient(tx.config)
-	tx.SuiReceiveAddress = NewSuiReceiveAddressClient(tx.config)
 	tx.TappCard = NewTappCardClient(tx.config)
 	tx.Token = NewTokenClient(tx.config)
 	tx.TransactionLog = NewTransactionLogClient(tx.config)

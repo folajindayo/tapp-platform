@@ -14,9 +14,7 @@ import (
 	"github.com/usezoracle/tapp/api/ent/paymentorder"
 	"github.com/usezoracle/tapp/api/ent/paymentorderrecipient"
 	"github.com/usezoracle/tapp/api/ent/receiveaddress"
-	"github.com/usezoracle/tapp/api/ent/routeaorder"
 	"github.com/usezoracle/tapp/api/ent/senderprofile"
-	"github.com/usezoracle/tapp/api/ent/suireceiveaddress"
 	"github.com/usezoracle/tapp/api/ent/token"
 )
 
@@ -82,17 +80,13 @@ type PaymentOrderEdges struct {
 	Token *Token `json:"token,omitempty"`
 	// ReceiveAddress holds the value of the receive_address edge.
 	ReceiveAddress *ReceiveAddress `json:"receive_address,omitempty"`
-	// SuiReceiveAddress holds the value of the sui_receive_address edge.
-	SuiReceiveAddress *SuiReceiveAddress `json:"sui_receive_address,omitempty"`
-	// RouteAOrder holds the value of the route_a_order edge.
-	RouteAOrder *RouteAOrder `json:"route_a_order,omitempty"`
 	// Recipient holds the value of the recipient edge.
 	Recipient *PaymentOrderRecipient `json:"recipient,omitempty"`
 	// Transactions holds the value of the transactions edge.
 	Transactions []*TransactionLog `json:"transactions,omitempty"`
 	// loadedTypes holds the information for reporting if a
 	// type was loaded (or requested) in eager-loading or not.
-	loadedTypes [7]bool
+	loadedTypes [5]bool
 }
 
 // SenderProfileOrErr returns the SenderProfile value or an error if the edge
@@ -128,34 +122,12 @@ func (e PaymentOrderEdges) ReceiveAddressOrErr() (*ReceiveAddress, error) {
 	return nil, &NotLoadedError{edge: "receive_address"}
 }
 
-// SuiReceiveAddressOrErr returns the SuiReceiveAddress value or an error if the edge
-// was not loaded in eager-loading, or loaded but was not found.
-func (e PaymentOrderEdges) SuiReceiveAddressOrErr() (*SuiReceiveAddress, error) {
-	if e.SuiReceiveAddress != nil {
-		return e.SuiReceiveAddress, nil
-	} else if e.loadedTypes[3] {
-		return nil, &NotFoundError{label: suireceiveaddress.Label}
-	}
-	return nil, &NotLoadedError{edge: "sui_receive_address"}
-}
-
-// RouteAOrderOrErr returns the RouteAOrder value or an error if the edge
-// was not loaded in eager-loading, or loaded but was not found.
-func (e PaymentOrderEdges) RouteAOrderOrErr() (*RouteAOrder, error) {
-	if e.RouteAOrder != nil {
-		return e.RouteAOrder, nil
-	} else if e.loadedTypes[4] {
-		return nil, &NotFoundError{label: routeaorder.Label}
-	}
-	return nil, &NotLoadedError{edge: "route_a_order"}
-}
-
 // RecipientOrErr returns the Recipient value or an error if the edge
 // was not loaded in eager-loading, or loaded but was not found.
 func (e PaymentOrderEdges) RecipientOrErr() (*PaymentOrderRecipient, error) {
 	if e.Recipient != nil {
 		return e.Recipient, nil
-	} else if e.loadedTypes[5] {
+	} else if e.loadedTypes[3] {
 		return nil, &NotFoundError{label: paymentorderrecipient.Label}
 	}
 	return nil, &NotLoadedError{edge: "recipient"}
@@ -164,7 +136,7 @@ func (e PaymentOrderEdges) RecipientOrErr() (*PaymentOrderRecipient, error) {
 // TransactionsOrErr returns the Transactions value or an error if the edge
 // was not loaded in eager-loading.
 func (e PaymentOrderEdges) TransactionsOrErr() ([]*TransactionLog, error) {
-	if e.loadedTypes[6] {
+	if e.loadedTypes[4] {
 		return e.Transactions, nil
 	}
 	return nil, &NotLoadedError{edge: "transactions"}
@@ -379,16 +351,6 @@ func (po *PaymentOrder) QueryToken() *TokenQuery {
 // QueryReceiveAddress queries the "receive_address" edge of the PaymentOrder entity.
 func (po *PaymentOrder) QueryReceiveAddress() *ReceiveAddressQuery {
 	return NewPaymentOrderClient(po.config).QueryReceiveAddress(po)
-}
-
-// QuerySuiReceiveAddress queries the "sui_receive_address" edge of the PaymentOrder entity.
-func (po *PaymentOrder) QuerySuiReceiveAddress() *SuiReceiveAddressQuery {
-	return NewPaymentOrderClient(po.config).QuerySuiReceiveAddress(po)
-}
-
-// QueryRouteAOrder queries the "route_a_order" edge of the PaymentOrder entity.
-func (po *PaymentOrder) QueryRouteAOrder() *RouteAOrderQuery {
-	return NewPaymentOrderClient(po.config).QueryRouteAOrder(po)
 }
 
 // QueryRecipient queries the "recipient" edge of the PaymentOrder entity.

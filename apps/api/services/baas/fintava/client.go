@@ -243,7 +243,7 @@ func (t TransferResult) AnyReference() string {
 // from the dispatcher) — Fintava echoes it on webhooks.
 func (c *Client) MerchantTransfer(ctx context.Context, customerReference string, amount decimal.Decimal, accountNumber, accountName, sortCode, narration string) (*TransferResult, error) {
 	body := map[string]any{
-		"amount":            amount,                    // naira (documented float, e.g. 1000.00)
+		"amount":            amount, // naira (documented float, e.g. 1000.00)
 		"accountNumber":     accountNumber,
 		"accountName":       accountName,
 		"sortCode":          sortCode,

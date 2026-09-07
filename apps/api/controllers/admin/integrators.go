@@ -10,9 +10,9 @@ import (
 	"github.com/usezoracle/tapp/api/ent"
 	"github.com/usezoracle/tapp/api/ent/providerprofile"
 	"github.com/usezoracle/tapp/api/ent/senderprofile"
+	"github.com/usezoracle/tapp/api/ent/user"
 	"github.com/usezoracle/tapp/api/services"
 	"github.com/usezoracle/tapp/api/storage"
-	"github.com/usezoracle/tapp/api/ent/user"
 	u "github.com/usezoracle/tapp/api/utils"
 	"github.com/usezoracle/tapp/api/utils/logger"
 )
@@ -154,13 +154,13 @@ func (c *IntegratorsController) CreateIntegrator(ctx *gin.Context) {
 	})
 	u.APIResponse(ctx, http.StatusCreated, "success", "integrator created", gin.H{
 		"integrator": senderIntegratorView(&ent.SenderProfile{
-			ID:             profile.ID,
-			WebhookURL:     profile.WebhookURL,
+			ID:              profile.ID,
+			WebhookURL:      profile.WebhookURL,
 			DomainWhitelist: profile.DomainWhitelist,
-			IsActive:       profile.IsActive,
-			UpdatedAt:      profile.UpdatedAt,
+			IsActive:        profile.IsActive,
+			UpdatedAt:       profile.UpdatedAt,
 			Edges: ent.SenderProfileEdges{
-				User: userRow,
+				User:   userRow,
 				APIKey: key,
 			},
 		}),
