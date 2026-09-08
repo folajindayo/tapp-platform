@@ -183,5 +183,3 @@ func (ctrl *Controller) VerifyAccount(ctx *gin.Context) {
 
 	u.APIResponse(ctx, http.StatusOK, "success", "Account name was fetched successfully", data["data"].(string))
 }
-
-// GetLockPaymentOrderStatus controller fetches a payment order status by ID

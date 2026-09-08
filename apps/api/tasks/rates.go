@@ -20,6 +20,7 @@ import (
 	"github.com/usezoracle/tapp/api/utils/logger"
 )
 
+// supportedRateCurrencies is the set of fiats we compute a live market rate for.
 var supportedRateCurrencies = map[string]bool{
 	"KES": true, "NGN": true, "GHS": true, "TZS": true, "UGX": true, "XOF": true,
 }
@@ -216,5 +217,3 @@ func ComputeMarketRate() error {
 
 	return nil
 }
-
-// Retry failed webhook notifications

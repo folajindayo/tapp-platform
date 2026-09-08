@@ -195,5 +195,3 @@ func ReassignUnfulfilledLockOrders() {
 		}
 	}
 }
-
-// ReassignUnvalidatedLockOrders reassigns or refunds unvalidated lock orders to providers

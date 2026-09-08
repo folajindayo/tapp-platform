@@ -17,6 +17,8 @@ import (
 	"github.com/usezoracle/tapp/api/types"
 )
 
+// RetryFailedWebhookNotifications retries webhook notifications that could
+// not be delivered, backing off between attempts.
 func RetryFailedWebhookNotifications() error {
 	ctx := context.Background()
 
@@ -106,5 +108,3 @@ func RetryFailedWebhookNotifications() error {
 
 	return nil
 }
-
-// StartCronJobs starts cron jobs

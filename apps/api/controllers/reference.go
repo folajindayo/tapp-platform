@@ -21,6 +21,7 @@ import (
 	"github.com/usezoracle/tapp/api/utils/logger"
 )
 
+// GetFiatCurrencies controller fetches the supported fiat currencies
 func (ctrl *Controller) GetFiatCurrencies(ctx *gin.Context) {
 	// fetch stored fiat currencies.
 	fiatcurrencies, err := storage.Client.FiatCurrency.

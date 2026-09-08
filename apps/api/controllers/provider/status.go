@@ -28,6 +28,7 @@ import (
 	"github.com/usezoracle/tapp/api/utils/logger"
 )
 
+// GetMarketRate controller fetches the median rate of the cryptocurrency token against the fiat currency
 func (ctrl *ProviderController) GetMarketRate(ctx *gin.Context) {
 	// Parse path parameters
 	tokenExists, err := storage.Client.Token.
@@ -292,5 +293,3 @@ func (ctrl *ProviderController) NodeInfo(ctx *gin.Context) {
 
 	u.APIResponse(ctx, http.StatusOK, "success", "Node info fetched successfully", data)
 }
-
-// GetLockPaymentOrderByID controller fetches a payment order by ID

@@ -16,6 +16,7 @@ import (
 	"github.com/usezoracle/tapp/api/utils/logger"
 )
 
+// GetLockPaymentOrderByID controller fetches a payment order by ID
 func (ctrl *ProviderController) GetLockPaymentOrderByID(ctx *gin.Context) {
 	// Get order ID from the URL
 	orderID := ctx.Param("id")

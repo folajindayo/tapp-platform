@@ -24,6 +24,7 @@ import (
 	"github.com/usezoracle/tapp/api/utils/logger"
 )
 
+// ReassignUnvalidatedLockOrders reassigns or refunds unvalidated lock orders to providers
 func ReassignUnvalidatedLockOrders() {
 	ctx := context.Background()
 
@@ -267,5 +268,3 @@ func ReassignStaleOrderRequest(ctx context.Context, orderRequestChan <-chan *red
 		}
 	}
 }
-
-// SubscribeToRedisKeyspaceEvents subscribes to redis keyspace events according to redis.conf settings

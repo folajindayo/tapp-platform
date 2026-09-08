@@ -1,5 +1,9 @@
 // Reading a payment order: its status, and the live stream of its progress.
 //
+// Both are public and scoped to the one order named in the path: the customer
+// paying a checkout has to watch it advance through bridge → settle without
+// signing in, and must not see the sender's other orders.
+//
 //	GET /v1/orders/:id
 //	GET /v1/orders/:id/stream   (SSE)
 
@@ -23,6 +27,7 @@ import (
 	"github.com/usezoracle/tapp/api/utils/logger"
 )
 
+// GetLockPaymentOrderStatus controller fetches a payment order status by ID
 func (ctrl *Controller) GetLockPaymentOrderStatus(ctx *gin.Context) {
 	// Get order ID from the URL
 	orderID := ctx.Param("id")
@@ -292,5 +297,3 @@ func (ctrl *Controller) GetLockPaymentOrderStatus(ctx *gin.Context) {
 
 	u.APIResponse(ctx, http.StatusOK, "success", "Order status fetched successfully", response)
 }
-
-// RequestIDVerification controller requests identity verification details

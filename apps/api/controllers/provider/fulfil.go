@@ -21,6 +21,7 @@ import (
 	"github.com/usezoracle/tapp/api/utils/logger"
 )
 
+// DeclineOrder controller declines an order
 func (ctrl *ProviderController) DeclineOrder(ctx *gin.Context) {
 	// Get provider profile from the context
 	providerCtx, ok := ctx.Get("provider")
@@ -251,5 +252,3 @@ func (ctrl *ProviderController) FulfillOrder(ctx *gin.Context) {
 
 	u.APIResponse(ctx, http.StatusOK, "success", "Order fulfilled successfully", nil)
 }
-
-// CancelOrder controller cancels an order

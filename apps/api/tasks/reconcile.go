@@ -14,6 +14,10 @@ import (
 	"github.com/usezoracle/tapp/api/utils/logger"
 )
 
+// ReconcileFiatPayouts polls the BaaS rail for the outcome of in-flight Route B
+// payouts (fiat_payout_status=pending with a session id) and converges each lock
+// order to a terminal status. It is the backstop to the inbound webhook: if a
+// callback is missed, this closes the loop. No-op when the rail is unconfigured.
 func ReconcileFiatPayouts() error {
 	provider := baas.Default()
 	if provider == nil {

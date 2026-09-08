@@ -20,6 +20,7 @@ import (
 	"github.com/usezoracle/tapp/api/utils/logger"
 )
 
+// CancelOrder controller cancels an order
 func (ctrl *ProviderController) CancelOrder(ctx *gin.Context) {
 	var payload types.CancelLockOrderPayload
 
@@ -157,5 +158,3 @@ func (ctrl *ProviderController) CancelOrder(ctx *gin.Context) {
 
 	u.APIResponse(ctx, http.StatusOK, "success", "Order cancelled successfully", nil)
 }
-
-// GetMarketRate controller fetches the median rate of the cryptocurrency token against the fiat currency

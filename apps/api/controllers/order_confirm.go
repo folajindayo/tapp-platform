@@ -1,5 +1,8 @@
 // Confirming a payment order.
 //
+// Public and scoped to the one order named in the path, like the reads in
+// order_status.go — the customer acking their own payment, not signed in.
+//
 //	POST /v1/orders/:id/confirm
 
 package controllers

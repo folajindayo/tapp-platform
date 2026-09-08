@@ -235,5 +235,3 @@ func (ctrl *ProviderController) AcceptOrder(ctx *gin.Context) {
 		Memo:              order.Memo,
 	})
 }
-
-// DeclineOrder controller declines an order

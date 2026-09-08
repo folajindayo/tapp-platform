@@ -87,11 +87,3 @@ func (ctrl *Controller) TapCardStepUpPoll(ctx *gin.Context) {
 	u.APIResponse(ctx, http.StatusOK, "success", "Pending",
 		map[string]any{"status": "pending"})
 }
-
-// -----------------------------------------------------------------------------
-// Internals
-// -----------------------------------------------------------------------------
-
-// consumeServerNonce atomically marks the nonce consumed if it exists,
-// belongs to this sender, isn't already consumed, and isn't expired.
-// Returns the row so the caller can read its tier + amount.
