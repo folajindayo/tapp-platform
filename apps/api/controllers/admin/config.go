@@ -331,7 +331,6 @@ func (c *ConfigController) GetRails(ctx *gin.Context) {
 		"fintava_float_institution": services.FintavaFloatInstitution(),
 		"rails": []gin.H{
 			{"value": "fintava", "configured": services.RailConfigured("fintava"), "switchable": true},
-			{"value": "korapay", "configured": services.RailConfigured("korapay"), "switchable": true},
 			{"value": "safehaven", "configured": services.RailConfigured("safehaven"), "switchable": false, "note": "boot-only (BAAS_PROVIDER env)"},
 		},
 	})
@@ -360,7 +359,7 @@ func (c *ConfigController) SetRails(ctx *gin.Context) {
 		rail := strings.ToLower(strings.TrimSpace(*req.FloatRail))
 		if rail != "default" && !services.RailConfigured(rail) {
 			u.APIResponse(ctx, http.StatusBadRequest, "error",
-				"float_rail must be a configured rail (korapay|fintava) or 'default'", nil)
+				"float_rail must be a configured rail (fintava) or 'default'", nil)
 			return
 		}
 		if err := services.SetFloatRail(ctx, rail); err != nil {

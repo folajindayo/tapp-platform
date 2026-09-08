@@ -1,7 +1,7 @@
 // Package lp is the liquidity-provider surface for Route B: onboarding
 // (BVN → dedicated virtual deposit account), the platform-side ledger
 // (the rail pools funds, so per-LP balances live HERE), withdrawals,
-// and the Korapay webhook that drives it all.
+// and the rail webhook that drives it all.
 //
 // Money discipline:
 //   - Every balance mutation happens in the same DB transaction as the
@@ -31,9 +31,9 @@ import (
 	"github.com/usezoracle/tapp/api/ent/lpaccount"
 	"github.com/usezoracle/tapp/api/ent/lpledgerentry"
 	userEnt "github.com/usezoracle/tapp/api/ent/user"
+	apiv1 "github.com/usezoracle/tapp/api/internal/api/v1"
 	"github.com/usezoracle/tapp/api/services/baas"
 	"github.com/usezoracle/tapp/api/services/baas/fintava"
-	"github.com/usezoracle/tapp/api/services/baas/korapay"
 	"github.com/usezoracle/tapp/api/storage"
 	u "github.com/usezoracle/tapp/api/utils"
 	"github.com/usezoracle/tapp/api/utils/logger"
@@ -47,35 +47,22 @@ var suiAddressRe = regexp.MustCompile(`^0x[0-9a-fA-F]{64}$`)
 // entries (and ignore unrelated payouts, e.g. Route C merchant ones).
 const withdrawalRefPrefix = "lpwd-"
 
-// Controller serves /v1/lp/* and /v1/korapay/webhook. The Korapay
+// Controller serves /v1/lp/* and /v1/fintava/webhook. The Fintava
 // adapter is constructed directly from config — independent of
-// BAAS_PROVIDER, so LP deposits can run on Korapay while the payout
-// default stays SafeHaven. The raw client is kept alongside the
-// adapter for VBA issuance (the neutral baas.Account doesn't carry
-// bank name/code).
+// BAAS_PROVIDER, so LP deposits can run on Fintava while the payout
+// default stays SafeHaven.
 type Controller struct {
-	kora       *korapay.Adapter // nil when KORAPAY_SECRET_KEY unset
-	koraClient *korapay.Client
-	fintava    *fintava.Adapter // nil when FINTAVA_API_KEY unset
+	fintava *fintava.Adapter // nil when FINTAVA_API_KEY unset
 
 	banksMu    sync.Mutex
 	banksCache []gin.H
 	banksAt    time.Time
 }
 
-// NewController builds the controller from env config. Both rails are
-// constructed when configured — deposits can arrive on either.
+// NewController builds the controller from env config.
 func NewController() *Controller {
 	conf := config.BaaSConfig()
 	c := &Controller{}
-	if conf.KorapaySecretKey != "" {
-		client := korapay.New(
-			conf.KorapaySecretKey, conf.KorapayPublicKey, conf.KorapayBaseURL,
-			conf.KorapayPayoutEmail, conf.KorapayVBABankCode,
-		)
-		c.kora = korapay.NewAdapter(client)
-		c.koraClient = client
-	}
 	if conf.FintavaAPIKey != "" {
 		c.fintava = fintava.NewAdapter(fintava.New(
 			conf.FintavaAPIKey, conf.FintavaWebhookSecret, conf.FintavaBaseURL,
@@ -85,9 +72,9 @@ func NewController() *Controller {
 }
 
 func (c *Controller) railReady(ctx *gin.Context) bool {
-	if c.kora == nil {
+	if c.fintava == nil {
 		u.APIResponse(ctx, http.StatusServiceUnavailable, "error",
-			"LP rail not configured (KORAPAY_SECRET_KEY missing)", nil)
+			"LP rail not configured (FINTAVA_API_KEY missing)", nil)
 		return false
 	}
 	return true
@@ -132,9 +119,24 @@ func accountView(a *ent.LpAccount) gin.H {
 // POST /v1/lp/onboard — BVN verify + issue the deposit virtual account
 // -----------------------------------------------------------------------------
 
+// onboardRequest carries what the rail needs to open a wallet.
+//
+// Fintava opens a full customer wallet rather than a pooled virtual account,
+// and refuses without the extended KYC below. That is a heavier ask than the
+// BVN-only rail it replaces, and it is the rail's requirement rather than
+// ours -- there is no way to open the account with less.
 type onboardRequest struct {
-	Name string `json:"name" binding:"required"`
-	BVN  string `json:"bvn"  binding:"required,len=11,numeric"`
+	FirstName   string `json:"firstName"   binding:"required"`
+	LastName    string `json:"lastName"    binding:"required"`
+	DateOfBirth string `json:"dateOfBirth" binding:"required"` // YYYY-MM-DD
+	Address     string `json:"address"     binding:"required"`
+	NIN         string `json:"nin"         binding:"required"`
+	BVN         string `json:"bvn"         binding:"required,len=11,numeric"`
+}
+
+// fullName is what the account is displayed as on a transfer.
+func (r onboardRequest) fullName() string {
+	return strings.TrimSpace(r.FirstName + " " + r.LastName)
 }
 
 // Onboard verifies the LP's BVN on the rail, issues their permanent
@@ -151,7 +153,8 @@ func (c *Controller) Onboard(ctx *gin.Context) {
 	var req onboardRequest
 	if err := ctx.ShouldBindJSON(&req); err != nil {
 		u.APIResponse(ctx, http.StatusBadRequest, "error",
-			"name and an 11-digit bvn are required", u.GetErrorData(err))
+			"firstName, lastName, dateOfBirth, address, nin and an 11-digit bvn are required",
+			u.GetErrorData(err))
 		return
 	}
 
@@ -163,7 +166,7 @@ func (c *Controller) Onboard(ctx *gin.Context) {
 	}
 
 	// BVN verification (one-shot on this rail), then the account.
-	if _, err := c.kora.InitiateIdentity(ctx, baas.IdentityInit{Type: "bvn", Number: req.BVN}); err != nil {
+	if _, err := c.fintava.InitiateIdentity(ctx, baas.IdentityInit{Type: "bvn", Number: req.BVN}); err != nil {
 		logger.Errorf("lp onboard: bvn verify for %s: %v", usr.Email, err)
 		u.APIResponse(ctx, http.StatusBadGateway, "error",
 			"BVN verification failed", map[string]any{"detail": err.Error()})
@@ -171,7 +174,17 @@ func (c *Controller) Onboard(ctx *gin.Context) {
 	}
 
 	accountRef := "lp-" + usr.ID.String()
-	va, err := c.koraClient.CreateVirtualAccount(ctx, accountRef, req.Name, usr.Email, req.BVN)
+	va, err := c.fintava.CreateSubAccount(ctx, baas.CreateSubAccountRequest{
+		ExternalReference: accountRef,
+		IdentityType:      "BVN",
+		IdentityNumber:    req.BVN,
+		EmailAddress:      usr.Email,
+		FirstName:         req.FirstName,
+		LastName:          req.LastName,
+		DateOfBirth:       req.DateOfBirth,
+		Address:           req.Address,
+		NIN:               req.NIN,
+	})
 	if err != nil {
 		logger.Errorf("lp onboard: create VBA for %s: %v", usr.Email, err)
 		u.APIResponse(ctx, http.StatusBadGateway, "error",
@@ -180,13 +193,13 @@ func (c *Controller) Onboard(ctx *gin.Context) {
 	}
 
 	acct, err := storage.Client.LpAccount.Create().
-		SetName(req.Name).
+		SetName(req.fullName()).
 		SetEmail(usr.Email).
 		SetBvnLast4(req.BVN[len(req.BVN)-4:]).
 		SetAccountReference(accountRef).
 		SetAccountNumber(va.AccountNumber).
 		SetBankName(va.BankName).
-		SetBankCode(va.BankCode).
+		SetBankCode("").
 		SetBalance(decimal.Zero).
 		SetUser(usr).
 		Save(ctx)
@@ -321,7 +334,7 @@ func (c *Controller) Banks(ctx *gin.Context) {
 	}
 	c.banksMu.Unlock()
 
-	banks, err := c.kora.ListBanks(ctx)
+	banks, err := c.fintava.ListBanks(ctx)
 	if err != nil {
 		logger.Errorf("lp banks: %v", err)
 		u.APIResponse(ctx, http.StatusBadGateway, "error", "Could not load banks", nil)
@@ -350,7 +363,7 @@ func (c *Controller) Resolve(ctx *gin.Context) {
 			"bank_code and a 10-digit account_number are required", nil)
 		return
 	}
-	ne, err := c.kora.NameEnquiry(ctx, bank, acct)
+	ne, err := c.fintava.NameEnquiry(ctx, bank, acct)
 	if err != nil {
 		u.APIResponse(ctx, http.StatusBadGateway, "error",
 			"Could not resolve that account", map[string]any{"detail": err.Error()})
@@ -450,7 +463,7 @@ func (c *Controller) Withdraw(ctx *gin.Context) {
 	// Submit the transfer. The adapter is idempotent on payRef, so a
 	// crash here is recovered by retrying the same entry (ops or a
 	// future reconciler) without double-paying.
-	transfer, terr := c.kora.Transfer(ctx, baas.TransferRequest{
+	transfer, terr := c.fintava.Transfer(ctx, baas.TransferRequest{
 		BeneficiaryBankCode: req.BankCode,
 		BeneficiaryAccount:  req.AccountNumber,
 		Amount:              amount,
@@ -512,15 +525,6 @@ func releaseWithdrawal(ctx *gin.Context, entryID, acctID uuid.UUID, amount decim
 // Rail webhooks — deposits in, withdrawal finality
 // -----------------------------------------------------------------------------
 
-// Webhook ingests Korapay events (POST /v1/korapay/webhook).
-func (c *Controller) Webhook(ctx *gin.Context) {
-	var p baas.Provider
-	if c.kora != nil {
-		p = c.kora
-	}
-	c.railWebhook(ctx, p, "x-korapay-signature", "korapay")
-}
-
 // FintavaWebhook ingests Fintava events (POST /v1/fintava/webhook).
 func (c *Controller) FintavaWebhook(ctx *gin.Context) {
 	var p baas.Provider
@@ -581,18 +585,32 @@ func (c *Controller) handleDeposit(ctx *gin.Context, ev *baas.WebhookEvent) {
 		Where(lpaccount.AccountNumberEQ(ev.AccountNumber)).
 		Only(ctx)
 	if err != nil {
-		logger.Warnf("korapay webhook: deposit to unknown VBA %s (ref=%s)", ev.AccountNumber, ev.ProviderRef)
+		// Not an LP's account. The rail opens the same kind of wallet for
+		// ordinary cardholders funding their balance by bank transfer, and
+		// those credits arrive down this same webhook -- so the second place
+		// an account number can belong is asked before giving up. Getting this
+		// wrong is not a missing feature: it is money that left somebody's
+		// bank and that this system never recorded.
+		if credited, err := apiv1.CreditNGNDeposit(
+			ctx.Request.Context(), ev.AccountNumber, ev.Amount, "fintava", ev.ProviderRef,
+		); err != nil {
+			logger.Errorf("ngn deposit: credit %s (ref=%s): %v", ev.AccountNumber, ev.ProviderRef, err)
+			return
+		} else if credited {
+			return
+		}
+		logger.Warnf("lp webhook: deposit to unknown account %s (ref=%s)", ev.AccountNumber, ev.ProviderRef)
 		return
 	}
 	amount, err := decimal.NewFromString(ev.Amount)
 	if err != nil || !amount.IsPositive() {
-		logger.Errorf("korapay webhook: bad deposit amount %q (ref=%s)", ev.Amount, ev.ProviderRef)
+		logger.Errorf("lp webhook: bad deposit amount %q (ref=%s)", ev.Amount, ev.ProviderRef)
 		return
 	}
 
 	tx, err := storage.Client.Tx(ctx)
 	if err != nil {
-		logger.Errorf("korapay webhook: tx: %v", err)
+		logger.Errorf("lp webhook: tx: %v", err)
 		return
 	}
 	if _, err := tx.LpLedgerEntry.Create().
@@ -608,7 +626,7 @@ func (c *Controller) handleDeposit(ctx *gin.Context, ev *baas.WebhookEvent) {
 		if ent.IsConstraintError(err) {
 			return // redelivery — already credited
 		}
-		logger.Errorf("korapay webhook: deposit entry (ref=%s): %v", ev.ProviderRef, err)
+		logger.Errorf("lp webhook: deposit entry (ref=%s): %v", ev.ProviderRef, err)
 		return
 	}
 	if _, err := tx.LpAccount.Update().
@@ -616,11 +634,11 @@ func (c *Controller) handleDeposit(ctx *gin.Context, ev *baas.WebhookEvent) {
 		AddBalance(amount).
 		Save(ctx); err != nil {
 		_ = tx.Rollback()
-		logger.Errorf("korapay webhook: deposit credit (ref=%s): %v", ev.ProviderRef, err)
+		logger.Errorf("lp webhook: deposit credit (ref=%s): %v", ev.ProviderRef, err)
 		return
 	}
 	if err := tx.Commit(); err != nil {
-		logger.Errorf("korapay webhook: deposit commit (ref=%s): %v", ev.ProviderRef, err)
+		logger.Errorf("lp webhook: deposit commit (ref=%s): %v", ev.ProviderRef, err)
 		return
 	}
 	logger.Infof("💰 lp deposit: ₦%s → %s (lp=%s ref=%s)", amount, ev.AccountNumber, acct.ID, ev.ProviderRef)
@@ -632,7 +650,7 @@ func (c *Controller) handleDeposit(ctx *gin.Context, ev *baas.WebhookEvent) {
 func (c *Controller) handleWithdrawalFinality(ctx *gin.Context, ev *baas.WebhookEvent) {
 	entryID, err := uuid.Parse(strings.TrimPrefix(ev.PaymentReference, withdrawalRefPrefix))
 	if err != nil {
-		logger.Warnf("korapay webhook: malformed withdrawal ref %q", ev.PaymentReference)
+		logger.Warnf("lp webhook: malformed withdrawal ref %q", ev.PaymentReference)
 		return
 	}
 	entry, err := storage.Client.LpLedgerEntry.Query().
@@ -640,7 +658,7 @@ func (c *Controller) handleWithdrawalFinality(ctx *gin.Context, ev *baas.Webhook
 		WithLpAccount().
 		Only(ctx)
 	if err != nil {
-		logger.Warnf("korapay webhook: withdrawal ref %s has no entry", ev.PaymentReference)
+		logger.Warnf("lp webhook: withdrawal ref %s has no entry", ev.PaymentReference)
 		return
 	}
 
@@ -651,7 +669,7 @@ func (c *Controller) handleWithdrawalFinality(ctx *gin.Context, ev *baas.Webhook
 			SetStatus(lpledgerentry.StatusConfirmed).
 			SetRawStatus(ev.RawStatus).
 			Save(ctx); err != nil {
-			logger.Errorf("korapay webhook: confirm withdrawal %s: %v", entryID, err)
+			logger.Errorf("lp webhook: confirm withdrawal %s: %v", entryID, err)
 		}
 	case baas.TransferFailed:
 		if entry.Edges.LpAccount != nil {

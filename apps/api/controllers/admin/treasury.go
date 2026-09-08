@@ -10,7 +10,6 @@ import (
 	"github.com/usezoracle/tapp/api/ent/paymentorder"
 	"github.com/usezoracle/tapp/api/services"
 	"github.com/usezoracle/tapp/api/services/baas/fintava"
-	"github.com/usezoracle/tapp/api/services/baas/korapay"
 	"github.com/usezoracle/tapp/api/storage"
 	u "github.com/usezoracle/tapp/api/utils"
 )
@@ -64,20 +63,11 @@ func sumOrders(ctx *gin.Context, status paymentorder.Status) decimal.Decimal {
 }
 
 // -----------------------------------------------------------------------------
-// Platform float account (Route C) — provisioned at Korapay, no env/DB
+// Platform float account (Route C) — the Fintava merchant wallet
 // -----------------------------------------------------------------------------
 
-func treasuryKoraClient() *korapay.Client {
-	bc := config.BaaSConfig()
-	if bc.KorapaySecretKey == "" {
-		return nil
-	}
-	return korapay.New(bc.KorapaySecretKey, bc.KorapayPublicKey, bc.KorapayBaseURL,
-		bc.KorapayPayoutEmail, bc.KorapayVBABankCode)
-}
-
 // GetFloatAccount returns the platform's float virtual account (the
-// Route C reload destination) plus the live Korapay NGN balance.
+// Route C reload destination) plus the live NGN balance.
 //
 //	GET /v1/admin/treasury/float-account
 func (c *TreasuryController) GetFloatAccount(ctx *gin.Context) {
@@ -110,80 +100,10 @@ func (c *TreasuryController) GetFloatAccount(ctx *gin.Context) {
 			"fintava_float_institution": services.FintavaFloatInstitution(),
 		})
 		return
-	default: // korapay
-		kc := treasuryKoraClient()
-		if kc == nil {
-			u.APIResponse(ctx, http.StatusServiceUnavailable, "error", "Korapay not configured", nil)
-			return
-		}
-		out := gin.H{"rail": "korapay", "provisioned": false, "reference": services.PlatformFloatRef}
-		if va, err := kc.GetVirtualAccount(ctx, services.PlatformFloatRef); err == nil {
-			out["provisioned"] = true
-			out["account_number"] = va.AccountNumber
-			out["account_name"] = va.AccountName
-			out["bank_name"] = va.BankName
-			out["bank_code"] = va.BankCode
-			out["status"] = va.AccountStatus
-		}
-		if balances, err := kc.Balances(ctx); err == nil {
-			if ngn, ok := balances["NGN"]; ok {
-				out["float_balance"] = ngn.AvailableBalance.String()
-				out["pending_balance"] = ngn.PendingBalance.String()
-			}
-		}
-		u.APIResponse(ctx, http.StatusOK, "success", "ok", out)
+	default:
+		// Only Fintava remains. A float rail we do not recognise is a
+		// configuration mistake, not a state to render half of.
+		u.APIResponse(ctx, http.StatusServiceUnavailable, "error",
+			"Float rail "+rail+" is not available", nil)
 	}
-}
-
-type provisionFloatReq struct {
-	BVN         string `json:"bvn" binding:"required,len=11,numeric"`
-	AccountName string `json:"account_name" binding:"required"`
-}
-
-// ProvisionFloatAccount creates the platform's float VBA at Korapay —
-// a one-time, audited action (BVN is required by the rail and never
-// stored by us). Idempotent: returns the existing account if it's
-// already provisioned.
-//
-//	POST /v1/admin/treasury/float-account
-func (c *TreasuryController) ProvisionFloatAccount(ctx *gin.Context) {
-	if services.CurrentFloatRail() == "fintava" {
-		u.APIResponse(ctx, http.StatusBadRequest, "error",
-			"The Fintava float needs no provisioning — fund the merchant wallet's account number directly", nil)
-		return
-	}
-	kc := treasuryKoraClient()
-	if kc == nil {
-		u.APIResponse(ctx, http.StatusServiceUnavailable, "error", "Korapay not configured", nil)
-		return
-	}
-	if va, err := kc.GetVirtualAccount(ctx, services.PlatformFloatRef); err == nil {
-		u.APIResponse(ctx, http.StatusOK, "success", "float account already provisioned", gin.H{
-			"account_number": va.AccountNumber, "bank_name": va.BankName, "bank_code": va.BankCode,
-		})
-		return
-	}
-	var req provisionFloatReq
-	if err := ctx.ShouldBindJSON(&req); err != nil {
-		u.APIResponse(ctx, http.StatusBadRequest, "error",
-			"account_name and an 11-digit bvn are required", u.GetErrorData(err))
-		return
-	}
-	email := config.BaaSConfig().KorapayPayoutEmail
-	if email == "" {
-		email = "ops@usetapp.xyz"
-	}
-	va, err := kc.CreateVirtualAccount(ctx, services.PlatformFloatRef, req.AccountName, email, req.BVN)
-	if err != nil {
-		u.APIResponse(ctx, http.StatusBadGateway, "error",
-			"Korapay refused the account", gin.H{"detail": err.Error()})
-		return
-	}
-	writeAudit(ctx, "treasury.float_account.provision", services.PlatformFloatRef, map[string]any{
-		"account_number": va.AccountNumber, "bank": va.BankName,
-	})
-	u.APIResponse(ctx, http.StatusCreated, "success", "float account provisioned", gin.H{
-		"account_number": va.AccountNumber, "account_name": va.AccountName,
-		"bank_name": va.BankName, "bank_code": va.BankCode,
-	})
 }

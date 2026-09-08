@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/hmac"
-	"crypto/sha256"
+	"crypto/sha512"
 	"encoding/hex"
 	"encoding/json"
 	"net/http"
@@ -19,7 +19,7 @@ import (
 	"github.com/usezoracle/tapp/api/ent"
 	"github.com/usezoracle/tapp/api/ent/enttest"
 	"github.com/usezoracle/tapp/api/ent/lpledgerentry"
-	"github.com/usezoracle/tapp/api/services/baas/korapay"
+	"github.com/usezoracle/tapp/api/services/baas/fintava"
 	"github.com/usezoracle/tapp/api/storage"
 )
 
@@ -48,19 +48,22 @@ func setup(t *testing.T) (*Controller, *ent.Client, *ent.LpAccount) {
 		SetUser(usr).
 		SaveX(ctx)
 
-	kc := korapay.New(testSecret, "pk_test_x", "http://invalid.local", "ops@usetapp.xyz", "000")
-	c := &Controller{kora: korapay.NewAdapter(kc), koraClient: kc}
+	c := &Controller{fintava: fintava.NewAdapter(
+		fintava.New("api_test_key", testSecret, "http://invalid.local"))}
 	return c, client, acct
 }
 
-// signedWebhook builds a Korapay-shaped body + valid signature (HMAC
-// over the raw data slice).
+// signedWebhook builds a Fintava-shaped body + valid signature.
+//
+// Fintava signs the WHOLE raw body with HMAC-SHA512, where the rail this
+// replaced signed only the inner data slice with SHA-256. Getting that wrong
+// is indistinguishable from a forged event, so it is worth stating here.
 func signedWebhook(event, data string) (*http.Request, *httptest.ResponseRecorder) {
-	body := []byte(`{"event":"` + event + `","data":` + data + `}`)
-	mac := hmac.New(sha256.New, []byte(testSecret))
-	mac.Write([]byte(data))
-	req := httptest.NewRequest(http.MethodPost, "/v1/korapay/webhook", bytes.NewReader(body))
-	req.Header.Set("x-korapay-signature", hex.EncodeToString(mac.Sum(nil)))
+	body := []byte(`{"type":"` + event + `","data":` + data + `}`)
+	mac := hmac.New(sha512.New, []byte(testSecret))
+	mac.Write(body)
+	req := httptest.NewRequest(http.MethodPost, "/v1/fintava/webhook", bytes.NewReader(body))
+	req.Header.Set("x-fintava-signature", hex.EncodeToString(mac.Sum(nil)))
 	return req, httptest.NewRecorder()
 }
 
@@ -68,18 +71,18 @@ func runWebhook(c *Controller, req *http.Request, w *httptest.ResponseRecorder) 
 	gin.SetMode(gin.TestMode)
 	gctx, _ := gin.CreateTestContext(w)
 	gctx.Request = req
-	c.Webhook(gctx)
+	c.FintavaWebhook(gctx)
 }
 
 // TestDepositCreditIdempotent pins the ledger's core property: a
 // redelivered charge.success credits exactly once.
 func TestDepositCreditIdempotent(t *testing.T) {
 	c, client, acct := setup(t)
-	data := `{"reference":"KPY-DEP-1","status":"success","amount":2500,"currency":"NGN",
-		"virtual_bank_account_details":{"virtual_bank_account":{"account_number":"1110033596","account_reference":"` + acct.AccountReference + `"}}}`
+	data := `{"reference":"FTV-DEP-1","status":"success","amount":2500,"currency":"NGN",
+		"accountNumber":"1110033596","customerReference":"` + acct.AccountReference + `"}`
 
 	for i := 0; i < 3; i++ { // deliver three times
-		req, w := signedWebhook("charge.success", data)
+		req, w := signedWebhook("account_funded", data)
 		runWebhook(c, req, w)
 		if w.Code != 200 {
 			t.Fatalf("delivery %d: status %d", i, w.Code)
@@ -99,9 +102,8 @@ func TestDepositCreditIdempotent(t *testing.T) {
 // TestWebhookRejectsBadSignature: fail closed.
 func TestWebhookRejectsBadSignature(t *testing.T) {
 	c, client, _ := setup(t)
-	req, w := signedWebhook("charge.success", `{"reference":"X","status":"success","amount":100,
-		"virtual_bank_account_details":{"virtual_bank_account":{"account_number":"1110033596"}}}`)
-	req.Header.Set("x-korapay-signature", "deadbeef")
+	req, w := signedWebhook("account_funded", `{"reference":"X","status":"success","amount":100,"accountNumber":"1110033596"}`)
+	req.Header.Set("x-fintava-signature", "deadbeef")
 	runWebhook(c, req, w)
 	if w.Code != http.StatusUnauthorized {
 		t.Fatalf("status = %d, want 401", w.Code)
@@ -130,7 +132,7 @@ func TestWithdrawalFailureRecredits(t *testing.T) {
 	_ = entry
 	client.LpAccount.UpdateOneID(acct.ID).AddBalance(decimal.NewFromInt(-2000)).ExecX(ctx)
 
-	data := `{"reference":"kpy-x","payment_reference":"` + withdrawalRefPrefix + `00000000-0000-0000-0000-00000000aaaa","status":"failed","amount":2000}`
+	data := `{"reference":"ftv-x","customerReference":"` + withdrawalRefPrefix + `00000000-0000-0000-0000-00000000aaaa","status":"failed","amount":2000}`
 	for i := 0; i < 2; i++ {
 		req, w := signedWebhook("transfer.failed", data)
 		runWebhook(c, req, w)
@@ -165,7 +167,7 @@ func TestWithdrawalSuccessConfirms(t *testing.T) {
 		SaveX(ctx)
 	client.LpAccount.UpdateOneID(acct.ID).AddBalance(decimal.NewFromInt(-1000)).ExecX(ctx)
 
-	data := `{"reference":"kpy-y","payment_reference":"` + withdrawalRefPrefix + `00000000-0000-0000-0000-00000000bbbb","status":"success","amount":1000}`
+	data := `{"reference":"ftv-y","customerReference":"` + withdrawalRefPrefix + `00000000-0000-0000-0000-00000000bbbb","status":"success","amount":1000}`
 	req, w := signedWebhook("transfer.success", data)
 	runWebhook(c, req, w)
 	if w.Code != 200 {

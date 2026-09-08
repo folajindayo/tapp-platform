@@ -6,7 +6,9 @@ import (
 	"crypto/sha512"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"net/http"
 	"strings"
 
 	"github.com/usezoracle/tapp/api/services/baas"
@@ -55,7 +57,7 @@ func (a *Adapter) ListBanks(ctx context.Context) ([]baas.Bank, error) {
 
 // ListAccounts returns the merchant wallet as the single main account
 // (subAccounts=true returns empty — LP balances live in OUR ledger,
-// same posture as the Korapay adapter).
+// same posture as the other adapters).
 func (a *Adapter) ListAccounts(ctx context.Context, subAccounts bool) ([]baas.Account, error) {
 	if subAccounts {
 		return nil, nil
@@ -139,7 +141,8 @@ func (a *Adapter) TransferStatus(ctx context.Context, providerRef string) (*baas
 	res, err := a.c.TransactionByReference(ctx, providerRef)
 	if err != nil {
 		// An unknown reference is indeterminate, not failed.
-		if strings.Contains(err.Error(), "http 404") {
+		var apiErr *APIError
+		if errors.As(err, &apiErr) && apiErr.StatusCode == http.StatusNotFound {
 			return &baas.Transfer{Reference: providerRef, PaymentReference: providerRef, Status: baas.TransferPending, RawStatus: "not_found"}, nil
 		}
 		return nil, err
@@ -203,6 +206,7 @@ func (a *Adapter) CreateSubAccount(ctx context.Context, req baas.CreateSubAccoun
 		ID:            cu.CustomerID(),
 		AccountNumber: cu.DepositAccountNumber(),
 		AccountName:   strings.TrimSpace(req.FirstName + " " + req.LastName),
+		BankName:      cu.DepositBankName(),
 		Type:          "static_fund_customer",
 		Currency:      "NGN",
 		Status:        "active",

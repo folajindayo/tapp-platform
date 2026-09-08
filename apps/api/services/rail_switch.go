@@ -7,7 +7,7 @@
 //     for Route C, where Paycrest reloads land — the rail's own
 //     deposit account).
 //   - default BaaS provider: what baas.Default() is (funding console,
-//     legacy flows). Switchable live among korapay|fintava; SafeHaven
+//     legacy flows). Fintava is the live-switchable rail; SafeHaven
 //     is boot-only (its adapter needs key material main.go assembles).
 package services
 
@@ -20,7 +20,6 @@ import (
 	"github.com/usezoracle/tapp/api/config"
 	"github.com/usezoracle/tapp/api/services/baas"
 	"github.com/usezoracle/tapp/api/services/baas/fintava"
-	"github.com/usezoracle/tapp/api/services/baas/korapay"
 	db "github.com/usezoracle/tapp/api/storage"
 )
 
@@ -52,13 +51,13 @@ func redisSet(ctx context.Context, key, val string) error {
 }
 
 // CurrentFloatRail returns the operator-selected float rail:
-// "korapay" | "fintava" | "default". The admin dashboard is the only
+// "fintava" | "default". The admin dashboard is the only
 // authority; before the first switch, the in-code default applies.
 func CurrentFloatRail() string {
 	if v := redisGet(floatRailKey); v != "" {
 		return v
 	}
-	return "korapay"
+	return "fintava"
 }
 
 // SetFloatRail persists the operator's float-rail choice.
@@ -90,8 +89,6 @@ func SetFintavaFloatInstitution(ctx context.Context, code string) error {
 func RailConfigured(name string) bool {
 	bc := config.BaaSConfig()
 	switch strings.ToLower(name) {
-	case "korapay":
-		return bc.KorapaySecretKey != ""
 	case "fintava":
 		return bc.FintavaAPIKey != ""
 	case "safehaven":
@@ -107,14 +104,6 @@ func RailConfigured(name string) bool {
 func BuildRail(name string) (baas.Provider, error) {
 	bc := config.BaaSConfig()
 	switch strings.ToLower(name) {
-	case "korapay":
-		if bc.KorapaySecretKey == "" {
-			return nil, fmt.Errorf("korapay not configured (KORAPAY_SECRET_KEY)")
-		}
-		return korapay.NewAdapter(korapay.New(
-			bc.KorapaySecretKey, bc.KorapayPublicKey, bc.KorapayBaseURL,
-			bc.KorapayPayoutEmail, bc.KorapayVBABankCode,
-		)), nil
 	case "fintava":
 		if bc.FintavaAPIKey == "" {
 			return nil, fmt.Errorf("fintava not configured (FINTAVA_API_KEY)")

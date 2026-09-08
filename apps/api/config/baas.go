@@ -29,14 +29,7 @@ type BaaSConfiguration struct {
 	// stolen-token catastrophe. Zero means unlimited (not recommended in prod).
 	MaxTransferNGN decimal.Decimal
 
-	// Korapay rail (BAAS_PROVIDER=korapay). The secret key doubles as
-	// the webhook HMAC key — Korapay signs callbacks with it. The
 	// public key authenticates the misc endpoints (banks, resolve).
-	KorapaySecretKey    string
-	KorapayPublicKey    string
-	KorapayBaseURL      string
-	KorapayPayoutEmail  string // receipts inbox attached to every disbursement
-	KorapayVBABankCode  string // "035" Wema live, "000" sandbox
 
 	// Fintava rail (fintava.readme.io). One bearer key per env; the
 	// webhook secret comes from their dashboard (HMAC-SHA512).
@@ -56,8 +49,6 @@ func BaaSConfig() *BaaSConfiguration {
 		maxTransfer = decimal.NewFromInt(1_000_000)
 	}
 
-	viper.SetDefault("KORAPAY_BASE_URL", "https://api.korapay.com/merchant")
-	viper.SetDefault("KORAPAY_VBA_BANK_CODE", "035")
 	viper.SetDefault("FINTAVA_BASE_URL", "https://live.fintavapay.com/api/dev")
 
 	return &BaaSConfiguration{
@@ -69,11 +60,6 @@ func BaaSConfig() *BaaSConfiguration {
 		DebitAccountNumber: viper.GetString("SAFEHAVEN_DEBIT_ACCOUNT_NUMBER"),
 		WebhookSecret:      viper.GetString("SAFEHAVEN_WEBHOOK_SECRET"),
 		MaxTransferNGN:     maxTransfer,
-		KorapaySecretKey:   viper.GetString("KORAPAY_SECRET_KEY"),
-		KorapayPublicKey:   viper.GetString("KORAPAY_PUBLIC_KEY"),
-		KorapayBaseURL:     viper.GetString("KORAPAY_BASE_URL"),
-		KorapayPayoutEmail: viper.GetString("KORAPAY_PAYOUT_EMAIL"),
-		KorapayVBABankCode: viper.GetString("KORAPAY_VBA_BANK_CODE"),
 
 		FintavaAPIKey:        viper.GetString("FINTAVA_API_KEY"),
 		FintavaWebhookSecret: viper.GetString("FINTAVA_WEBHOOK_SECRET"),

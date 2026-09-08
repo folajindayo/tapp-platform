@@ -18,7 +18,7 @@ import (
 //	              confirmed; transfer.failed → failed + re-credit)
 //	adjustment  — operator correction (audited elsewhere)
 //
-// provider_ref is the rail's reference (Korapay deposit reference, or
+// provider_ref is the rail's reference (a rail deposit reference, or
 // our deterministic withdrawal payment reference). UNIQUE — webhook
 // redelivery and crash-replays insert-or-skip instead of double-
 // crediting. That single constraint is the ledger's idempotency.

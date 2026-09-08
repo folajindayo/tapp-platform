@@ -9,7 +9,7 @@ import (
 )
 
 // LpAccount is a liquidity provider's float account on the platform
-// (Route B). The NGN custody rail is pooled (Korapay virtual accounts
+// (Route B). The NGN custody rail is pooled (virtual accounts
 // settle into one merchant balance), so THIS row + LpLedgerEntry are
 // the source of truth for the LP's balance — the bank rail only
 // attributes deposits via account_reference / account_number on
@@ -36,8 +36,8 @@ func (LpAccount) Fields() []ent.Field {
 		// Never store the raw BVN — last4 for support lookups only.
 		field.String("bvn_last4").MaxLen(4),
 
-		// Korapay virtual-account identity. account_reference is OUR
-		// attribution key (we generate it, Korapay echoes it on every
+		// Virtual-account identity. account_reference is OUR
+		// attribution key (we generate it, the rail echoes it on every
 		// deposit webhook); account_number is what the LP wires money to.
 		field.String("account_reference").Unique(),
 		field.String("account_number"),

@@ -47,6 +47,11 @@ type Account struct {
 	ID            string
 	AccountNumber string
 	AccountName   string
+	// BankName is the bank a transfer must be addressed to. Rails that open
+	// virtual accounts return it and it is not optional to the person doing
+	// the transfer: an account number without its bank cannot be paid into.
+	// Rails that do not open accounts leave it empty.
+	BankName      string
 	Balance       decimal.Decimal
 	LedgerBalance decimal.Decimal
 	Type          string
@@ -128,7 +133,7 @@ type CreateSubAccountRequest struct {
 	CallbackURL       string
 
 	// Extended KYC — required by rails that open full customer wallets
-	// (Fintava); ignored by rails that only need a BVN (Korapay).
+	// (Fintava); ignored by rails that only need a BVN.
 	FirstName   string
 	LastName    string
 	DateOfBirth string // YYYY-MM-DD
