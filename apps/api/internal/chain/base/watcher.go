@@ -71,11 +71,36 @@ func (w *Watcher) Poll(ctx context.Context) (found, credited int, err error) {
 		to = from + MaxBlockSpan
 	}
 
+	// Ask only for transfers TO an address we issued.
+	//
+	// Filtering after the fact instead is what this used to do, and it works
+	// on a quiet testnet. On mainnet, USDC is among the busiest contracts on
+	// the chain: a few hundred blocks is tens of thousands of logs, and the
+	// public RPC simply refuses -- "backend response too large" -- so the
+	// watcher makes no progress at all and no deposit is ever credited.
+	//
+	// The third topic of an ERC-20 Transfer is the recipient, and a log filter
+	// takes a set of accepted values per topic, so the node can do this far
+	// more cheaply than we can. The per-log ownership check below stays: this
+	// narrows what we fetch, it does not decide what we credit.
+	watched, err := w.watchedTopics(ctx)
+	if err != nil {
+		return 0, 0, err
+	}
+	if len(watched) == 0 {
+		// Nothing issued yet. Advance so the position does not fall behind the
+		// head while the first person is signing up.
+		if err := w.advance(ctx, to+1); err != nil {
+			return 0, 0, err
+		}
+		return 0, 0, nil
+	}
+
 	logs, err := w.Client.FilterLogs(ctx, ethereum.FilterQuery{
 		FromBlock: new(big.Int).SetUint64(from),
 		ToBlock:   new(big.Int).SetUint64(to),
 		Addresses: []common.Address{w.USDC},
-		Topics:    [][]common.Hash{{transferTopic}},
+		Topics:    [][]common.Hash{{transferTopic}, nil, watched},
 	})
 	if err != nil {
 		return 0, 0, fmt.Errorf("base: read logs %d-%d: %w", from, to, err)
@@ -125,6 +150,29 @@ func decodeTransfer(entry types.Log) (Transfer, bool) {
 		AmountMicro: amount.Int64(),
 		BlockNumber: entry.BlockNumber,
 	}, true
+}
+
+// watchedTopics is every deposit address we have issued, as topic values.
+//
+// Re-read each poll rather than cached: an address issued a moment ago must be
+// watched on the very next pass, or somebody who funds it immediately waits an
+// unbounded time to be credited.
+func (w *Watcher) watchedTopics(ctx context.Context) ([]common.Hash, error) {
+	rows, err := w.Pool.Query(ctx, `SELECT address FROM base_deposit_addresses`)
+	if err != nil {
+		return nil, fmt.Errorf("base: read watched addresses: %w", err)
+	}
+	defer rows.Close()
+
+	var out []common.Hash
+	for rows.Next() {
+		var addr string
+		if err := rows.Scan(&addr); err != nil {
+			return nil, fmt.Errorf("base: read watched addresses: %w", err)
+		}
+		out = append(out, common.HexToHash(common.HexToAddress(addr).Hex()))
+	}
+	return out, rows.Err()
 }
 
 func (w *Watcher) position(ctx context.Context) (uint64, error) {

@@ -116,6 +116,11 @@ export default function BaseDepositPage() {
               <div className="grid w-full gap-1 text-center">
                 <p className="text-xs font-medium uppercase tracking-wider text-[var(--fg-subtle)]">
                   {address.data.token} on {address.data.network}
+                  {address.data.testnet ? (
+                    <span className="ml-1.5 rounded-md bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-semibold tracking-wide text-amber-600 dark:text-amber-400">
+                      TESTNET
+                    </span>
+                  ) : null}
                 </p>
                 <p className="break-all font-mono text-xs leading-relaxed text-[var(--fg)]">
                   {address.data.address}
@@ -152,11 +157,6 @@ export default function BaseDepositPage() {
                 this page.
               </p>
             </Surface>
-
-            <p className="px-1 text-center text-xs leading-relaxed text-[var(--fg-muted)]">
-              This address is yours and does not change. Chain ID{" "}
-              {address.data.chain_id}.
-            </p>
           </>
         ) : null}
       </AnimatedComponent>
