@@ -78,12 +78,14 @@ func NewBaseRail(ctx context.Context) (*BaseRail, error) {
 
 	addresses := &base.Addresses{Pool: storage.Pool, Deriver: deriver}
 
-	// CDP Smart Accounts, when configured, take over NEW address allocation
-	// and the sweeping of those addresses. Existing derived addresses are
-	// untouched. A partial configuration is refused here so that main.go
-	// fails the boot: an operator who set two of three secrets meant to turn
-	// this on, and a rail that silently falls back to derived addresses would
-	// hide that from them until the first sweep failed.
+	// Every deposit address is a CDP Smart Account. The seed still SPENDS the
+	// derived addresses it issued -- they stay watched and swept -- but it no
+	// longer issues new ones.
+	//
+	// A partial configuration is refused here so that main.go fails the boot:
+	// an operator who set two of three secrets meant to turn this on, and a
+	// rail that quietly carried on minting seed-derived addresses would hide
+	// that from them until the day the seed had to be produced.
 	var smart base.SmartAccounts
 	if cdpCfg := config.CDPConfig(); cdpCfg.Enabled() {
 		client, err := cdp.New(cdp.Config{
@@ -98,7 +100,10 @@ func NewBaseRail(ctx context.Context) (*BaseRail, error) {
 		addresses.SmartAccounts = client
 		logger.Infof("base: new deposit addresses are CDP smart accounts on chain %d, gas sponsored", chainID)
 	} else {
-		logger.Infof("base: new deposit addresses are derived from BASE_DEPOSIT_SEED")
+		// Not a fallback to the seed. Deposits already taken still credit and
+		// still sweep; what cannot happen is issuing anybody a new address.
+		logger.Infof("base: CDP is not configured -- existing deposit addresses still " +
+			"credit and sweep, but no new address can be issued")
 	}
 	deposits := &base.Deposits{
 		Pool: storage.Pool, Addresses: addresses,

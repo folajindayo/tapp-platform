@@ -2,11 +2,17 @@ package base
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"errors"
+	"math/big"
+	mrand "math/rand/v2"
 	"os"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 
@@ -38,10 +44,45 @@ func testPool(t *testing.T) *pgxpool.Pool {
 	return pool
 }
 
+// fakeSmartAccounts stands in for CDP: deterministic per user and idempotent
+// by user, which is the only contract the real one promises.
+type fakeSmartAccounts struct{ calls int }
+
+func (f *fakeSmartAccounts) EnsureSmartAccount(_ context.Context, user uuid.UUID) (SmartAccount, error) {
+	f.calls++
+	b := user[:]
+	return SmartAccount{
+		Address: common.BytesToAddress(b).Hex(),
+		Owner:   common.BytesToAddress(append([]byte{0x01}, b[:15]...)).Hex(),
+		Name:    "tapp-deposit-" + user.String()[:8],
+	}, nil
+}
+
+func (f *fakeSmartAccounts) SweepSmartAccount(context.Context, string, common.Address,
+	common.Address, *big.Int, string) (string, error) {
+	return "0x" + strings.Repeat("f", 64), nil
+}
+
+// txHash returns a tx hash no other test run has used.
+//
+// These tests run against a persistent database, and (tx_hash, log_index) is
+// the deposit idempotency key. Hashes built from a couple of random characters
+// collide with rows left by earlier runs, and the insert then does nothing --
+// so the test reads as "the deposit was not credited" when what actually
+// happened is that it was never recorded.
+func txHash(t *testing.T) string {
+	t.Helper()
+	b := make([]byte, 32)
+	if _, err := rand.Read(b); err != nil {
+		t.Fatal(err)
+	}
+	return "0x" + hex.EncodeToString(b)
+}
+
 func fixture(t *testing.T) (*Addresses, *Deposits) {
 	t.Helper()
 	pool := testPool(t)
-	addrs := &Addresses{Pool: pool, Deriver: deriver(t)}
+	addrs := &Addresses{Pool: pool, Deriver: deriver(t), SmartAccounts: &fakeSmartAccounts{}}
 	return addrs, &Deposits{Pool: pool, Addresses: addrs, Confirmations: 12}
 }
 
@@ -72,15 +113,21 @@ func TestEachUserGetsTheirOwnStableAddress(t *testing.T) {
 	}
 }
 
-// The check that catches a changed seed. Without it the system would keep
-// handing out addresses whose funds it can no longer sweep.
+// The check that catches a changed seed.
+//
+// The seed no longer issues addresses, but it still has to SPEND the retired
+// ones, and this is what stops the sweeper signing for an address the current
+// seed does not produce -- which would be a transaction that fails, recorded
+// as a sweep, losing the deposit from view.
 func TestAnAddressFromADifferentSeedIsRefused(t *testing.T) {
 	addrs, _ := fixture(t)
-	ctx := context.Background()
-	user := uuid.New()
 
-	if _, err := addrs.For(ctx, user); err != nil {
-		t.Fatalf("For: %v", err)
+	mine, err := addrs.Deriver.Address(7)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := addrs.verify(mine.Hex(), 7); err != nil {
+		t.Fatalf("verify rejected our own address: %v", err)
 	}
 
 	otherSeed, _ := ParseSeed(strings.Repeat("cd", SeedLen))
@@ -90,8 +137,106 @@ func TestAnAddressFromADifferentSeedIsRefused(t *testing.T) {
 	}
 	addrs.Deriver = other
 
-	if _, err := addrs.For(ctx, user); !errors.Is(err, ErrAddressMismatch) {
+	if _, err := addrs.verify(mine.Hex(), 7); !errors.Is(err, ErrAddressMismatch) {
 		t.Fatalf("got %v, want ErrAddressMismatch", err)
+	}
+}
+
+// Addresses come from CDP now. Falling back to the seed when CDP is missing is
+// how a deployment quietly goes on minting addresses under the scheme it was
+// migrated off -- nobody notices, because a derived address works perfectly
+// until the day the seed has to be produced.
+func TestWithoutCDPNoAddressIsIssued(t *testing.T) {
+	addrs, _ := fixture(t)
+	addrs.SmartAccounts = nil
+
+	if _, err := addrs.For(context.Background(), uuid.New()); !errors.Is(err, ErrNoSmartAccounts) {
+		t.Fatalf("got %v, want ErrNoSmartAccounts", err)
+	}
+}
+
+// A user still holding a seed-derived address is moved across on the next
+// read, so a row the migration missed heals itself rather than persisting.
+func TestALegacyDerivedAddressIsRetiredAndReissued(t *testing.T) {
+	addrs, _ := fixture(t)
+	ctx := context.Background()
+	user := uuid.New()
+
+	// A fresh index each run: the column is unique table-wide, and retired
+	// rows accumulate, so a literal would collide with the previous run.
+	index := uint32(1_000_000 + mrand.IntN(1_000_000))
+	legacy, err := addrs.Deriver.Address(index)
+	if err != nil {
+		t.Fatal(err)
+	}
+	old := strings.ToLower(legacy.Hex())
+	if _, err := addrs.Pool.Exec(ctx, `
+		INSERT INTO base_deposit_addresses (user_id, provider, index, address)
+		VALUES ($1, 'derived', $2, $3)`, user, index, old); err != nil {
+		t.Fatal(err)
+	}
+
+	fresh, err := addrs.For(ctx, user)
+	if err != nil {
+		t.Fatalf("For: %v", err)
+	}
+	if strings.EqualFold(fresh, old) {
+		t.Fatal("the derived address is still being handed out")
+	}
+
+	var provider string
+	if err := addrs.Pool.QueryRow(ctx,
+		`SELECT provider FROM base_deposit_addresses WHERE user_id = $1 AND retired_at IS NULL`,
+		user).Scan(&provider); err != nil {
+		t.Fatalf("read current address: %v", err)
+	}
+	if provider != ProviderCDP {
+		t.Errorf("current provider = %q, want %q", provider, ProviderCDP)
+	}
+
+	// Retired, not deleted. The row is what keeps the address watched.
+	var retired *time.Time
+	if err := addrs.Pool.QueryRow(ctx,
+		`SELECT retired_at FROM base_deposit_addresses WHERE address = $1`, old).
+		Scan(&retired); err != nil {
+		t.Fatalf("the old address row is gone, so it is no longer watched: %v", err)
+	}
+	if retired == nil {
+		t.Error("the old address was left current")
+	}
+}
+
+// The invariant the whole retire-don't-delete design exists for: somebody who
+// saved an old address as a payee and pays into it must still be credited.
+func TestARetiredAddressStillCredits(t *testing.T) {
+	addrs, deposits := fixture(t)
+	ctx := context.Background()
+	user := uuid.New()
+
+	old, err := addrs.For(ctx, user)
+	if err != nil {
+		t.Fatalf("For: %v", err)
+	}
+	if err := addrs.retire(ctx, old); err != nil {
+		t.Fatalf("retire: %v", err)
+	}
+
+	if err := deposits.Record(ctx, Transfer{
+		TxHash: txHash(t), LogIndex: 0, From: "0xsender", To: old,
+		AmountMicro: 7_000_000, BlockNumber: 100,
+	}); err != nil {
+		t.Fatalf("a deposit to a retired address was refused: %v", err)
+	}
+	if credited, err := deposits.CreditConfirmed(ctx, 200); err != nil || credited != 1 {
+		t.Fatalf("credited=%d err=%v, want 1 -- a retired address stopped crediting", credited, err)
+	}
+
+	b, err := ledger.Balance(ctx, deposits.Pool, ledger.User(user), ledger.KindAvailable, money.USD)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if b.Minor() != 700 {
+		t.Errorf("balance = %s, want $7.00", b)
 	}
 }
 
@@ -108,7 +253,7 @@ func TestReScanningABlockDoesNotCreditTwice(t *testing.T) {
 	}
 
 	transfer := Transfer{
-		TxHash:   "0x" + uuid.NewString()[:8] + strings.Repeat("a", 56),
+		TxHash:   txHash(t),
 		LogIndex: 3, From: "0xsender", To: address,
 		AmountMicro: 10_000_000, BlockNumber: 100, // $10
 	}
@@ -151,7 +296,7 @@ func TestADepositIsNotCreditedUntilConfirmed(t *testing.T) {
 
 	address, _ := addrs.For(ctx, user)
 	if err := deposits.Record(ctx, Transfer{
-		TxHash:   "0x" + strings.Repeat("b", 62) + uuid.NewString()[:2],
+		TxHash:   txHash(t),
 		LogIndex: 0, From: "0xsender", To: address,
 		AmountMicro: 5_000_000, BlockNumber: 100,
 	}); err != nil {
@@ -176,7 +321,7 @@ func TestADepositIsNotCreditedUntilConfirmed(t *testing.T) {
 func TestATransferToAnUnknownAddressIsIgnored(t *testing.T) {
 	_, deposits := fixture(t)
 	err := deposits.Record(context.Background(), Transfer{
-		TxHash: "0x" + strings.Repeat("c", 64), LogIndex: 0,
+		TxHash: txHash(t), LogIndex: 0,
 		From: "0xsender", To: "0x" + strings.Repeat("9", 40),
 		AmountMicro: 1_000_000, BlockNumber: 10,
 	})
@@ -207,9 +352,9 @@ func TestASubCentDepositIsMarkedRatherThanRetried(t *testing.T) {
 	user := uuid.New()
 
 	address, _ := addrs.For(ctx, user)
-	txHash := "0x" + strings.Repeat("d", 62) + uuid.NewString()[:2]
+	hash := txHash(t)
 	if err := deposits.Record(ctx, Transfer{
-		TxHash: txHash, LogIndex: 0, From: "0xsender", To: address,
+		TxHash: hash, LogIndex: 0, From: "0xsender", To: address,
 		AmountMicro: 500, BlockNumber: 100, // half a cent
 	}); err != nil {
 		t.Fatalf("Record: %v", err)
@@ -221,7 +366,7 @@ func TestASubCentDepositIsMarkedRatherThanRetried(t *testing.T) {
 
 	var state string
 	if err := deposits.Pool.QueryRow(ctx,
-		`SELECT state FROM base_deposits WHERE tx_hash = $1`, strings.ToLower(txHash)).
+		`SELECT state FROM base_deposits WHERE tx_hash = $1`, strings.ToLower(hash)).
 		Scan(&state); err != nil {
 		t.Fatalf("read deposit: %v", err)
 	}

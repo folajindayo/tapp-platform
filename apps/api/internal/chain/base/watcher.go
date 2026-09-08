@@ -154,6 +154,13 @@ func decodeTransfer(entry types.Log) (Transfer, bool) {
 
 // watchedTopics is every deposit address we have issued, as topic values.
 //
+// EVERY address, retired ones included. This filter is the only thing that
+// decides which transfers are fetched at all, so an address left out of it is
+// an address whose deposits produce no row, no log line and no alert -- the
+// money leaves the sender's bank and this system never hears about it. People
+// keep old addresses saved as payees long after they stop being handed out,
+// so "no longer advertised" must never mean "no longer watched".
+//
 // Re-read each poll rather than cached: an address issued a moment ago must be
 // watched on the very next pass, or somebody who funds it immediately waits an
 // unbounded time to be credited.

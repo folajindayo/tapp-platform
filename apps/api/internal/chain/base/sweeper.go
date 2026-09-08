@@ -55,10 +55,16 @@ func (s *Sweeper) Sweep(ctx context.Context) (swept int, err error) {
 		return 0, nil
 	}
 
+	// Joined on the address the deposit actually landed in, not on its owner.
+	// A person can hold several addresses once they have been reissued -- one
+	// current, any number retired -- and joining by user_id would return every
+	// one of them for a single deposit, then sweep from whichever the database
+	// happened to order first. That address may hold nothing, while the one the
+	// money is sitting in is never touched.
 	rows, err := s.Pool.Query(ctx, `
-		SELECT DISTINCT d.id, d.user_id, a.provider, a.index, a.address
+		SELECT d.id, d.user_id, a.provider, a.index, a.address
 		  FROM base_deposits d
-		  JOIN base_deposit_addresses a ON a.user_id = d.user_id
+		  JOIN base_deposit_addresses a ON a.address = d.to_address
 		 WHERE d.state = 'credited'
 		 LIMIT 50`)
 	if err != nil {

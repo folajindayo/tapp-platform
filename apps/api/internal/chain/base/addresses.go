@@ -55,48 +55,82 @@ const (
 // would keep showing people an address whose funds are unreachable.
 var ErrAddressMismatch = errors.New("base: stored address does not match the configured seed")
 
-// For returns a user's deposit address, allocating one on first use.
+// ErrNoSmartAccounts means CDP is not configured, so no address can be issued.
 //
-// The index comes from a counter taken under a row lock rather than a
-// sequence. A sequence skips numbers when a transaction rolls back, and a
-// skipped index is an address that may already have been shown to somebody --
-// after which a deposit could arrive at an address no row points to.
-func (a *Addresses) For(ctx context.Context, user uuid.UUID) (string, error) {
-	if address, ok, err := a.existing(ctx, a.Pool, user); err != nil || ok {
-		return address, err
-	}
+// Deliberately an error rather than a fallback to the seed. Falling back is
+// how a deployment quietly goes on minting addresses under the scheme it was
+// migrated off: nobody notices, because a derived address works perfectly
+// until the day the seed has to be produced. An outage that says "we could not
+// get you an address, do not send anything yet" is recoverable; a silently
+// wrong address is not.
+var ErrNoSmartAccounts = errors.New("base: CDP is not configured, so no deposit address can be issued")
 
-	if a.SmartAccounts != nil {
-		return a.allocateSmartAccount(ctx, user)
+// For returns a user's deposit address, issuing one on first use.
+//
+// Every address comes from CDP. A user still holding a seed-derived address is
+// retired and reissued here, on the next read, so the migration that retired
+// them in bulk is a head start rather than the only path -- a row it missed,
+// or one written by an older binary mid-deploy, heals itself the first time
+// anybody looks.
+//
+// Retiring does not unwatch. The old address keeps its row, so money sent to
+// it by somebody who saved it as a payee still credits, and the seed can still
+// sweep it. What changes is only which address is handed out next.
+func (a *Addresses) For(ctx context.Context, user uuid.UUID) (string, error) {
+	address, provider, ok, err := a.current(ctx, a.Pool, user)
+	if err != nil {
+		return "", err
 	}
-	return a.allocateDerived(ctx, user)
+	if ok && provider == ProviderCDP {
+		return address, nil
+	}
+	if a.SmartAccounts == nil {
+		return "", ErrNoSmartAccounts
+	}
+	if ok {
+		// A legacy derived address is still current. Retire it before issuing
+		// its replacement: the partial unique index allows exactly one current
+		// address per person, and the insert would otherwise lose to it.
+		if err := a.retire(ctx, address); err != nil {
+			return "", err
+		}
+	}
+	return a.allocateSmartAccount(ctx, user)
 }
 
-// existing returns the user's address if one has been issued, verified for
-// derived rows. Smart accounts are not re-derived -- there is nothing here to
-// derive them from -- so their stored address is the truth.
-func (a *Addresses) existing(ctx context.Context, q interface {
+// current returns the user's address that is still being handed out.
+//
+// Retired rows are excluded here and only here. Everything else that reads
+// this table -- the watcher's filter, the ownership lookup, the sweeper --
+// wants every address ever issued, because money does not stop arriving at an
+// address just because it is no longer advertised.
+func (a *Addresses) current(ctx context.Context, q interface {
 	QueryRow(context.Context, string, ...any) pgx.Row
-}, user uuid.UUID) (string, bool, error) {
-	var address, provider string
+}, user uuid.UUID) (address, provider string, ok bool, err error) {
 	var index *int64
-	err := q.QueryRow(ctx,
-		`SELECT address, provider, index FROM base_deposit_addresses WHERE user_id = $1`, user).
+	err = q.QueryRow(ctx, `
+		SELECT address, provider, index
+		  FROM base_deposit_addresses
+		 WHERE user_id = $1 AND retired_at IS NULL`, user).
 		Scan(&address, &provider, &index)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return "", false, nil
+		return "", "", false, nil
 	}
 	if err != nil {
-		return "", false, fmt.Errorf("base: read deposit address: %w", err)
+		return "", "", false, fmt.Errorf("base: read deposit address: %w", err)
 	}
-	if provider == ProviderDerived {
-		if index == nil {
-			return "", false, fmt.Errorf("base: derived address %s has no index", address)
-		}
-		verified, err := a.verify(address, uint32(*index))
-		return verified, err == nil, err
+	return address, provider, true, nil
+}
+
+// retire stops an address being handed out, leaving it watched and sweepable.
+func (a *Addresses) retire(ctx context.Context, address string) error {
+	_, err := a.Pool.Exec(ctx, `
+		UPDATE base_deposit_addresses SET retired_at = now()
+		 WHERE address = $1 AND retired_at IS NULL`, strings.ToLower(address))
+	if err != nil {
+		return fmt.Errorf("base: retire address %s: %w", address, err)
 	}
-	return address, true, nil
+	return nil
 }
 
 // allocateSmartAccount asks CDP for the account, then records it.
@@ -119,13 +153,13 @@ func (a *Addresses) allocateSmartAccount(ctx context.Context, user uuid.UUID) (s
 	_, err = a.Pool.Exec(ctx, `
 		INSERT INTO base_deposit_addresses (user_id, provider, address, owner_address, account_name)
 		VALUES ($1, $2, $3, $4, $5)
-		ON CONFLICT (user_id) DO NOTHING`,
+		ON CONFLICT (address) DO NOTHING`,
 		user, ProviderCDP, strings.ToLower(acct.Address), strings.ToLower(acct.Owner), acct.Name)
 	if err != nil {
 		return "", fmt.Errorf("base: record smart account: %w", err)
 	}
 
-	address, ok, err := a.existing(ctx, a.Pool, user)
+	address, _, ok, err := a.current(ctx, a.Pool, user)
 	if err != nil {
 		return "", err
 	}
@@ -135,45 +169,10 @@ func (a *Addresses) allocateSmartAccount(ctx context.Context, user uuid.UUID) (s
 	return address, nil
 }
 
-// allocateDerived is the original scheme: the next BIP-32 index, under lock.
-func (a *Addresses) allocateDerived(ctx context.Context, user uuid.UUID) (string, error) {
-	var address string
-	var index int64
-
-	tx, err := a.Pool.Begin(ctx)
-	if err != nil {
-		return "", err
-	}
-	defer tx.Rollback(ctx)
-
-	// Another request may have allocated one between the read above and this
-	// transaction.
-	if address, ok, err := a.existing(ctx, tx, user); err != nil || ok {
-		return address, err
-	}
-
-	if err := tx.QueryRow(ctx,
-		`UPDATE base_deposit_counter SET next_index = next_index + 1
-		  WHERE id = true RETURNING next_index - 1`).Scan(&index); err != nil {
-		return "", fmt.Errorf("base: allocate deposit index: %w", err)
-	}
-
-	derived, err := a.Deriver.Address(uint32(index))
-	if err != nil {
-		return "", err
-	}
-	address = strings.ToLower(derived.Hex())
-
-	if _, err := tx.Exec(ctx,
-		`INSERT INTO base_deposit_addresses (user_id, provider, index, address) VALUES ($1, $2, $3, $4)`,
-		user, ProviderDerived, index, address); err != nil {
-		return "", fmt.Errorf("base: record deposit address: %w", err)
-	}
-	if err := tx.Commit(ctx); err != nil {
-		return "", err
-	}
-	return address, nil
-}
+// The seed no longer issues addresses. The Deriver is kept because it still
+// has to SPEND the ones it issued: every retired derived address is swept with
+// a key derived from it, and verify below is what refuses to touch one the
+// current seed does not produce.
 
 // verify re-derives a stored address and refuses to hand out one the seed does
 // not produce.

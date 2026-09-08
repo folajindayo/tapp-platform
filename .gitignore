@@ -56,3 +56,6 @@ scratch/
 .vscode/
 *.swp
 .vercel
+
+# Locally built Go binaries (the image builds its own; see /Dockerfile)
+/apps/api/cdp-reissue

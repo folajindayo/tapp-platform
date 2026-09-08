@@ -15,6 +15,13 @@ COPY apps/api/go.mod apps/api/go.sum ./
 RUN go mod download
 COPY apps/api/ ./
 RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/rails .
+# cdp-reissue retires a seed-derived deposit address and issues its CDP
+# replacement. The app does this lazily, when somebody opens the deposit
+# screen; this is the same operation for people who will not open it soon.
+# It ships in the image because the production database is on Railway's
+# private network and cannot be reached from a workstation, so `railway ssh`
+# into this container is the only place the command can run.
+RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/cdp-reissue ./cmd/cdp-reissue
 
 # ---- runtime: minimal, non-root ----
 FROM alpine:3.20
@@ -24,6 +31,7 @@ RUN apk add --no-cache ca-certificates tzdata \
     && adduser -D -u 10001 app
 USER app
 COPY --from=build /out/rails /usr/local/bin/rails
+COPY --from=build /out/cdp-reissue /usr/local/bin/cdp-reissue
 # Railway/containers inject PORT; the app honours it (falls back to SERVER_PORT).
 EXPOSE 8000
 ENTRYPOINT ["rails"]
