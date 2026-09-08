@@ -998,26 +998,119 @@ paths:
   # KYC
   # ──────────────────────────────────────────────
   /v1/kyc:
-    post:
-      tags: [KYC]
-      summary: Request ID verification
-      responses:
-        "200":
-          description: Verification initiated
-
-  /v1/kyc/{wallet_address}:
     get:
       tags: [KYC]
-      summary: Get ID verification status
-      parameters:
-        - name: wallet_address
-          in: path
-          required: true
-          schema:
-            type: string
+      summary: Verification tier, and what it lets you move
+      security:
+        - BearerAuth: []
       responses:
         "200":
-          description: Verification status
+          description: Tier, verified identity, current limits and the next step
+
+  /v1/kyc/bvn:
+    post:
+      tags: [KYC]
+      summary: Verify a BVN against the bank record (tier 1)
+      description: >
+        Synchronous. The name is required and is compared to the record: the
+        rail's endpoint is a lookup that returns the details behind any valid
+        BVN, so without the comparison this would certify that a BVN exists
+        rather than that it belongs to the caller. A rejection answers 200 with
+        status "rejected" and a reason -- nothing about the request was wrong.
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [bvn, firstName, lastName]
+              properties:
+                bvn:         { type: string, minLength: 11, maxLength: 11 }
+                firstName:   { type: string }
+                lastName:    { type: string }
+                dateOfBirth: { type: string, example: "1992-10-04" }
+      responses:
+        "200":
+          description: Verified, or rejected with a reason
+        "502":
+          description: The rail could not be reached; nothing was decided
+
+  /v1/kyc/selfie:
+    post:
+      tags: [KYC]
+      summary: Match a face to the photo behind that BVN (tier 2)
+      description: >
+        Requires tier 1. The liveness capture happens on the device: liveness
+        is a property of how an image was captured, and a server handed a still
+        cannot tell a live face from a photograph of one.
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [bvn, image]
+              properties:
+                bvn:   { type: string, minLength: 11, maxLength: 11 }
+                image: { type: string, description: base64-encoded frame }
+      responses:
+        "200":
+          description: Verified, or rejected with a reason
+        "409":
+          description: BVN not verified yet
+
+  # ──────────────────────────────────────────────
+  # Naira deposit account
+  # ──────────────────────────────────────────────
+  /v1/deposits/ngn/account:
+    get:
+      tags: [Deposits]
+      summary: The caller's own naira account number
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Account number, bank and account name
+        "404":
+          description: Not provisioned yet
+    post:
+      tags: [Deposits]
+      summary: Open the caller's naira account
+      description: >
+        Idempotent -- opening a bank account is a real side effect at the rail,
+        and a client retrying a timed-out request must not end up with two
+        account numbers only one of which anybody is watching. Requires a
+        verified BVN; the name and date of birth are taken from that record
+        when omitted.
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [bvn, nin, address]
+              properties:
+                bvn:         { type: string, minLength: 11, maxLength: 11 }
+                nin:         { type: string }
+                address:     { type: string }
+                firstName:   { type: string }
+                lastName:    { type: string }
+                dateOfBirth: { type: string, example: "1992-10-04" }
+      responses:
+        "201":
+          description: Account opened
+        "200":
+          description: The account that already existed
+        "400":
+          description: More details are needed (code kyc_required, with `missing`)
+        "403":
+          description: BVN not verified yet
 
   # ──────────────────────────────────────────────
   # Admin
