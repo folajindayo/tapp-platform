@@ -70,6 +70,26 @@ type envelope struct {
 	Data       json.RawMessage `json:"data"`
 }
 
+// APIError is a non-2xx answer from Fintava.
+//
+// Typed rather than a formatted string because callers have to tell "the rail
+// read the request and said no" from "the rail could not be reached", and
+// those two mean opposite things to a person being verified: one is a
+// rejection, the other is "try again in a minute". A caller that has to grep
+// an error message for a status code eventually gets that wrong.
+type APIError struct {
+	StatusCode int
+	Message    string
+}
+
+func (e *APIError) Error() string {
+	return fmt.Sprintf("fintava: http %d: %s", e.StatusCode, e.Message)
+}
+
+// Refused reports whether Fintava understood the request and declined it, as
+// opposed to failing to answer. 4xx is the rail's verdict; 5xx is its absence.
+func (e *APIError) Refused() bool { return e.StatusCode >= 400 && e.StatusCode < 500 }
+
 func (c *Client) do(ctx context.Context, method, path string, body any, out any) error {
 	var rdr io.Reader
 	if body != nil {
@@ -108,7 +128,7 @@ func (c *Client) do(ctx context.Context, method, path string, body any, out any)
 				msg = msg[:300]
 			}
 		}
-		return fmt.Errorf("fintava: http %d: %s", resp.StatusCode, msg)
+		return &APIError{StatusCode: resp.StatusCode, Message: msg}
 	}
 	if out != nil {
 		// Prefer the data field; fall back to the whole body for
@@ -355,4 +375,69 @@ func (c *Client) WalletBalance(ctx context.Context, walletID string) (decimal.De
 		return out.AvailableBalance.Decimal, nil
 	}
 	return out.Balance.Decimal, nil
+}
+
+// -----------------------------------------------------------------------------
+// Compliance: identity verification
+//
+// Fintava verifies identities on the same key that opens accounts, which is
+// why KYC lives on this client rather than behind a second vendor. Both calls
+// answer synchronously -- there is no callback to wait for and no job to poll.
+// -----------------------------------------------------------------------------
+
+// BVNRecord is what the bank holds against a Bank Verification Number.
+//
+// It is the authoritative spelling of somebody's name and date of birth, which
+// is the point: a person's own typing is a claim, and this is the record that
+// claim is checked against.
+type BVNRecord struct {
+	// Customer is Fintava's id for the person behind the BVN.
+	Customer string `json:"customer"`
+	BVN      string `json:"bvn"`
+
+	FirstName  string `json:"first_name"`
+	MiddleName string `json:"middle_name"`
+	LastName   string `json:"last_name"`
+	// DateOfBirth is YYYY-MM-DD.
+	DateOfBirth string `json:"date_of_birth"`
+	Phone       string `json:"phone_number1"`
+	Gender      string `json:"gender"`
+
+	// Image is the base64 photograph the bank holds. It is returned by the
+	// endpoint and deliberately never persisted: it is biometric data about a
+	// person, it is of no use once a selfie has been matched against it, and
+	// the only thing keeping it would add to this system is a breach.
+	Image string `json:"image"`
+}
+
+// VerifyBVN reads the bank's record for a BVN.
+//
+//	GET /compliance/verify/bvn?bvn=...
+//
+// This is a LOOKUP, not a match. It returns the record behind any valid BVN,
+// including one read off somebody else's bank slip -- so the caller must
+// compare the record to what the person actually claimed. See the kyc/fintava
+// provider, which does exactly that.
+func (c *Client) VerifyBVN(ctx context.Context, bvn string) (*BVNRecord, error) {
+	q := url.Values{"bvn": {bvn}}
+	var out BVNRecord
+	if err := c.do(ctx, http.MethodGet, "/compliance/verify/bvn?"+q.Encode(), nil, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// VerifyBVNSelfie matches a live face against the photo held behind a BVN.
+//
+//	POST /compliance/verify/bvn/selfie   {"bvn": "...", "image": "<base64>"}
+//
+// The endpoint answers with an empty body either way, so the HTTP status IS
+// the answer: 2xx is a match, 4xx is not. A nil error therefore means matched,
+// and an *APIError with Refused() true means it did not -- which the caller
+// must not confuse with the 5xx/transport case, where nothing was decided.
+func (c *Client) VerifyBVNSelfie(ctx context.Context, bvn, imageBase64 string) error {
+	return c.do(ctx, http.MethodPost, "/compliance/verify/bvn/selfie", map[string]any{
+		"bvn":   bvn,
+		"image": imageBase64,
+	}, nil)
 }

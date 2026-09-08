@@ -14,7 +14,6 @@ import (
 
 var cryptoConf = config.CryptoConfig()
 var serverConf = config.ServerConfig()
-var identityConf = config.IdentityConfig()
 var orderConf = config.OrderConfig()
 
 // Controller is the default controller for other endpoints

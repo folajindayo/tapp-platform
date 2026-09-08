@@ -69,10 +69,8 @@ EMAIL_API_KEY=                           # SendGrid API key
 EMAIL_FROM_ADDRESS=Rails <no-reply@usezoracle.com>
 CARD_RECOVERY_SENDGRID_TEMPLATE=         # dynamic template id (d-...)
 
-# KYC (Smile Identity for merchant KYB)
-SMILE_IDENTITY_API_KEY=
-SMILE_IDENTITY_PARTNER_ID=
-SMILE_IDENTITY_BASE_URL=https://api.smileidentity.com
+# KYC runs on Fintava's compliance endpoints — see FINTAVA_API_KEY above.
+# No separate provider credentials.
 ```
 
 ### Migration
