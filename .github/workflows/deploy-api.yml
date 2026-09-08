@@ -1,0 +1,69 @@
+# The API deploys to Railway from main, after ci has passed on that commit.
+#
+# Railway's own GitHub integration cannot be configured from the CLI (the
+# service's root directory is a dashboard setting), so the deploy is the same
+# `railway up` a developer runs, driven by a project token. One secret:
+#
+#   RAILWAY_TOKEN  a Project Token for tapp-platform / production
+#                  (Railway -> project -> Settings -> Tokens), stored as a
+#                  GitHub Actions secret on this repository.
+#
+# Until that secret exists the job is skipped, not failed, so a missing token
+# reads as "not set up yet" rather than as a broken deploy.
+name: deploy-api
+
+on:
+  workflow_run:
+    workflows: [ci]
+    types: [completed]
+    branches: [main]
+
+concurrency:
+  group: deploy-api
+  cancel-in-progress: false
+
+jobs:
+  railway:
+    if: github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Is the deploy token configured?
+        id: token
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+        run: |
+          if [ -z "$RAILWAY_TOKEN" ]; then
+            echo "RAILWAY_TOKEN is not set on this repository; skipping the deploy." >> "$GITHUB_STEP_SUMMARY"
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@v4
+        if: steps.token.outputs.configured == 'true'
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+
+      - name: Did this commit touch the API?
+        id: changed
+        if: steps.token.outputs.configured == 'true'
+        run: |
+          if git diff --quiet ${{ github.event.workflow_run.head_sha }}~1 ${{ github.event.workflow_run.head_sha }} -- apps/api; then
+            echo "api unchanged in this commit; nothing to deploy." >> "$GITHUB_STEP_SUMMARY"
+            echo "yes=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "yes=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/setup-node@v4
+        if: steps.token.outputs.configured == 'true' && steps.changed.outputs.yes == 'true'
+        with:
+          node-version: 24
+      - run: npm install -g @railway/cli
+        if: steps.token.outputs.configured == 'true' && steps.changed.outputs.yes == 'true'
+
+      - name: railway up
+        if: steps.token.outputs.configured == 'true' && steps.changed.outputs.yes == 'true'
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+        run: railway up --service api --path-as-root apps/api --ci

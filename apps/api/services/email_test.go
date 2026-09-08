@@ -22,6 +22,11 @@ var (
 )
 
 func TestEmailService(t *testing.T) {
+	// The SendGrid client posts to https://<EMAIL_DOMAIN>/v3/mail/send, so the
+	// host this test mocks has to be the host the service is configured with.
+	// Set it here rather than inherit whatever .env (or nothing) provided.
+	notificationConf.EmailDomain = "api.sendgrid.com"
+
 	// activate httpmock
 	httpmock.Activate()
 	defer httpmock.Deactivate()

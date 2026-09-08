@@ -94,13 +94,17 @@ func DBConnection(DSN string) error {
 
 	Client = client
 
-	// The ledger schema and the seed rows are hand-written SQL that ent does
-	// not own. They run after the ent schema because the seeds insert into
-	// ent's tables, and on every boot for the same reasons as above: a
-	// service that starts against a database predating its ledger would
-	// accept movements it cannot record.
+	// The ledger schema is hand-written SQL that ent does not own, applied on
+	// every boot for the same reasons as above: a service that starts against
+	// a database predating its ledger would accept movements it cannot record.
 	if err := ledgermigrate.Up(ctx, pool); err != nil {
 		return fmt.Errorf("ledger migrations: %w", err)
+	}
+
+	// Seed rows (the NGN currency, its banks, its provision buckets) insert
+	// into ent's tables, so they come last.
+	if err := ledgermigrate.Seed(ctx, pool); err != nil {
+		return fmt.Errorf("seeds: %w", err)
 	}
 
 	return nil

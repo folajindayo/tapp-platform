@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
+import { apiBase, apiNotConfigured } from "@/lib/server/api-base";
 
 export async function POST(request: Request) {
+  const apiBaseUrl = apiBase();
+  if (!apiBaseUrl) return apiNotConfigured();
   try {
     const authHeader = request.headers.get("authorization");
     if (!authHeader) {
@@ -12,8 +15,6 @@ export async function POST(request: Request) {
     if (!txBytes || !sender) {
       return NextResponse.json({ error: "Missing txBytes or sender" }, { status: 400 });
     }
-
-    const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
 
     const headers: Record<string, string> = {
       "Content-Type": "application/json",

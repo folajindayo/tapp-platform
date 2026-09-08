@@ -1,4 +1,5 @@
 import { NextRequest } from "next/server";
+import { apiBase, apiNotConfigured } from "@/lib/server/api-base";
 
 export const dynamic = "force-dynamic";
 
@@ -6,9 +7,10 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const apiBaseUrl = apiBase();
+  if (!apiBaseUrl) return apiNotConfigured();
   try {
     const { id } = await params;
-    const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
     const url = `${apiBaseUrl}/v1/orders/${id}/stream`;
 
     const response = await fetch(url, {

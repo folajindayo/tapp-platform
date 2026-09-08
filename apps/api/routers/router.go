@@ -30,6 +30,18 @@ func trustedProxyCIDRs(raw string) []string {
 	return []string{"0.0.0.0/0", "::/0"}
 }
 
+// allowedOrigins lists the browser origins that may call this API: the PWA
+// and the checkout site, as configured. Local development adds the Next dev
+// server on either loopback name, so a fresh checkout works without editing
+// config; nothing else is ever added implicitly.
+func allowedOrigins(conf *config.ServerConfiguration) []string {
+	origins := []string{conf.PWABaseURL, conf.CheckoutBaseURL}
+	if conf.Environment == "local" {
+		origins = append(origins, "http://localhost:3000", "http://127.0.0.1:3000")
+	}
+	return origins
+}
+
 // Routes function registers all routes
 func Routes() *gin.Engine {
 	conf := config.ServerConfig()
@@ -49,7 +61,7 @@ func Routes() *gin.Engine {
 	}
 	router.Use(gin.Logger())
 	router.Use(gin.Recovery())
-	router.Use(middleware.CORSMiddleware())
+	router.Use(middleware.CORSMiddleware(allowedOrigins(conf)))
 
 	RegisterRoutes(router) //routes register
 

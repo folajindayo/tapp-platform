@@ -22,7 +22,11 @@ type NotificationConfiguration struct {
 // NotificationConfig sets the email configurations
 func NotificationConfig() (config *NotificationConfiguration) {
 	viper.SetDefault("EMAIL_PROVIDER", "sendgrid")
-	viper.SetDefault("EMAIL_DOMAIN", "sandbox9c66b379b78d43d2b1533bf2a09a5325.mailgun.org")
+	// No default: for SendGrid this is the API host, for Mailgun the sending
+	// domain. A previous revision defaulted to a Mailgun sandbox domain, which
+	// meant a deployment that forgot EMAIL_DOMAIN posted SendGrid requests to
+	// a Mailgun sandbox and reported "sent".
+	viper.SetDefault("EMAIL_DOMAIN", "")
 	viper.SetDefault("EMAIL_FROM_ADDRESS", "Rails <no-reply@usezoracle.com>")
 	viper.SetDefault("CARD_RECOVERY_SENDGRID_TEMPLATE", "")
 

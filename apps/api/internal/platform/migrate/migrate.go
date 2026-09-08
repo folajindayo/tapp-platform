@@ -27,7 +27,14 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-//go:embed sql/*.sql
+// sql/ is the ledger schema, self-contained: it can be applied to an empty
+// database, which is how the package tests and the tests of everything built
+// on the ledger run. seeds/ inserts into ent's tables and so can only run
+// after ent's schema exists; keeping the two apart is what lets Up stay
+// independent of ent. Both record what they applied in schema_migrations,
+// keyed by filename, so names must be unique across the two directories.
+//
+//go:embed sql/*.sql seeds/*.sql
 var files embed.FS
 
 // lockID is an arbitrary constant; it only has to be the same in every instance.
@@ -53,8 +60,19 @@ func Locked(ctx context.Context, pool *pgxpool.Pool, fn func(ctx context.Context
 	return fn(ctx)
 }
 
-// Up applies every migration that has not been applied yet, in filename order.
+// Up applies every ledger migration that has not been applied yet, in
+// filename order. It needs nothing but an empty database.
 func Up(ctx context.Context, pool *pgxpool.Pool) error {
+	return apply(ctx, pool, "sql")
+}
+
+// Seed applies the seed rows that have not been applied yet. It must run after
+// ent's schema exists, since the seeds insert into ent's tables.
+func Seed(ctx context.Context, pool *pgxpool.Pool) error {
+	return apply(ctx, pool, "seeds")
+}
+
+func apply(ctx context.Context, pool *pgxpool.Pool, dir string) error {
 	conn, err := pool.Acquire(ctx)
 	if err != nil {
 		return err
@@ -75,7 +93,7 @@ func Up(ctx context.Context, pool *pgxpool.Pool) error {
 		return fmt.Errorf("create migrations table: %w", err)
 	}
 
-	entries, err := files.ReadDir("sql")
+	entries, err := files.ReadDir(dir)
 	if err != nil {
 		return err
 	}
@@ -94,7 +112,7 @@ func Up(ctx context.Context, pool *pgxpool.Pool) error {
 			continue
 		}
 
-		body, err := files.ReadFile("sql/" + name)
+		body, err := files.ReadFile(dir + "/" + name)
 		if err != nil {
 			return err
 		}

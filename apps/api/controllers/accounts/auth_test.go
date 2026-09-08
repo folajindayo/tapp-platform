@@ -29,6 +29,7 @@ import (
 	"github.com/usezoracle/tapp/api/ent/verificationtoken"
 	"github.com/usezoracle/tapp/api/utils/crypto"
 	"github.com/usezoracle/tapp/api/utils/test"
+	"github.com/usezoracle/tapp/api/utils/token"
 )
 
 func TestAuth(t *testing.T) {
@@ -131,7 +132,7 @@ func TestAuth(t *testing.T) {
 			// Parse the user ID string to uuid.UUID
 			userUUID, err := uuid.Parse(userID)
 			assert.NoError(t, err)
-			assert.Equal(t, "", data["email"].(string))
+			assert.Equal(t, payload.Email, data["email"].(string))
 			assert.Equal(t, payload.FirstName, data["firstName"].(string))
 			assert.Equal(t, payload.LastName, data["lastName"].(string))
 
@@ -194,7 +195,7 @@ func TestAuth(t *testing.T) {
 			// Parse the user ID string to uuid.UUID
 			userUUID, err := uuid.Parse(userID)
 			assert.NoError(t, err)
-			assert.Equal(t, "", data["email"].(string))
+			assert.Equal(t, payload.Email, data["email"].(string))
 			assert.Equal(t, payload.FirstName, data["firstName"].(string))
 			assert.Equal(t, payload.LastName, data["lastName"].(string))
 
@@ -255,7 +256,7 @@ func TestAuth(t *testing.T) {
 			// Parse the user ID string to uuid.UUID
 			userUUID, err := uuid.Parse(data["id"].(string))
 			assert.NoError(t, err)
-			assert.Equal(t, "", data["email"].(string))
+			assert.Equal(t, payload.Email, data["email"].(string))
 			assert.Equal(t, payload.FirstName, data["firstName"].(string))
 			assert.Equal(t, payload.LastName, data["lastName"].(string))
 
@@ -453,16 +454,31 @@ func TestAuth(t *testing.T) {
 			Only(context.Background())
 		assert.NoError(t, fetchUserErr, "failed to fetch user by userID")
 
-		// generate verificationToken
-		verificationtoken, vtErr := user.QueryVerificationToken().
+		// The database holds the hash of the code, not the code, so the raw
+		// value has to be minted here and written over the one registration
+		// made. The predecessor posted the stored hash back and expected it to
+		// verify, which stopped being true when codes started being hashed.
+		// The token column is immutable, so the registration's token is
+		// replaced rather than rewritten.
+		rawToken := "123456"
+		existing, vtErr := user.QueryVerificationToken().
 			Where(verificationtoken.ScopeEQ(verificationtoken.ScopeEmailVerification)).
 			Only(context.Background())
+		assert.NoError(t, vtErr)
+		assert.NoError(t, db.Client.VerificationToken.DeleteOne(existing).Exec(context.Background()))
+		_, vtErr = db.Client.VerificationToken.
+			Create().
+			SetOwner(user).
+			SetToken(token.HashToken(rawToken)).
+			SetScope(verificationtoken.ScopeEmailVerification).
+			SetExpiryAt(time.Now().Add(authConf.EmailVerificationLifespan)).
+			Save(context.Background())
 		assert.NoError(t, vtErr)
 
 		t.Run("confirm user email", func(t *testing.T) {
 			// Test user email confirmation-token
 			payload := types.ConfirmEmailPayload{
-				Token: verificationtoken.Token,
+				Token: rawToken,
 				Email: user.Email,
 			}
 
@@ -496,19 +512,23 @@ func TestAuth(t *testing.T) {
 			Only(context.Background())
 		assert.NoError(t, fetchUserErr, "failed to fetch user by userID")
 
-		// generate verificationToken
-		verificationtoken, vtErr := db.Client.VerificationToken.
+		// A token that expired a minute ago. The predecessor minted a live one
+		// and slept for the configured lifespan (15 minutes by default), which
+		// is longer than Go's test timeout; what is under test is the check,
+		// not the clock.
+		rawExpired := "654321"
+		_, vtErr := db.Client.VerificationToken.
 			Create().
 			SetOwner(user).
+			SetToken(token.HashToken(rawExpired)).
 			SetScope(verificationtoken.ScopeResetPassword).
-			SetExpiryAt(time.Now().Add(authConf.PasswordResetLifespan)).
+			SetExpiryAt(time.Now().Add(-time.Minute)).
 			Save(context.Background())
 		assert.NoError(t, vtErr)
 		t.Run("try to use expired token", func(t *testing.T) {
-			time.Sleep(time.Duration(viper.GetInt("PASSWORD_RESET_LIFESPAN")) * time.Minute)
 			// Test user email confirmation-token
 			payload := types.ConfirmEmailPayload{
-				Token: verificationtoken.Token,
+				Token: rawExpired,
 				Email: user.Email,
 			}
 
@@ -527,13 +547,16 @@ func TestAuth(t *testing.T) {
 
 	t.Run("Login", func(t *testing.T) {
 		t.Run("with valid credentials for user with unverified email", func(t *testing.T) {
-			// Test login with unverified account
+			// Email verification is no longer a wall in front of the account:
+			// registration marks the address verified and login does not
+			// consult the flag. A person who can prove the password gets in.
+			// This test used to expect a refusal; it now pins the opposite so
+			// a wall cannot come back by accident.
 			payload := types.LoginPayload{
 				Email:    "ikeayo@example.com",
 				Password: "password",
 			}
 
-			// Mark user as unverified
 			_, err := db.Client.User.
 				Update().
 				Where(userEnt.EmailEQ(strings.ToLower(payload.Email))).
@@ -543,15 +566,13 @@ func TestAuth(t *testing.T) {
 
 			res, err := test.PerformRequest(t, "POST", "/login", payload, nil, router)
 			assert.NoError(t, err)
-
-			// Assert the response body
-			assert.Equal(t, http.StatusBadRequest, res.Code)
+			assert.Equal(t, http.StatusOK, res.Code)
 
 			var response types.Response
 			err = json.Unmarshal(res.Body.Bytes(), &response)
 			assert.NoError(t, err)
-			assert.Equal(t, "Email is not verified, please verify your email", response.Message)
-			assert.Nil(t, response.Data)
+			assert.Equal(t, "Successfully logged in", response.Message)
+			assert.NotNil(t, response.Data)
 		})
 
 		t.Run("with valid credentials for user with provider and sender scopes", func(t *testing.T) {
@@ -782,14 +803,17 @@ func TestAuth(t *testing.T) {
 
 		t.Run("FailsForExpiredResetToken", func(t *testing.T) {
 
-			resetToken, err := db.Client.VerificationToken.Create().SetExpiryAt(time.Now().
+			// Stored hashed, like every token; the raw code is what a person posts.
+			rawReset := "222222"
+			_, err := db.Client.VerificationToken.Create().SetExpiryAt(time.Now().
 				Add(-10 * time.Second)).SetOwner(userInstance).SetScope(verificationtoken.ScopeResetPassword).
+				SetToken(token.HashToken(rawReset)).
 				Save(context.Background())
 			assert.NoError(t, err)
 
 			ResetPasswordPayload := map[string]string{
 				"new-password": "1111000090",
-				"reset-token":  resetToken.Token,
+				"reset-token":  rawReset,
 			}
 			res, err := test.PerformRequest(t, "PATCH", "/reset-password", ResetPasswordPayload, nil, router)
 
@@ -800,14 +824,16 @@ func TestAuth(t *testing.T) {
 
 		t.Run("FailsForWrongScope", func(t *testing.T) {
 
-			emailVerificationToken, err := db.Client.VerificationToken.Create().SetExpiryAt(time.Now().
+			rawWrongScope := "333333"
+			_, err := db.Client.VerificationToken.Create().SetExpiryAt(time.Now().
 				Add(10 * time.Second)).SetOwner(userInstance).SetScope(verificationtoken.ScopeEmailVerification).
+				SetToken(token.HashToken(rawWrongScope)).
 				Save(context.Background())
 			assert.NoError(t, err)
 
 			ResetPasswordPayload := map[string]string{
 				"new-password": "1111000090",
-				"reset-token":  emailVerificationToken.Token,
+				"reset-token":  rawWrongScope,
 			}
 			res, err := test.PerformRequest(t, "PATCH", "/reset-password", ResetPasswordPayload, nil, router)
 
@@ -822,15 +848,17 @@ func TestAuth(t *testing.T) {
 			beforeTestCount, err := db.Client.VerificationToken.Query().Aggregate(ent.Count()).Int(context.Background())
 			assert.NoError(t, err)
 
-			resetToken, err := db.Client.VerificationToken.Create().SetExpiryAt(time.Now().
+			rawValid := "444444"
+			_, err = db.Client.VerificationToken.Create().SetExpiryAt(time.Now().
 				Add(5 * time.Minute)).SetOwner(userInstance).SetScope(verificationtoken.ScopeResetPassword).
+				SetToken(token.HashToken(rawValid)).
 				Save(context.Background())
 			assert.NoError(t, err)
 
 			resetPasswordPayload := map[string]string{
 				"email":      userInstance.Email,
 				"password":   "1111000090",
-				"resetToken": resetToken.Token,
+				"resetToken": rawValid,
 			}
 
 			res, err := test.PerformRequest(t, "PATCH", "/reset-password", resetPasswordPayload, nil, router)

@@ -1,0 +1,84 @@
+# Every push and pull request: does the API compile, vet and pass its tests
+# against a real Postgres and Redis; does the PWA typecheck, test and build.
+# The merchant app is not built here; it ships through Expo, not from main.
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  api:
+    name: api (go)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/api
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: tapp
+          POSTGRES_PASSWORD: tapp
+          POSTGRES_DB: tapp_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U tapp"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      # A checkout has no .env, so this job exports what a developer's .env
+      # would: a database, a cache, and non-empty secrets to sign with. These
+      # are test fixtures that exist nowhere else; "local" mirrors a
+      # developer's run so the suite sees the same environment switches.
+      ENVIRONMENT: local
+      TEST_DATABASE_URL: postgres://tapp:tapp@localhost:5432/tapp_test?sslmode=disable
+      DATABASE_URL: postgres://tapp:tapp@localhost:5432/tapp_test?sslmode=disable
+      REDIS_URL: redis://localhost:6379/0
+      # The mail tests mock SendGrid's host; the service builds its URL from
+      # EMAIL_DOMAIN, so the two have to agree, as they do in .env.example.
+      EMAIL_PROVIDER: sendgrid
+      EMAIL_DOMAIN: api.sendgrid.com
+      SECRET: ci-fixture-secret-not-used-anywhere-else-0000000000
+      JWT_SIGNING_KEY: ci-fixture-signing-key-not-used-anywhere-else-00
+      WALLET_MASTER_KEY: "1111111111111111111111111111111111111111111111111111111111111111"
+      BASE_DEPOSIT_SEED: "2222222222222222222222222222222222222222222222222222222222222222"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: apps/api/go.mod
+          cache-dependency-path: apps/api/go.sum
+      - run: go build ./...
+      - run: go vet ./...
+      # -p 1: the database-backed packages share TEST_DATABASE_URL, and run
+      # in parallel they trample each other's rows. One package at a time.
+      - run: go test ./... -count=1 -p 1
+
+  pwa:
+    name: pwa (next)
+    runs-on: ubuntu-latest
+    env:
+      # A build-time fixture so the bundle can be produced; the real value is
+      # set on Vercel, which is the only place a PWA build is deployed from.
+      NEXT_PUBLIC_API_BASE_URL: https://api.ci.invalid
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: corepack enable
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter tapp exec tsc --noEmit
+      - run: pnpm --filter tapp test
+      - run: pnpm --filter tapp build

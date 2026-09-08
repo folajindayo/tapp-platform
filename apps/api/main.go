@@ -36,6 +36,11 @@ func main() {
 	if err := crypto.RequireMasterKey(); err != nil {
 		logger.Fatalf("custody key: %s", err)
 	}
+	// Likewise the secrets every session is signed with. An empty signing key
+	// is not a degraded mode, it is no authentication at all.
+	if err := config.RequireSecrets(); err != nil {
+		logger.Fatalf("auth secrets: %s", err)
+	}
 
 	// Connect to the database
 	DSN := config.DBConfig()

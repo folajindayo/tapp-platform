@@ -1,21 +1,23 @@
 import { NextResponse } from "next/server";
+import { apiBase, apiNotConfigured } from "@/lib/server/api-base";
 
 // Both are read per request rather than at module load so a deployment that
 // is missing one answers with a clear 503 instead of a build-time default. An
 // earlier revision fell back to a literal admin token, which meant every
 // deployment that forgot to set one accepted the same well-known secret.
 function config(): { base: string; token: string } | null {
-  const base = process.env.NEXT_PUBLIC_API_BASE_URL;
+  const base = apiBase();
   const token = process.env.ADMIN_API_TOKEN;
   if (!base || !token) return null;
   return { base, token };
 }
 
 export async function POST() {
+  if (!apiBase()) return apiNotConfigured();
   const cfg = config();
   if (!cfg) {
     return NextResponse.json(
-      { error: "Card issuing is not configured on this deployment" },
+      { error: "Card issuing is not configured on this deployment: ADMIN_API_TOKEN is unset" },
       { status: 503 },
     );
   }

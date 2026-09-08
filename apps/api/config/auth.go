@@ -16,25 +16,25 @@ import (
 // falls back to `Secret` for backwards compatibility, but production
 // deployments MUST set JWT_SIGNING_KEY separately.
 type AuthConfiguration struct {
-	Secret                     string
-	JwtSigningKey              string
-	JwtIssuer                  string
-	JwtAudience                string
-	JwtAccessLifespan          time.Duration
-	JwtRefreshLifespan         time.Duration
-	HmacTimestampAge           time.Duration
-	PasswordResetLifespan      time.Duration
-	EmailVerificationLifespan  time.Duration
+	Secret                    string
+	JwtSigningKey             string
+	JwtIssuer                 string
+	JwtAudience               string
+	JwtAccessLifespan         time.Duration
+	JwtRefreshLifespan        time.Duration
+	HmacTimestampAge          time.Duration
+	PasswordResetLifespan     time.Duration
+	EmailVerificationLifespan time.Duration
 }
 
 // AuthConfig sets the authentication & authorization configurations
 func AuthConfig() (config *AuthConfiguration) {
-	viper.SetDefault("JWT_ACCESS_LIFESPAN", 15)         // 15 minutes
-	viper.SetDefault("JWT_REFRESH_LIFESPAN", 10080)     // 7 days
+	viper.SetDefault("JWT_ACCESS_LIFESPAN", 15)     // 15 minutes
+	viper.SetDefault("JWT_REFRESH_LIFESPAN", 10080) // 7 days
 	viper.SetDefault("JWT_ISSUER", "rails.zoracle")
 	viper.SetDefault("JWT_AUDIENCE", "rails.zoracle.clients")
 	viper.SetDefault("HMAC_TIMESTAMP_AGE", 5)
-	viper.SetDefault("PASSWORD_RESET_LIFESPAN", 15)     // 15 minutes — short by design
+	viper.SetDefault("PASSWORD_RESET_LIFESPAN", 15)       // 15 minutes — short by design
 	viper.SetDefault("EMAIL_VERIFICATION_LIFESPAN", 1440) // 24 hours — UX-friendly
 
 	signingKey := viper.GetString("JWT_SIGNING_KEY")
@@ -55,6 +55,27 @@ func AuthConfig() (config *AuthConfiguration) {
 		PasswordResetLifespan:     time.Duration(viper.GetInt("PASSWORD_RESET_LIFESPAN")) * time.Minute,
 		EmailVerificationLifespan: time.Duration(viper.GetInt("EMAIL_VERIFICATION_LIFESPAN")) * time.Minute,
 	}
+}
+
+// minSecretLen is the shortest SECRET or JWT_SIGNING_KEY the service will
+// boot with. 32 bytes is HS256's key size; `openssl rand -hex 32` gives 64.
+const minSecretLen = 32
+
+// RequireSecrets refuses to run with an empty or short SECRET or signing key.
+//
+// Called from main before anything serves a request, not from init, so tests
+// and tooling that never sign a token are unaffected. Without this a
+// deployment that forgot SECRET signed every session with the empty string,
+// and the only symptom was that any forged token verified.
+func RequireSecrets() error {
+	c := AuthConfig()
+	if len(c.Secret) < minSecretLen {
+		return fmt.Errorf("SECRET must be set and at least %d characters (openssl rand -hex 32)", minSecretLen)
+	}
+	if len(c.JwtSigningKey) < minSecretLen {
+		return fmt.Errorf("JWT_SIGNING_KEY must be set and at least %d characters (openssl rand -hex 32)", minSecretLen)
+	}
+	return nil
 }
 
 func init() {
