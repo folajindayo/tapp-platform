@@ -8,8 +8,11 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 
+	"github.com/shopspring/decimal"
+
 	"github.com/usezoracle/tapp/api/internal/ledger"
 	"github.com/usezoracle/tapp/api/internal/money"
+	"github.com/usezoracle/tapp/api/internal/rates"
 	"github.com/usezoracle/tapp/api/storage"
 	u "github.com/usezoracle/tapp/api/utils"
 	"github.com/usezoracle/tapp/api/utils/logger"
@@ -34,6 +37,34 @@ type currencyBalance struct {
 
 type balancesResponse struct {
 	Balances []currencyBalance `json:"balances"`
+
+	// Total is everything the caller holds, expressed in one currency.
+	//
+	// Nil when no rate is available, and the client must then show the
+	// per-currency figures alone rather than a total. There is deliberately no
+	// fallback rate: a total assembled from a stale or invented number is a
+	// wrong answer to "how much do I have", which is the one question this
+	// endpoint exists to answer.
+	Total *totalBalance `json:"total,omitempty"`
+}
+
+// totalBalance is the summed position, and enough provenance to be honest
+// about what it is.
+type totalBalance struct {
+	// Amount is the sum of every currency's AVAILABLE balance, converted.
+	// Escrow is excluded for the same reason it is reported separately above:
+	// folding committed money into a headline is how somebody comes to believe
+	// it is theirs to spend.
+	Amount money.Amount `json:"amount"`
+
+	// Converted says at least one currency had to be converted to produce
+	// this, so the client can mark it as approximate. A total that happens to
+	// need no conversion is exact and should not be hedged.
+	Converted bool `json:"converted"`
+
+	// Rates names the mid-market price used per pair, so a figure somebody
+	// disputes can be traced rather than argued about.
+	Rates map[string]string `json:"rates,omitempty"`
 }
 
 // Balances returns every currency the caller holds.
@@ -64,7 +95,61 @@ func (h *BalanceHandler) Balances(ctx *gin.Context) {
 	}
 
 	u.APIResponse(ctx, http.StatusOK, "success", "Balances retrieved",
-		balancesResponse{Balances: out})
+		balancesResponse{Balances: out, Total: totalIn(ctx.Request.Context(), out, money.NGN)})
+}
+
+// totalIn sums every available balance into one currency.
+//
+// Returns nil rather than a partial figure when any leg cannot be priced. A
+// total missing one of two currencies is indistinguishable from a real total,
+// and would quietly under-report what somebody has.
+//
+// The MID-MARKET rate is used, not a tradeable quote. A quote carries the
+// spread, and showing a holding net of a fee that has not been charged
+// under-reports it; what is being answered here is "what is this worth", not
+// "what would I get for it".
+func totalIn(ctx context.Context, rows []currencyBalance, into money.Currency) *totalBalance {
+	sum := money.Zero(into)
+	converted := false
+	used := map[string]string{}
+
+	quoter := SharedQuoter()
+	for _, row := range rows {
+		if row.Available.IsZero() {
+			continue
+		}
+		if row.Available.Currency() == into {
+			next, err := sum.Add(row.Available)
+			if err != nil {
+				return nil
+			}
+			sum = next
+			continue
+		}
+		if quoter == nil {
+			return nil
+		}
+		pair := rates.Pair{Base: row.Available.Currency(), Quote: into}
+		rate, err := quoter.Engine.Market(ctx, pair)
+		if err != nil {
+			logger.Errorf("balances: no rate for %s: %v", pair, err)
+			return nil
+		}
+		minor := decimal.NewFromInt(row.Available.Minor()).Mul(rate.Mid).IntPart()
+		next, err := sum.Add(money.New(minor, into))
+		if err != nil {
+			return nil
+		}
+		sum = next
+		converted = true
+		used[pair.String()] = rate.Mid.String()
+	}
+
+	total := &totalBalance{Amount: sum, Converted: converted}
+	if converted {
+		total.Rates = used
+	}
+	return total
 }
 
 func readBalance(ctx context.Context, user uuid.UUID, c money.Currency) (currencyBalance, error) {

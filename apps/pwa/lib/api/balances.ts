@@ -19,6 +19,21 @@ export interface CurrencyBalance {
   escrow: Money;
 }
 
+/**
+ * Everything held, in one currency.
+ *
+ * Absent when the server had no rate to convert with. The client must then
+ * show the per-currency figures alone rather than a total: a headline
+ * assembled from a guessed rate is a wrong answer to "how much do I have".
+ */
+export interface TotalBalance {
+  amount: Money;
+  /** At least one currency was converted, so the figure is approximate. */
+  converted: boolean;
+  /** Mid-market rate used per pair, for tracing a disputed figure. */
+  rates?: Record<string, string>;
+}
+
 export const balancesApi = {
   /**
    * Every supported currency, including the ones at zero.
@@ -28,5 +43,6 @@ export const balancesApi = {
    * first deposit look like the app inventing an account.
    */
   list: (jwt: string) =>
-    request<{ balances: CurrencyBalance[] }>("GET", "/v1/me/balances", { token: jwt }),
+    request<{ balances: CurrencyBalance[]; total?: TotalBalance }>(
+      "GET", "/v1/me/balances", { token: jwt }),
 };
