@@ -21,6 +21,7 @@ type ServerConfiguration struct {
 	HostDomain          string
 	CheckoutBaseURL     string
 	PWABaseURL          string
+	AdminBaseURL        string
 	AdminAPIToken       string
 	GoogleOAuthClientID string
 	SettlementAPIURL    string
@@ -62,6 +63,7 @@ func ServerConfig() *ServerConfiguration {
 		HostDomain:          viper.GetString("HOST_DOMAIN"),
 		CheckoutBaseURL:     viper.GetString("CHECKOUT_BASE_URL"),
 		PWABaseURL:          viper.GetString("PWA_BASE_URL"),
+		AdminBaseURL:        viper.GetString("ADMIN_BASE_URL"),
 		AdminAPIToken:       viper.GetString("ADMIN_API_TOKEN"),
 		GoogleOAuthClientID: viper.GetString("GOOGLE_OAUTH_CLIENT_ID"),
 		SettlementAPIURL:    viper.GetString("SETTLEMENT_API_URL"),
