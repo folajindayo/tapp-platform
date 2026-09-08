@@ -9,6 +9,7 @@ import {
   PiCreditCardBold,
   PiSlidersHorizontalBold,
   PiLockKeyBold,
+  PiIdentificationCardBold,
   PiQuestionBold,
   PiSignOutBold,
   PiCopyBold,
@@ -21,7 +22,8 @@ import {
   slideInOut,
 } from "@/components/ui/AnimatedComponents";
 import { useSession } from "@/lib/auth";
-import { useCard, useDepositAddress } from "@/lib/ledger";
+import { useCard, useDepositAddress, useKycStatus } from "@/lib/ledger";
+import { KycTierChip } from "@/components/ui/KycTierChip";
 import { Web3Avatar } from "@/components/ui/Web3Avatar";
 
 export default function SettingsPage() {
@@ -29,6 +31,7 @@ export default function SettingsPage() {
   const { hydrated, session, clear } = useSession();
   const deposit = useDepositAddress();
   const card = useCard();
+  const kyc = useKycStatus();
   const [copied, setCopied] = useState(false);
 
   // The deposit address, which is the only address a holder has. There is no
@@ -102,6 +105,23 @@ export default function SettingsPage() {
               subtitle="Daily, per-tap, step-up threshold"
             />
           )}
+          <SettingsRow
+            href="/settings/kyc"
+            icon={<PiIdentificationCardBold />}
+            title="Identity verification"
+            subtitle={
+              kyc.data?.next
+                ? `Next: ${kyc.data.next.tier_name}`
+                : kyc.data
+                  ? "Fully verified"
+                  : kyc.isError
+                    ? "Not available on this deployment"
+                    : "BVN and photo, raises your limits"
+            }
+            badge={
+              kyc.data ? <KycTierChip status={kyc.data} /> : <StatusChip>—</StatusChip>
+            }
+          />
           <SettingsRow
             href="/settings/security"
             icon={<PiLockKeyBold />}

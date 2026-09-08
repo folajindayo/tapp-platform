@@ -15,14 +15,15 @@ import { Screen } from "@/components/ui/Screen";
 import { Button } from "@/components/ui/Button";
 import { InfoBanner } from "@/components/ui/InfoBanner";
 import { Surface } from "@/components/ui/Surface";
-import { inputClasses } from "@/components/ui/Styles";
+import { Field } from "@/components/ui/Field";
+import { RequestFailure, apiMessage } from "@/components/ui/RequestFailure";
 import {
   AnimatedComponent,
   slideInOut,
 } from "@/components/ui/AnimatedComponents";
 import { useSession } from "@/lib/auth";
 import { useBalances, balanceIn, useKycStatus, useNGNAccount } from "@/lib/ledger";
-import { ApiError, kycApi, ngnDepositsApi, type KycResult } from "@/lib/api";
+import { kycApi, ngnDepositsApi, type KycResult } from "@/lib/api";
 
 /**
  * Getting paid in naira.
@@ -351,74 +352,14 @@ function OpenStep({ bvn, onBvn }: { bvn: string; onBvn: (v: string) => void }) {
 // Shared bits
 // -----------------------------------------------------------------------------
 
-function Field({
-  id,
-  label,
-  value,
-  onChange,
-  hint,
-  ...rest
-}: {
-  id: string;
-  label: string;
-  value: string;
-  onChange: (v: string) => void;
-  hint?: string;
-} & Omit<React.InputHTMLAttributes<HTMLInputElement>, "id" | "value" | "onChange">) {
-  return (
-    <div className="grid gap-1.5">
-      <label
-        htmlFor={id}
-        className="px-1 text-xs font-medium uppercase tracking-wider text-[var(--fg-subtle)]"
-      >
-        {label}
-      </label>
-      <input
-        id={id}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className={inputClasses}
-        {...rest}
-      />
-      {hint ? <p className="px-1 text-xs text-[var(--fg-muted)]">{hint}</p> : null}
-    </div>
-  );
-}
-
 function LoadFailure({ error }: { error: unknown }) {
   return (
     <InfoBanner tone="warning" icon={<PiWarningOctagonFill className="text-amber-500" />}>
       <p className="font-medium text-[var(--fg)]">Couldn&apos;t load your account</p>
       <p className="mt-1 text-xs leading-relaxed">
-        {message(error)} Don&apos;t use an account number from anywhere else —
+        {apiMessage(error)} Don&apos;t use an account number from anywhere else —
         it will not be yours, and money sent to it does not come back.
       </p>
     </InfoBanner>
   );
-}
-
-function RequestFailure({ error }: { error: unknown }) {
-  return (
-    <InfoBanner tone="warning" icon={<PiWarningOctagonFill className="text-amber-500" />}>
-      <p className="text-xs leading-relaxed">{message(error)}</p>
-    </InfoBanner>
-  );
-}
-
-/**
- * The server's own words where there are any.
- *
- * `missing` is spelled out when the rail refused for want of a field, because
- * "more details are needed" is not something anybody can act on and "we still
- * need your NIN" is.
- */
-function message(error: unknown): string {
-  if (error instanceof ApiError) {
-    const missing = (error.data as { missing?: string[] } | undefined)?.missing;
-    if (missing?.length) {
-      return `We still need: ${missing.join(", ")}.`;
-    }
-    return error.message;
-  }
-  return error instanceof Error ? error.message : "Try again in a moment.";
 }
