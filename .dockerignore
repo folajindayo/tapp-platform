@@ -1,0 +1,16 @@
+# The API image copies apps/api only; nothing else belongs in its context.
+.git
+.github
+.vercel
+.vscode
+.idea
+node_modules
+**/node_modules
+apps/pwa
+apps/merchant
+packages
+docs
+*.md
+apps/api/.env
+apps/api/Dockerfile.prod
+apps/api/cdp-reissue

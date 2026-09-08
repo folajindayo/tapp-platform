@@ -4,7 +4,7 @@ Two deployables, two hosts, one branch.
 
 | What | Where | Deploys when |
 |---|---|---|
-| API (`apps/api`, Go) | Railway, project `tapp-platform`, service `api` | `main` changes under `apps/api/` and `ci` is green |
+| API (`apps/api`, Go) | Railway, project `tapp-platform`, service `api` | every push to `main`, through Railway's GitHub integration |
 | PWA (`apps/pwa`, Next.js) | Vercel, project `tapp-pwa`, root directory `apps/pwa` | `main` changes under `apps/pwa/` or the workspace files |
 
 The merchant app ships through Expo and is not deployed from this repo.
@@ -16,14 +16,17 @@ The merchant app ships through Expo and is not deployed from this repo.
    Postgres and Redis, and typechecks, tests and builds the PWA.
 3. Vercel's GitHub integration builds the PWA from `main` on its own. Commits
    that touch neither `apps/pwa` nor the workspace files are skipped.
-4. `.github/workflows/deploy-api.yml` runs after `ci` succeeds on `main` and
-   runs `railway up` for the API. It needs the `RAILWAY_TOKEN` secret; until
-   that exists it skips itself and says so in the run summary.
+4. Railway's GitHub integration builds the API from `main` on its own, using
+   the `Dockerfile` and `railway.json` at the repository root (a
+   GitHub-connected Railway service builds from the root; the Dockerfile
+   copies `apps/api`). `.github/workflows/deploy-api.yml` is a fallback that
+   does the same with `railway up` when the integration is disconnected; it
+   needs the `RAILWAY_TOKEN` secret and skips itself until that exists.
 
 Manual equivalents, from a linked checkout:
 
 ```bash
-railway up --service api --path-as-root apps/api --ci   # API
+railway up --service api --ci                            # API, from the repo root
 vercel deploy --prod --yes                               # PWA, from the repo root
 ```
 
@@ -100,7 +103,7 @@ deposit address to two different users.
 
 | Secret | Used by |
 |---|---|
-| `RAILWAY_TOKEN` | `deploy-api.yml`. A Project Token for `tapp-platform` / production. |
+| `RAILWAY_TOKEN` | `deploy-api.yml`, the fallback only. A Project Token for `tapp-platform` / production. |
 
 ## Checking a deploy
 

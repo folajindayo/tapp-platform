@@ -1,15 +1,14 @@
-# The API deploys to Railway from main, after ci has passed on that commit.
+# A fallback deploy of the API to Railway from main, after ci has passed.
 #
-# Railway's own GitHub integration cannot be configured from the CLI (the
-# service's root directory is a dashboard setting), so the deploy is the same
-# `railway up` a developer runs, driven by a project token. One secret:
+# The api service is connected to this repository through Railway's GitHub
+# integration and deploys every push to main by itself; that is the normal
+# path and needs nothing here. This workflow is the same `railway up` a
+# developer runs, for when that integration is disconnected. It needs one
+# secret, and until it exists the job skips itself and says so:
 #
 #   RAILWAY_TOKEN  a Project Token for tapp-platform / production
 #                  (Railway -> project -> Settings -> Tokens), stored as a
 #                  GitHub Actions secret on this repository.
-#
-# Until that secret exists the job is skipped, not failed, so a missing token
-# reads as "not set up yet" rather than as a broken deploy.
 name: deploy-api
 
 on:
@@ -66,4 +65,4 @@ jobs:
         if: steps.token.outputs.configured == 'true' && steps.changed.outputs.yes == 'true'
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
-        run: railway up --service api --path-as-root apps/api --ci
+        run: railway up --service api --ci
