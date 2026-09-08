@@ -1,17 +1,30 @@
 import { NextResponse } from "next/server";
 
-const RAILS_BASE =
-  process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
-const ADMIN_API_TOKEN =
-  process.env.ADMIN_API_TOKEN ?? "demo_admin_secret_token_tapp_2026";
+// Both are read per request rather than at module load so a deployment that
+// is missing one answers with a clear 503 instead of a build-time default. An
+// earlier revision fell back to a literal admin token, which meant every
+// deployment that forgot to set one accepted the same well-known secret.
+function config(): { base: string; token: string } | null {
+  const base = process.env.NEXT_PUBLIC_API_BASE_URL;
+  const token = process.env.ADMIN_API_TOKEN;
+  if (!base || !token) return null;
+  return { base, token };
+}
 
 export async function POST() {
+  const cfg = config();
+  if (!cfg) {
+    return NextResponse.json(
+      { error: "Card issuing is not configured on this deployment" },
+      { status: 503 },
+    );
+  }
   try {
-    const res = await fetch(`${RAILS_BASE}/v1/cards/issue-batch`, {
+    const res = await fetch(`${cfg.base}/v1/cards/issue-batch`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "X-Admin-Token": ADMIN_API_TOKEN,
+        "X-Admin-Token": cfg.token,
       },
       body: JSON.stringify({ count: 1 }),
     });

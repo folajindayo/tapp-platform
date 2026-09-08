@@ -75,10 +75,12 @@ CARD_RECOVERY_SENDGRID_TEMPLATE=         # dynamic template id (d-...)
 
 ### Migration
 
-```bash
-go generate ./ent/...
-make migrate              # atlas-driven schema migration
-```
+Nothing to run by hand. On boot the service brings the ent schema up to date,
+then applies the embedded ledger migrations and seed rows
+(`internal/platform/migrate/sql`), each step under one advisory lock so
+several instances starting together do not race. A database that predates the
+binary is migrated forward. The versioned files under `ent/migrate/migrations`
+are no longer regenerated and are not applied anywhere.
 
 ### Smoke
 

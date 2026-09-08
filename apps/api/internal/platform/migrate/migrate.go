@@ -1,6 +1,8 @@
 // Package migrate applies the ledger schema from inside the binary.
 //
-// These are the hand-written migrations that ent does not own. The ledger is
+// These are the hand-written migrations that ent does not own, plus the seed
+// rows (the NGN currency, its banks, its provision buckets) that the code
+// assumes exist. The ledger is
 // not an ent schema because its central guarantee -- a deferred constraint
 // trigger that makes an unbalanced write impossible to commit -- cannot be
 // expressed through an ORM, and because account_balances must be a view over
@@ -30,6 +32,26 @@ var files embed.FS
 
 // lockID is an arbitrary constant; it only has to be the same in every instance.
 const lockID = 8_675_309
+
+// Locked runs fn while holding the migration advisory lock, so that several
+// instances booting together serialise their schema work. The lock is
+// session-level and tied to one pooled connection, which is why fn must not
+// call back into Locked or Up: a nested call would wait, on a different
+// connection, for the lock this one holds.
+func Locked(ctx context.Context, pool *pgxpool.Pool, fn func(ctx context.Context) error) error {
+	conn, err := pool.Acquire(ctx)
+	if err != nil {
+		return err
+	}
+	defer conn.Release()
+
+	if _, err := conn.Exec(ctx, `SELECT pg_advisory_lock($1)`, lockID); err != nil {
+		return fmt.Errorf("take migration lock: %w", err)
+	}
+	defer conn.Exec(context.WithoutCancel(ctx), `SELECT pg_advisory_unlock($1)`, lockID)
+
+	return fn(ctx)
+}
 
 // Up applies every migration that has not been applied yet, in filename order.
 func Up(ctx context.Context, pool *pgxpool.Pool) error {

@@ -9,7 +9,6 @@ import (
 
 	"entgo.io/ent/dialect"
 	entsql "entgo.io/ent/dialect/sql"
-	"github.com/usezoracle/tapp/api/config"
 	"github.com/usezoracle/tapp/api/ent"
 	"github.com/usezoracle/tapp/api/ent/migrate"
 	_ "github.com/usezoracle/tapp/api/ent/runtime" // ent runtime
@@ -79,22 +78,27 @@ func DBConnection(DSN string) error {
 	// Integrate sql.DB to ent.Client.
 	client := ent.NewClient(ent.Driver(drv))
 
-	conf := config.ServerConfig()
-
-	// Run the auto migration tool.
-	if conf.Environment == "local" {
-		if err := client.Schema.Create(context.Background(), migrate.WithGlobalUniqueID(true)); err != nil {
-			return err
-		}
+	// Bring the ent schema up to what this binary expects, in every
+	// environment. It used to run only in local, with production expected to
+	// apply the versioned files under ent/migrate/migrations beforehand. Those
+	// files stopped being regenerated, the deployment target has no pre-deploy
+	// step, and a service that boots against a database missing its tables
+	// fails on the first request rather than at start. ent's auto-migration
+	// is additive and idempotent, and the advisory lock keeps two instances
+	// booting together from racing on the same ALTER.
+	if err := ledgermigrate.Locked(ctx, pool, func(ctx context.Context) error {
+		return client.Schema.Create(ctx, migrate.WithGlobalUniqueID(true))
+	}); err != nil {
+		return fmt.Errorf("ent schema: %w", err)
 	}
 
 	Client = client
 
-	// The ledger schema is hand-written SQL that ent does not own, and it is
-	// applied on every boot rather than only in local: it is idempotent,
-	// guarded by an advisory lock, and the deployment target has no pre-deploy
-	// step. A service that starts against a database predating its ledger
-	// would accept movements it cannot record.
+	// The ledger schema and the seed rows are hand-written SQL that ent does
+	// not own. They run after the ent schema because the seeds insert into
+	// ent's tables, and on every boot for the same reasons as above: a
+	// service that starts against a database predating its ledger would
+	// accept movements it cannot record.
 	if err := ledgermigrate.Up(ctx, pool); err != nil {
 		return fmt.Errorf("ledger migrations: %w", err)
 	}
