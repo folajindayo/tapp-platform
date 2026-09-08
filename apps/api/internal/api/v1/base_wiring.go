@@ -5,16 +5,28 @@ import (
 	"fmt"
 	"time"
 
+	"math/big"
+
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/google/uuid"
 	"github.com/spf13/viper"
 
+	"github.com/usezoracle/tapp/api/config"
 	"github.com/usezoracle/tapp/api/internal/chain/base"
+	"github.com/usezoracle/tapp/api/internal/chain/cdp"
+	"github.com/usezoracle/tapp/api/internal/chain/gas"
 	"github.com/usezoracle/tapp/api/storage"
 	"github.com/usezoracle/tapp/api/utils/logger"
 )
 
 // BaseRail is everything the USDC rail needs, assembled once.
 type BaseRail struct {
+	// Gas records what on-chain work costs and watches the balance that pays
+	// for it. Always built when the rail is: gas is spent whether or not
+	// anybody is counting, and the point is to stop that being invisible.
+	Gas       *gas.Recorder
+	GasWallet *gas.Wallet
+
 	Addresses   *base.Addresses
 	Deposits    *base.Deposits
 	Watcher     *base.Watcher
@@ -65,6 +77,29 @@ func NewBaseRail(ctx context.Context) (*BaseRail, error) {
 	client := chain.Client
 
 	addresses := &base.Addresses{Pool: storage.Pool, Deriver: deriver}
+
+	// CDP Smart Accounts, when configured, take over NEW address allocation
+	// and the sweeping of those addresses. Existing derived addresses are
+	// untouched. A partial configuration is refused here so that main.go
+	// fails the boot: an operator who set two of three secrets meant to turn
+	// this on, and a rail that silently falls back to derived addresses would
+	// hide that from them until the first sweep failed.
+	var smart base.SmartAccounts
+	if cdpCfg := config.CDPConfig(); cdpCfg.Enabled() {
+		client, err := cdp.New(cdp.Config{
+			APIKeyID: cdpCfg.APIKeyID, APIKeySecret: cdpCfg.APIKeySecret,
+			WalletSecret: cdpCfg.WalletSecret, PaymasterURL: cdpCfg.PaymasterURL,
+			BaseURL: cdpCfg.BaseURL,
+		}, chainID)
+		if err != nil {
+			return nil, err
+		}
+		smart = client
+		addresses.SmartAccounts = client
+		logger.Infof("base: new deposit addresses are CDP smart accounts on chain %d, gas sponsored", chainID)
+	} else {
+		logger.Infof("base: new deposit addresses are derived from BASE_DEPOSIT_SEED")
+	}
 	deposits := &base.Deposits{
 		Pool: storage.Pool, Addresses: addresses,
 		Confirmations: uint64(viper.GetInt("BASE_CONFIRMATIONS")),
@@ -77,7 +112,28 @@ func NewBaseRail(ctx context.Context) (*BaseRail, error) {
 			"and USDC withdrawals are unavailable")
 	}
 
+	recorder := &gas.Recorder{Pool: storage.Pool, Client: client, ChainID: chainID}
+
+	// The sweeper reports what each sweep cost, after the sweep is recorded.
+	sweeper := &base.Sweeper{Pool: storage.Pool, Chain: chain, Deriver: deriver, SmartAccounts: smart}
+	sweeper.OnSpend = func(ctx context.Context, depositID uuid.UUID, txHash string) {
+		id := depositID
+		if _, err := recorder.Record(ctx, "sweep", &id, txHash); err != nil {
+			// Never fatal to the sweep: the money has moved and the deposit
+			// row already says so. An unrecorded cost is a gap in the books,
+			// which is worth an error and not a rollback.
+			logger.Errorf("gas: could not record sweep cost for %s: %v", txHash, err)
+		}
+	}
+
 	return &BaseRail{
+		Gas: recorder,
+		GasWallet: &gas.Wallet{
+			Pool: storage.Pool, Client: client,
+			Address: chain.Treasury, ChainID: chainID,
+			LowWei:           big.NewInt(viper.GetInt64("BASE_NATIVE_LOW_THRESHOLD_WEI")),
+			MaxRefillsPerDay: viper.GetInt("GAS_MAX_REFILLS_PER_DAY"),
+		},
 		Addresses: addresses,
 		Deposits:  deposits,
 		Chain:     chain,
@@ -88,7 +144,7 @@ func NewBaseRail(ctx context.Context) (*BaseRail, error) {
 			Deposits:   deposits,
 			StartBlock: uint64(viper.GetInt64("BASE_START_BLOCK")),
 		},
-		Sweeper:     &base.Sweeper{Pool: storage.Pool, Chain: chain, Deriver: deriver},
+		Sweeper:     sweeper,
 		Withdrawals: &base.Withdrawals{Pool: storage.Pool, Chain: chain},
 	}, nil
 }
