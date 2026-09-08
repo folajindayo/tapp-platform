@@ -16,7 +16,6 @@ import (
 	"github.com/usezoracle/tapp/api/services"
 	"github.com/usezoracle/tapp/api/services/baas"
 	"github.com/usezoracle/tapp/api/services/baas/fintava"
-	"github.com/usezoracle/tapp/api/services/baas/korapay"
 	"github.com/usezoracle/tapp/api/services/baas/mfb"
 	"github.com/usezoracle/tapp/api/storage"
 	"github.com/usezoracle/tapp/api/tasks"
@@ -147,17 +146,6 @@ func initBaaSRail() {
 			baas.SetDefault(mfb.NewAdapter(shClient, shConf.WebhookSecret))
 			logger.Infof("BaaS rail ready (provider=mfb)")
 		}
-	case "korapay":
-		kConf := config.BaaSConfig()
-		if kConf.KorapaySecretKey == "" {
-			logger.Infof("BaaS rail (korapay) not configured (KORAPAY_SECRET_KEY empty); fiat payout routes disabled")
-			return
-		}
-		baas.SetDefault(korapay.NewAdapter(korapay.New(
-			kConf.KorapaySecretKey, kConf.KorapayPublicKey, kConf.KorapayBaseURL,
-			kConf.KorapayPayoutEmail, kConf.KorapayVBABankCode,
-		)))
-		logger.Infof("BaaS rail ready (provider=korapay)")
 	case "fintava":
 		fConf := config.BaaSConfig()
 		if fConf.FintavaAPIKey == "" {

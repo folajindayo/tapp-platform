@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
+  PiBankBold,
   PiMoneyWavyBold,
   PiCoinsBold,
   PiCaretRightBold,
@@ -19,12 +20,18 @@ import { useSession } from "@/lib/auth";
 import { useBalances, balanceIn } from "@/lib/ledger";
 
 /**
- * The two ways money comes in.
+ * The ways money comes in.
  *
  * A chooser rather than a single screen, because they are genuinely different
- * acts with different risks. Cash means walking to somebody; USDC means
- * getting an address right. Putting them behind one "Deposit" button meant the
- * cash route was invisible to the people most likely to use it.
+ * acts with different risks. A bank transfer means getting an account number
+ * right; cash means walking to somebody; USDC means getting an address right.
+ * Putting them behind one "Deposit" button meant the routes people were most
+ * likely to use were the ones they could not see.
+ *
+ * Naira leads with the bank transfer, not with cash. It is the route somebody
+ * can use from where they are standing, at any hour, with the banking app they
+ * already have -- and unlike a cash pledge it needs nobody else to turn up.
+ * Cash is still here, one row down, for the people it exists for.
  */
 export default function DepositPage() {
   const router = useRouter();
@@ -51,10 +58,19 @@ export default function DepositPage() {
         </header>
 
         <Route
+          href="/deposit/naira"
+          icon={<PiBankBold />}
+          title="Naira"
+          body="Transfer to your own account number from any Nigerian bank. Naira in your balance when it lands."
+          balanceLabel="Your naira"
+          balance={ngn?.available}
+        />
+
+        <Route
           href="/cash"
           icon={<PiMoneyWavyBold />}
           title="Cash"
-          body="Photograph the notes, hand them to an agent near you. Naira in your balance when they confirm."
+          body="Photograph the notes and hand them to an agent near you. Naira in your balance when they confirm."
           balanceLabel="Your naira"
           balance={ngn?.available}
         />
@@ -62,8 +78,8 @@ export default function DepositPage() {
         <Route
           href="/deposit/base"
           icon={<PiCoinsBold />}
-          title="USDC on Base"
-          body="Send USDC to your own address. Dollars in your balance once the network confirms it."
+          title="Crypto"
+          body="Send USDC on Base to your own address. Dollars in your balance once the network confirms it."
           balanceLabel="Your dollars"
           balance={usd?.available}
         />

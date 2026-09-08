@@ -18,11 +18,14 @@
 import { useQuery } from "@tanstack/react-query";
 import { useSession } from "./auth";
 import {
+  ApiError,
   activityApi,
   balancesApi,
   cardsApi,
   cashApi,
   depositsApi,
+  kycApi,
+  ngnDepositsApi,
   type CurrencyBalance,
   type Currency,
 } from "./api";
@@ -44,6 +47,25 @@ export function useBalances() {
     enabled: hydrated && !!session,
     queryFn: () => balancesApi.list(session!.jwt),
     select: (data) => data.balances,
+    refetchInterval: BALANCE_POLL_MS,
+    refetchOnWindowFocus: true,
+  });
+}
+
+/**
+ * Everything held, as one figure.
+ *
+ * Shares useBalances' query key, so both hooks are served by one request.
+ * Undefined when the server could not price a conversion -- the caller then
+ * falls back to the per-currency figures rather than inventing a total.
+ */
+export function useBalanceTotal() {
+  const { session, hydrated } = useSession();
+  return useQuery({
+    queryKey: ["ledger", "balances", session?.email ?? ""],
+    enabled: hydrated && !!session,
+    queryFn: () => balancesApi.list(session!.jwt),
+    select: (data) => data.total,
     refetchInterval: BALANCE_POLL_MS,
     refetchOnWindowFocus: true,
   });
@@ -130,6 +152,61 @@ export function useDepositAddress() {
     enabled: hydrated && !!session,
     queryFn: () => depositsApi.address(session!.jwt),
     staleTime: Infinity,
+    retry: false,
+  });
+}
+
+// -----------------------------------------------------------------------------
+// Naira account
+// -----------------------------------------------------------------------------
+
+/**
+ * The holder's own naira account number, or null when they have not opened one.
+ *
+ * A 404 means "not opened yet", which is the ordinary state of a new account
+ * and not a failure -- so it resolves to null rather than throwing, and the
+ * screen renders the step that opens one instead of an error.
+ *
+ * Not polled. An account number does not change, and re-fetching it on a timer
+ * would only add ways for it to briefly render as something else while
+ * somebody is copying it into their banking app.
+ */
+export function useNGNAccount() {
+  const { session, hydrated } = useSession();
+  return useQuery({
+    queryKey: ["deposits", "ngn", session?.email ?? ""],
+    enabled: hydrated && !!session,
+    queryFn: async () => {
+      try {
+        return await ngnDepositsApi.account(session!.jwt);
+      } catch (err) {
+        if (err instanceof ApiError && err.status === 404) return null;
+        throw err;
+      }
+    },
+    staleTime: Infinity,
+    retry: false,
+  });
+}
+
+// -----------------------------------------------------------------------------
+// Identity verification
+// -----------------------------------------------------------------------------
+
+/**
+ * How far the holder has verified, and what that lets them move.
+ *
+ * The limits come from the server rather than a table in this app, because the
+ * question somebody is answering before handing over a BVN is "what do I get
+ * for this" -- and two copies of that answer will drift.
+ */
+export function useKycStatus() {
+  const { session, hydrated } = useSession();
+  return useQuery({
+    queryKey: ["kyc", "status", session?.email ?? ""],
+    enabled: hydrated && !!session,
+    queryFn: () => kycApi.status(session!.jwt),
+    staleTime: 60_000,
     retry: false,
   });
 }

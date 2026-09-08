@@ -21,13 +21,16 @@ import (
 	"github.com/usezoracle/tapp/api/internal/card/tap"
 	"github.com/usezoracle/tapp/api/internal/checkout"
 	"github.com/usezoracle/tapp/api/internal/identity/kyc"
+	kycfintava "github.com/usezoracle/tapp/api/internal/identity/kyc/fintava"
 	"github.com/usezoracle/tapp/api/internal/identity/limits"
 	"github.com/usezoracle/tapp/api/internal/orders"
 	"github.com/usezoracle/tapp/api/internal/settlement"
 	"github.com/usezoracle/tapp/api/routers/middleware"
 	"github.com/usezoracle/tapp/api/services/baas"
+	"github.com/usezoracle/tapp/api/services/baas/fintava"
 	"github.com/usezoracle/tapp/api/storage"
 	u "github.com/usezoracle/tapp/api/utils"
+	"github.com/usezoracle/tapp/api/utils/logger"
 )
 
 // RegisterRoutes add all routing list here automatically get main router
@@ -139,20 +142,50 @@ func RegisterRoutes(route *gin.Engine) {
 	v1.POST("orders/:id/confirm", ctrl.ConfirmOrderPayment)
 	v1.POST("gas-station/sponsor", middleware.JWTMiddleware, ctrl.SponsorTransaction)
 
-	// KYC routes
-	v1.POST("kyc", ctrl.RequestIDVerification)
-	v1.GET("kyc/:wallet_address", ctrl.GetIDVerificationStatus)
-	v1.POST("kyc/webhook", ctrl.KYCWebhook)
+	// Identity verification, and the naira account it unlocks.
+	//
+	// Both sit on Fintava: the BVN checked here is the BVN Fintava checks
+	// again when it opens the account, so a person cannot pass verification
+	// and then be refused an account for disagreeing about who they are --
+	// which is what happens when identity and banking come from two companies
+	// with two views of the same person.
+	//
+	// Every route is behind the JWT. The predecessor authenticated KYC with an
+	// EIP-191 wallet signature carried in the body: a second auth scheme, for
+	// one feature, on a platform where every other endpoint already knows who
+	// is calling.
+	kycStore := &kyc.Store{Pool: storage.Pool}
+	if verifier := kycProvider(); verifier != nil {
+		kycHandler := &apiv1.KYCHandler{
+			Provider: verifier,
+			Store:    kycStore,
+			Policy:   limits.NGNPolicy(),
+			User:     apiv1.UserFromContext,
+		}
+		v1.GET("kyc", middleware.JWTMiddleware, kycHandler.Get)
+		v1.POST("kyc/bvn", middleware.JWTMiddleware, kycHandler.BVN)
+		v1.POST("kyc/selfie", middleware.JWTMiddleware, kycHandler.Selfie)
+	}
+
+	// A cardholder's own naira account number: the third funding route,
+	// alongside cash handed to an agent and USDC on Base. Registered whether
+	// or not a rail is configured -- somebody who was issued an account under
+	// a rail that has since been switched off still has it saved as a payee,
+	// and must still be able to read it back.
+	ngnDeposits := &apiv1.NGNDepositHandler{
+		Rail: baas.Default, KYC: kycStore, User: apiv1.UserFromContext,
+	}
+	v1.GET("deposits/ngn/account", middleware.JWTMiddleware, ngnDeposits.Get)
+	v1.POST("deposits/ngn/account", middleware.JWTMiddleware, ngnDeposits.Provision)
 
 	// the BaaS provider (BaaS) transfer/credit callbacks
 	v1.POST("safehaven/webhook", ctrl.BaaSWebhook)
 
 	// Liquidity-provider surface (Route B): onboarding, ledger,
-	// withdrawals + the Korapay callbacks that drive deposits and
+	// withdrawals + the rail callbacks that drive deposits and
 	// withdrawal finality. Webhook is unauthenticated (signature-
 	// verified inside); the rest require the user JWT.
 	lpCtrl := lp.NewController()
-	v1.POST("korapay/webhook", lpCtrl.Webhook)
 	v1.POST("fintava/webhook", lpCtrl.FintavaWebhook)
 	lpGroup := v1.Group("lp/")
 	lpGroup.Use(middleware.JWTMiddleware)
@@ -406,6 +439,13 @@ func cardsRoutes(route *gin.Engine) {
 	// wrote around the ledger, and it answers non-2xx when it does.
 	adminConsole.GET("ledger/audit", apiv1.LedgerAudit)
 
+	// What on-chain work costs, and whether the wallet paying for it is still
+	// healthy. Registered unconditionally: when the rail is off the handler
+	// says so, which is a more useful answer than a missing route when the
+	// question is "why has nothing settled".
+	gasCtrl := &apiv1.GasHandler{}
+	adminConsole.GET("gas", gasCtrl.Status)
+
 	// Verifying premises and putting float behind them are operator
 	// decisions: the first is what makes an agent able to take handovers at
 	// all, and the second moves real capital.
@@ -467,7 +507,6 @@ func cardsRoutes(route *gin.Engine) {
 	treasuryCtrl := adminCtrl.NewTreasuryController()
 	adminConsole.GET("treasury/overview", treasuryCtrl.GetOverview)
 	adminConsole.GET("treasury/float-account", treasuryCtrl.GetFloatAccount)
-	adminConsole.POST("treasury/float-account", treasuryCtrl.ProvisionFloatAccount)
 
 	auditCtrl := adminCtrl.NewAuditController()
 	adminConsole.GET("audit-logs", auditCtrl.GetAuditLogs)
@@ -476,4 +515,29 @@ func cardsRoutes(route *gin.Engine) {
 	adminConsole.GET("webhooks", webhookCtrl.GetWebhookAttempts)
 	adminConsole.POST("webhooks/:id/retry", webhookCtrl.RetryWebhook)
 
+}
+
+// kycProvider builds the identity verifier, or nil when it is not configured.
+//
+// Read from config directly rather than from the operator's float-rail switch:
+// which rail the platform PAYS from is a commercial decision that changes, and
+// who it verifies identities with is not. Tying them together would mean
+// flipping a payout preference silently retires everybody's route to a higher
+// limit.
+//
+// Nil leaves the routes unregistered, so an unconfigured deployment 404s
+// rather than answering 503 forever -- a feature that is switched off should
+// not look like one that is broken.
+func kycProvider() kyc.Provider {
+	bc := config.BaaSConfig()
+	if bc.FintavaAPIKey == "" {
+		logger.Infof("kyc: not configured (needs FINTAVA_API_KEY) -- identity verification is unavailable")
+		return nil
+	}
+	p, err := kycfintava.New(fintava.New(bc.FintavaAPIKey, bc.FintavaWebhookSecret, bc.FintavaBaseURL))
+	if err != nil {
+		logger.Errorf("kyc: %v -- identity verification is unavailable", err)
+		return nil
+	}
+	return p
 }
