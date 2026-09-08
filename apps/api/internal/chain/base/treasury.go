@@ -28,7 +28,23 @@ const erc20ABI = `[
   "inputs":[{"name":"to","type":"address"},{"name":"amount","type":"uint256"}],
   "outputs":[{"name":"","type":"bool"}]},
  {"name":"decimals","type":"function","stateMutability":"view",
-  "inputs":[],"outputs":[{"name":"","type":"uint8"}]}
+  "inputs":[],"outputs":[{"name":"","type":"uint8"}]},
+ {"name":"allowance","type":"function","stateMutability":"view",
+  "inputs":[{"name":"owner","type":"address"},{"name":"spender","type":"address"}],
+  "outputs":[{"name":"","type":"uint256"}]},
+ {"name":"nonces","type":"function","stateMutability":"view",
+  "inputs":[{"name":"owner","type":"address"}],"outputs":[{"name":"","type":"uint256"}]},
+ {"name":"DOMAIN_SEPARATOR","type":"function","stateMutability":"view",
+  "inputs":[],"outputs":[{"name":"","type":"bytes32"}]},
+ {"name":"permit","type":"function","stateMutability":"nonpayable",
+  "inputs":[{"name":"owner","type":"address"},{"name":"spender","type":"address"},
+            {"name":"value","type":"uint256"},{"name":"deadline","type":"uint256"},
+            {"name":"v","type":"uint8"},{"name":"r","type":"bytes32"},{"name":"s","type":"bytes32"}],
+  "outputs":[]},
+ {"name":"transferFrom","type":"function","stateMutability":"nonpayable",
+  "inputs":[{"name":"from","type":"address"},{"name":"to","type":"address"},
+            {"name":"amount","type":"uint256"}],
+  "outputs":[{"name":"","type":"bool"}]}
 ]`
 
 var parsedERC20 = func() abi.ABI {
@@ -127,6 +143,25 @@ func (c *Chain) SendUSDC(
 		return "", fmt.Errorf("base: nothing to send")
 	}
 
+	data, err := parsedERC20.Pack("transfer", to, amountMicro)
+	if err != nil {
+		return "", err
+	}
+	return c.submitCall(ctx, from, data)
+}
+
+// submitCall signs and sends one call to the USDC contract.
+//
+// Shared by every path that touches the token so that nonce handling, the fee
+// ceiling and the gas margin have one implementation. A second copy of this
+// is a second place for a stuck-transaction bug to live.
+func (c *Chain) submitCall(
+	ctx context.Context, from *ecdsa.PrivateKey, data []byte,
+) (string, error) {
+	if from == nil {
+		return "", fmt.Errorf("base: no signer for this call")
+	}
+
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -134,11 +169,6 @@ func (c *Chain) SendUSDC(
 	nonce, err := c.Client.PendingNonceAt(ctx, sender)
 	if err != nil {
 		return "", fmt.Errorf("base: read nonce for %s: %w", sender, err)
-	}
-
-	data, err := parsedERC20.Pack("transfer", to, amountMicro)
-	if err != nil {
-		return "", err
 	}
 
 	tip, err := c.Client.SuggestGasTipCap(ctx)
@@ -172,6 +202,17 @@ func (c *Chain) SendUSDC(
 		return "", fmt.Errorf("base: submit: %w", err)
 	}
 	return signed.Hash().Hex(), nil
+}
+
+// PackTransfer is ERC-20 transfer(to, amount) as hex calldata, for callers
+// that submit through something other than this package's own signer -- a
+// user operation, say -- and must describe the call rather than make it.
+func PackTransfer(to common.Address, amount *big.Int) (string, error) {
+	data, err := parsedERC20.Pack("transfer", to, amount)
+	if err != nil {
+		return "", fmt.Errorf("base: pack transfer: %w", err)
+	}
+	return "0x" + common.Bytes2Hex(data), nil
 }
 
 // TreasuryKey returns the signer for withdrawals.

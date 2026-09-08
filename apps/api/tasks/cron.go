@@ -13,6 +13,7 @@ import (
 	"github.com/usezoracle/tapp/api/utils/logger"
 )
 
+// SubscribeToRedisKeyspaceEvents subscribes to redis keyspace events according to redis.conf settings
 func SubscribeToRedisKeyspaceEvents() {
 	ctx := context.Background()
 
@@ -27,8 +28,7 @@ func SubscribeToRedisKeyspaceEvents() {
 	go ReassignStaleOrderRequest(ctx, orderRequestChan)
 }
 
-// supportedRateCurrencies is the set of fiats we compute a live market rate for.
-
+// StartCronJobs registers every background job on one scheduler and starts it.
 func StartCronJobs() {
 	scheduler := gocron.NewScheduler(time.UTC)
 	priorityQueue := services.NewPriorityQueueService()
@@ -56,10 +56,16 @@ func StartCronJobs() {
 		logger.Errorf("StartCronJobs: %v", err)
 	}
 
+	// The gas-balance alert, restored. Running dry stops sweeps and
+	// withdrawals with nothing else saying why.
+	if _, err := scheduler.Cron("*/5 * * * *").Do(WatchGasBalance); err != nil {
+		logger.Errorf("StartCronJobs: %v", err)
+	}
+
+	// Drain the backlog of recorded-but-unpriced gas costs.
+	if _, err := scheduler.Cron("*/10 * * * *").Do(PostGasCosts); err != nil {
+		logger.Errorf("StartCronJobs: %v", err)
+	}
+
 	scheduler.StartAsync()
 }
-
-// ReconcileFiatPayouts polls the BaaS rail for the outcome of in-flight Route B
-// payouts (fiat_payout_status=pending with a session id) and converges each lock
-// order to a terminal status. It is the backstop to the inbound webhook: if a
-// callback is missed, this closes the loop. No-op when the rail is unconfigured.

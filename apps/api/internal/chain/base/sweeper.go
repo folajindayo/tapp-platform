@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -28,6 +29,16 @@ type Sweeper struct {
 	Pool    *pgxpool.Pool
 	Chain   *Chain
 	Deriver *Deriver
+
+	// SmartAccounts sweeps CDP-provided addresses. Nil when CDP is not
+	// configured, in which case a cdp row cannot be swept and says so.
+	SmartAccounts SmartAccounts
+
+	// OnSpend records what a sweep cost, if anything is listening. Optional
+	// and called after the sweep is durably recorded: a failure to note the
+	// cost must never undo a sweep that actually happened, because the money
+	// has moved either way and the deposit row is the thing that must not lie.
+	OnSpend func(ctx context.Context, depositID uuid.UUID, txHash string)
 }
 
 // Sweep moves every credited deposit that has not been moved yet.
@@ -38,15 +49,14 @@ type Sweeper struct {
 // whereas moving exact amounts would leave a long tail of remainders that each
 // cost gas to collect.
 func (s *Sweeper) Sweep(ctx context.Context) (swept int, err error) {
-	if !s.Chain.CanSend() {
-		// No treasury to sweep into. Not an error: a read-only deployment
-		// still credits deposits correctly, it just leaves them where they
-		// landed.
+	if s.Chain.Treasury == (common.Address{}) {
+		// Nowhere to sweep into. Not an error: a read-only deployment still
+		// credits deposits correctly, it just leaves them where they landed.
 		return 0, nil
 	}
 
 	rows, err := s.Pool.Query(ctx, `
-		SELECT DISTINCT d.id, d.user_id, a.index, a.address
+		SELECT DISTINCT d.id, d.user_id, a.provider, a.index, a.address
 		  FROM base_deposits d
 		  JOIN base_deposit_addresses a ON a.user_id = d.user_id
 		 WHERE d.state = 'credited'
@@ -58,13 +68,14 @@ func (s *Sweeper) Sweep(ctx context.Context) (swept int, err error) {
 	type pending struct {
 		depositID uuid.UUID
 		userID    uuid.UUID
-		index     int64
+		provider  string
+		index     *int64
 		address   string
 	}
 	var due []pending
 	for rows.Next() {
 		var p pending
-		if err := rows.Scan(&p.depositID, &p.userID, &p.index, &p.address); err != nil {
+		if err := rows.Scan(&p.depositID, &p.userID, &p.provider, &p.index, &p.address); err != nil {
 			rows.Close()
 			return 0, err
 		}
@@ -76,13 +87,75 @@ func (s *Sweeper) Sweep(ctx context.Context) (swept int, err error) {
 	}
 
 	for _, p := range due {
-		if err := s.sweepOne(ctx, p.depositID, uint32(p.index), p.address); err != nil {
+		var err error
+		switch p.provider {
+		case ProviderCDP:
+			err = s.sweepSmartAccount(ctx, p.depositID, p.address)
+		default:
+			if !s.Chain.CanSend() {
+				// A derived address is swept with a permit the treasury pays
+				// to submit. Without its key nothing can be paid for.
+				continue
+			}
+			if p.index == nil {
+				err = fmt.Errorf("derived address %s has no index", p.address)
+			} else {
+				err = s.sweepOne(ctx, p.depositID, uint32(*p.index), p.address)
+			}
+		}
+		if err != nil {
 			slog.Error("base: sweep failed", "deposit", p.depositID, "err", err)
 			continue
 		}
 		swept++
 	}
 	return swept, nil
+}
+
+// sweepSmartAccount moves a CDP Smart Account's balance as a sponsored user
+// operation.
+//
+// Two things are deliberately absent. No key is derived, because there is
+// none here to derive -- CDP signs. And OnSpend is not called, because the
+// paymaster paid: the gas recorder books what this platform spent, and
+// booking somebody else's bill as ours would overstate costs by every
+// sponsored sweep. The transaction hash is still recorded on the deposit, so
+// the movement is traceable on chain like any other.
+func (s *Sweeper) sweepSmartAccount(ctx context.Context, depositID uuid.UUID, account string) error {
+	if s.SmartAccounts == nil {
+		return fmt.Errorf("deposit %s sits in a smart account but CDP is not configured", depositID)
+	}
+
+	balance, err := s.Chain.USDCBalance(ctx, common.HexToAddress(account))
+	if err != nil {
+		return err
+	}
+	if balance.Cmp(big.NewInt(MinSweepMicro)) < 0 {
+		_, err := s.Pool.Exec(ctx, `
+			UPDATE base_deposits SET state = 'swept', swept_at = now(),
+			       last_error = 'below the sweep threshold; funds remain at the deposit address'
+			 WHERE id = $1 AND state = 'credited'`, depositID)
+		return err
+	}
+
+	// The deposit id is the idempotency key: a retry after a lost response
+	// is the same operation to CDP, not a second send of the same funds.
+	txHash, err := s.SmartAccounts.SweepSmartAccount(ctx, account, s.Chain.USDC, s.Chain.Treasury,
+		balance, "sweep:"+depositID.String())
+	if err != nil {
+		_, e := s.Pool.Exec(ctx,
+			`UPDATE base_deposits SET last_error = $2 WHERE id = $1`, depositID, err.Error())
+		if e != nil {
+			return e
+		}
+		return err
+	}
+
+	_, err = s.Pool.Exec(ctx, `
+		UPDATE base_deposits SET state = 'swept', sweep_tx_hash = $2, swept_at = now(),
+		       last_error = NULL
+		 WHERE id = $1 AND state = 'credited'`, depositID, txHash)
+	return err
 }
 
 func (s *Sweeper) sweepOne(ctx context.Context, depositID uuid.UUID, index uint32, address string) error {
@@ -118,7 +191,13 @@ func (s *Sweeper) sweepOne(ctx context.Context, depositID uuid.UUID, index uint3
 		return err
 	}
 
-	txHash, err := s.Chain.SendUSDC(ctx, key, s.Chain.Treasury, balance)
+	// Pulled with a permit rather than pushed with a transfer.
+	//
+	// A push has to be signed by the deposit address, and a deposit address
+	// holds only USDC -- it has no ETH and nothing funds it, so the push
+	// cannot pay for itself. The permit is signed off-chain for free and the
+	// treasury pays to submit it. See permit.go.
+	txHash, err := s.Chain.SweepWithPermit(ctx, key, balance)
 	if err != nil {
 		// Recorded, not marked failed: a sweep that could not be submitted is
 		// retried, because the money is still at an address we control and
@@ -131,11 +210,17 @@ func (s *Sweeper) sweepOne(ctx context.Context, depositID uuid.UUID, index uint3
 		return err
 	}
 
-	_, err = s.Pool.Exec(ctx, `
+	if _, err := s.Pool.Exec(ctx, `
 		UPDATE base_deposits SET state = 'swept', sweep_tx_hash = $2, swept_at = now(),
 		       last_error = NULL
-		 WHERE id = $1 AND state = 'credited'`, depositID, txHash)
-	return err
+		 WHERE id = $1 AND state = 'credited'`, depositID, txHash); err != nil {
+		return err
+	}
+
+	if s.OnSpend != nil {
+		s.OnSpend(ctx, depositID, txHash)
+	}
+	return nil
 }
 
 // Run sweeps on a timer.
