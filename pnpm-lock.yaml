@@ -4,6 +4,8 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+packageExtensionsChecksum: sha256-j8X41Qfqpo7IDeHl84BsXEXlh1v8vjZFmSdxrrclRIA=
+
 importers:
 
   .:
@@ -28,7 +30,7 @@ importers:
         version: 2.4.0
       '@tanstack/react-query':
         specifier: ^5.59.20
-        version: 5.102.8(react@18.3.1)
+        version: 5.102.8(@types/react@18.3.31)(react@18.3.1)
       axios:
         specifier: ^1.7.7
         version: 1.20.0(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)
@@ -167,22 +169,22 @@ importers:
         version: 2.4.0
       '@tanstack/react-query':
         specifier: ^5.100.11
-        version: 5.102.8(react@19.2.4)
+        version: 5.102.8(@types/react@19.2.18)(react@19.2.4)
       clsx:
         specifier: ^2.1.1
         version: 2.1.1
       framer-motion:
         specifier: ^12.40.0
-        version: 12.43.0(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
+        version: 12.43.0(@types/react@19.2.18)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
       html5-qrcode:
         specifier: ^2.3.8
         version: 2.3.8
       next:
         specifier: 16.2.6
-        version: 16.2.6(@babel/core@7.29.7(supports-color@8.1.1))(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
+        version: 16.2.6(@babel/core@7.29.7(supports-color@8.1.1))(@types/react@19.2.18)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
       next-themes:
         specifier: ^0.4.6
-        version: 0.4.6(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
+        version: 0.4.6(@types/react@19.2.18)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
       react:
         specifier: 19.2.4
         version: 19.2.4
@@ -191,10 +193,10 @@ importers:
         version: 19.2.4(react@19.2.4)
       react-icons:
         specifier: ^5.6.0
-        version: 5.7.0(react@19.2.4)
+        version: 5.7.0(@types/react@19.2.18)(react@19.2.4)
       react-qrcode-logo:
         specifier: ^4.1.0
-        version: 4.1.0(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
+        version: 4.1.0(@types/react@19.2.18)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
       zustand:
         specifier: ^5.0.13
         version: 5.0.15(@types/react@19.2.18)(react@19.2.4)(use-sync-external-store@1.6.0(react@19.2.4))
@@ -1952,6 +1954,7 @@ packages:
   '@tanstack/react-query@5.102.8':
     resolution: {integrity: sha512-TYBea4OuXWD7MhaSHq069TWbFe7rcwWN6kzT7JF0OKi1K6c1gTv2IzD6A6ExJsCMozdkqBWeuIUZmu4KQg0O5A==}
     peerDependencies:
+      '@types/react': '*'
       react: ^18 || ^19
 
   '@turbo/darwin-64@2.10.12':
@@ -3545,6 +3548,7 @@ packages:
     resolution: {integrity: sha512-1eaL3RvR/kAlbG7UYcpMptEyzPoENO0c6w7ZnB3/hh2vSAz/6uGAFn6fdoqTBguNstf3MsFhJHsD/0DHiclG+g==}
     peerDependencies:
       '@emotion/is-prop-valid': '*'
+      '@types/react': '*'
       react: ^18.0.0 || ^19.0.0
       react-dom: ^18.0.0 || ^19.0.0
     peerDependenciesMeta:
@@ -4632,6 +4636,7 @@ packages:
   next-themes@0.4.6:
     resolution: {integrity: sha512-pZvgD5L0IEvX5/9GWyHMf3m8BKiVQwsCMHfoFosXtXBMnaS0ZnIJ9ST4b4NqLVKDEm8QBxoNNGNaBv2JNF6XNA==}
     peerDependencies:
+      '@types/react': '*'
       react: ^16.8 || ^17 || ^18 || ^19 || ^19.0.0-rc
       react-dom: ^16.8 || ^17 || ^18 || ^19 || ^19.0.0-rc
 
@@ -4642,6 +4647,7 @@ packages:
     peerDependencies:
       '@opentelemetry/api': ^1.1.0
       '@playwright/test': ^1.51.1
+      '@types/react': '*'
       babel-plugin-react-compiler: '*'
       react: ^18.2.0 || 19.0.0-rc-de68d2f4-20241204 || ^19.0.0
       react-dom: ^18.2.0 || 19.0.0-rc-de68d2f4-20241204 || ^19.0.0
@@ -5090,6 +5096,7 @@ packages:
   react-icons@5.7.0:
     resolution: {integrity: sha512-LBLy340Rzqy6+/yVhZKT3B/QpP1BZaesGqasf09HPOBzRarcDIFH0WwXlXQfE7q7ipxK4MSiC5DIBWURCny6fw==}
     peerDependencies:
+      '@types/react': '*'
       react: '*'
 
   react-is@16.13.1:
@@ -5211,6 +5218,7 @@ packages:
   react-qrcode-logo@4.1.0:
     resolution: {integrity: sha512-drcieitJFX3u66XpFn+4PxsCzrQo5nAMXsyOtiuTZCJPUQwGwysIlr14MjKbXDhBNz3iOqM8/yV5K1mllt/mTw==}
     peerDependencies:
+      '@types/react': '*'
       react: '>=18.0.0'
       react-dom: '>=18.0.0'
 
@@ -8241,14 +8249,16 @@ snapshots:
 
   '@tanstack/query-core@5.102.8': {}
 
-  '@tanstack/react-query@5.102.8(react@18.3.1)':
+  '@tanstack/react-query@5.102.8(@types/react@18.3.31)(react@18.3.1)':
     dependencies:
       '@tanstack/query-core': 5.102.8
+      '@types/react': 18.3.31
       react: 18.3.1
 
-  '@tanstack/react-query@5.102.8(react@19.2.4)':
+  '@tanstack/react-query@5.102.8(@types/react@19.2.18)(react@19.2.4)':
     dependencies:
       '@tanstack/query-core': 5.102.8
+      '@types/react': 19.2.18
       react: 19.2.4
 
   '@turbo/darwin-64@2.10.12':
@@ -10159,8 +10169,9 @@ snapshots:
       hasown: 2.0.4
       mime-types: 2.1.35
 
-  framer-motion@12.43.0(react-dom@19.2.4(react@19.2.4))(react@19.2.4):
+  framer-motion@12.43.0(@types/react@19.2.18)(react-dom@19.2.4(react@19.2.4))(react@19.2.4):
     dependencies:
+      '@types/react': 19.2.18
       motion-dom: 12.43.0
       motion-utils: 12.39.0
       tslib: 2.8.1
@@ -11302,15 +11313,17 @@ snapshots:
 
   nested-error-stacks@2.0.1: {}
 
-  next-themes@0.4.6(react-dom@19.2.4(react@19.2.4))(react@19.2.4):
+  next-themes@0.4.6(@types/react@19.2.18)(react-dom@19.2.4(react@19.2.4))(react@19.2.4):
     dependencies:
+      '@types/react': 19.2.18
       react: 19.2.4
       react-dom: 19.2.4(react@19.2.4)
 
-  next@16.2.6(@babel/core@7.29.7(supports-color@8.1.1))(react-dom@19.2.4(react@19.2.4))(react@19.2.4):
+  next@16.2.6(@babel/core@7.29.7(supports-color@8.1.1))(@types/react@19.2.18)(react-dom@19.2.4(react@19.2.4))(react@19.2.4):
     dependencies:
       '@next/env': 16.2.6
       '@swc/helpers': 0.5.15
+      '@types/react': 19.2.18
       baseline-browser-mapping: 2.11.21
       caniuse-lite: 1.0.30001810
       postcss: 8.4.31
@@ -11741,8 +11754,9 @@ snapshots:
     dependencies:
       react: 18.3.1
 
-  react-icons@5.7.0(react@19.2.4):
+  react-icons@5.7.0(@types/react@19.2.18)(react@19.2.4):
     dependencies:
+      '@types/react': 19.2.18
       react: 19.2.4
 
   react-is@16.13.1: {}
@@ -11925,8 +11939,9 @@ snapshots:
       - supports-color
       - utf-8-validate
 
-  react-qrcode-logo@4.1.0(react-dom@19.2.4(react@19.2.4))(react@19.2.4):
+  react-qrcode-logo@4.1.0(@types/react@19.2.18)(react-dom@19.2.4(react@19.2.4))(react@19.2.4):
     dependencies:
+      '@types/react': 19.2.18
       qrcode-generator: 2.0.4
       react: 19.2.4
       react-dom: 19.2.4(react@19.2.4)
