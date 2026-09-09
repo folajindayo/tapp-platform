@@ -55,6 +55,10 @@ func writeTapError(ctx *gin.Context, err error) {
 			"This card has reached its daily limit."},
 		{movements.ErrInsufficientFunds, http.StatusPaymentRequired, "insufficient_funds",
 			"There is not enough on this card."},
+		{tap.ErrIdentityLimitReached, http.StatusPaymentRequired, "identity_limit_exceeded",
+			"This amount is above what the cardholder's verification allows."},
+		{tap.ErrCannotPrice, http.StatusServiceUnavailable, "rate_unavailable",
+			"Cannot price this payment right now. Try again in a moment."},
 		{tap.ErrTapUnknown, http.StatusNotFound, "tap_not_found",
 			"No such payment."},
 	} {

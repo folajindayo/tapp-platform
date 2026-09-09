@@ -22,10 +22,6 @@ RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/rails .
 # private network and cannot be reached from a workstation, so `railway ssh`
 # into this container is the only place the command can run.
 RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/cdp-reissue ./cmd/cdp-reissue
-# ledger-convert moves balances credited before LEDGER_CURRENCY existed into
-# it. Same reason as above: the production database is on Railway's private
-# network, so this container is the only place the command can reach it.
-RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/ledger-convert ./cmd/ledger-convert
 
 # ---- runtime: minimal, non-root ----
 FROM alpine:3.20
@@ -36,7 +32,6 @@ RUN apk add --no-cache ca-certificates tzdata \
 USER app
 COPY --from=build /out/rails /usr/local/bin/rails
 COPY --from=build /out/cdp-reissue /usr/local/bin/cdp-reissue
-COPY --from=build /out/ledger-convert /usr/local/bin/ledger-convert
 # Railway/containers inject PORT; the app honours it (falls back to SERVER_PORT).
 EXPOSE 8000
 ENTRYPOINT ["rails"]

@@ -123,12 +123,17 @@ func newFixture(t *testing.T, funded money.Amount) *fixture {
 	cardholder, merchantUser, merchant := uuid.New(), uuid.New(), uuid.New()
 	for _, id := range []uuid.UUID{cardholder, merchantUser} {
 		if _, err := pool.Exec(ctx,
-			`INSERT INTO users (id, email) VALUES ($1, $2)`, id, id.String()+"@test.local"); err != nil {
+			`INSERT INTO users
+			(id, created_at, updated_at, first_name, last_name, email, password, scope)
+		 VALUES ($1, now(), now(), 'Test', 'User', $2, '', 'user')`,
+			id, id.String()+"@test.local"); err != nil {
 			t.Fatalf("create user: %v", err)
 		}
 	}
 	if _, err := pool.Exec(ctx,
-		`INSERT INTO sender_profiles (id, user_sender_profile) VALUES ($1, $2)`,
+		`INSERT INTO sender_profiles
+			(id, updated_at, domain_whitelist, user_sender_profile)
+		 VALUES ($1, now(), '{}', $2)`,
 		merchant, merchantUser); err != nil {
 		t.Fatalf("create merchant: %v", err)
 	}
@@ -150,10 +155,10 @@ func newFixture(t *testing.T, funded money.Amount) *fixture {
 	cardID := uuid.New()
 	if _, err := pool.Exec(ctx, `
 		INSERT INTO tapp_cards
-			(id, activation_token, status, card_uid_hash, current_token_ciphertext,
-			 linking_proof, daily_limit_subunit, per_tap_limit_subunit,
-			 step_up_threshold_subunit, user_tapp_cards)
-		VALUES ($1, $2, 'live', $3, $4, $5, $6, $7, $8, $9)`,
+			(id, created_at, updated_at, activation_token, status, card_uid_hash,
+			 current_token_ciphertext, linking_proof, daily_limit_subunit,
+			 per_tap_limit_subunit, step_up_threshold_subunit, user_tapp_cards)
+		VALUES ($1, now(), now(), $2, 'live', $3, $4, $5, $6, $7, $8, $9)`,
 		cardID, uuid.NewString(), uidHash, tok, anchor,
 		limits.Daily.Minor(), limits.PerTap.Minor(), limits.StepUp.Minor(), cardholder); err != nil {
 		t.Fatalf("create card: %v", err)

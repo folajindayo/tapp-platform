@@ -2,6 +2,7 @@ package routers
 
 import (
 	"context"
+	"github.com/spf13/viper"
 	"net/http"
 	"time"
 
@@ -23,6 +24,7 @@ import (
 	"github.com/usezoracle/tapp/api/internal/identity/kyc"
 	kycfintava "github.com/usezoracle/tapp/api/internal/identity/kyc/fintava"
 	"github.com/usezoracle/tapp/api/internal/identity/limits"
+	"github.com/usezoracle/tapp/api/internal/money"
 	"github.com/usezoracle/tapp/api/internal/orders"
 	"github.com/usezoracle/tapp/api/internal/settlement"
 	"github.com/usezoracle/tapp/api/routers/middleware"
@@ -329,6 +331,12 @@ func senderRoutes(route *gin.Engine) {
 		Svc: &tap.Service{
 			Pool: storage.Pool,
 			Fee:  tap.BasisPointFee(config.OrderConfig().CardFeeBPS),
+			// Balances are held as they arrive -- USDC, so dollars -- and the
+			// exchange happens here, at the till, for the amount actually
+			// being spent. Converting at deposit instead would leave the
+			// platform long naira against money nobody has spent yet.
+			Funding: money.Currency(viper.GetString("FUNDING_CURRENCY")),
+			Quoter:  apiv1.SharedQuoter(),
 		},
 		Merchant: apiv1.MerchantFromContext,
 	}

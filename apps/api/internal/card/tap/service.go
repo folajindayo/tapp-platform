@@ -13,6 +13,7 @@ import (
 	"github.com/usezoracle/tapp/api/internal/card/auth"
 	"github.com/usezoracle/tapp/api/internal/ledger/movements"
 	"github.com/usezoracle/tapp/api/internal/money"
+	"github.com/usezoracle/tapp/api/internal/rates"
 )
 
 // Failed-PIN policy. Five attempts, then a day's lockout -- long enough to
@@ -46,6 +47,14 @@ var (
 	// the way out differs: one is waiting until tomorrow, the other is
 	// verifying an identity.
 	ErrIdentityLimitReached = errors.New("identity verification limit reached")
+
+	// ErrCannotPrice means the balance is held in another currency and no rate
+	// was available to buy the spend.
+	//
+	// A refusal, not a fault: the cardholder has the money and the platform
+	// cannot currently say what it is worth. Guessing a rate at a till is how
+	// somebody is charged a price nobody quoted.
+	ErrCannotPrice = errors.New("cannot price this amount right now")
 )
 
 // FeePolicy decides the platform's cut of a tap.
@@ -67,13 +76,77 @@ type Limiter interface {
 }
 
 // Service performs card payments.
+// Quoter prices the conversion a tap needs. Satisfied by rates.Quoter.
+//
+// OfferForBuy rather than Offer: the till knows the naira it must collect,
+// not the dollars that will pay for it.
+type Quoter interface {
+	OfferForBuy(ctx context.Context, sell money.Currency, buy money.Amount) (*rates.Quote, error)
+	Redeem(ctx context.Context, tx pgx.Tx, id uuid.UUID) (*rates.Quote, error)
+}
+
 type Service struct {
 	Pool   *pgxpool.Pool
 	Fee    FeePolicy
 	Limits Limiter
+
+	// Funding is the currency balances are actually held in.
+	//
+	// Deposits arrive as USDC and stay dollars: converting on the way in would
+	// put the platform long naira for money nobody has spent yet. So the
+	// exchange happens here, at the till, for exactly the amount being spent
+	// -- which is also the only moment a rate has been agreed to by anybody.
+	//
+	// Zero means balances are already in the tap's currency and no conversion
+	// is attempted.
+	Funding money.Currency
+
+	// Quoter prices Funding -> the tap currency. Required when they differ; a
+	// tap that cannot be priced is refused rather than guessed at.
+	Quoter Quoter
 	// Now is injectable so lockout and daily-window behaviour can be tested
 	// without waiting a day. Nil means time.Now.
 	Now func() time.Time
+}
+
+// fundTap buys the spend in the tap's currency out of the cardholder's funding
+// balance, and reports whether it did.
+//
+// (false, nil) means it could not be priced -- a refusal the caller turns into
+// ErrCannotPrice. (true, nil) with no conversion means none was needed.
+//
+// Redeemed inside the caller's transaction so one quote prices exactly one
+// tap, and posted there too so the exchange and the spend commit together.
+func (s *Service) fundTap(
+	ctx context.Context, tx pgx.Tx, cardholder uuid.UUID, spend money.Amount,
+) (bool, error) {
+	if s.Funding == "" || s.Funding == spend.Currency() {
+		return true, nil
+	}
+	if s.Quoter == nil {
+		return false, nil
+	}
+
+	quote, err := s.Quoter.OfferForBuy(ctx, s.Funding, spend)
+	if err != nil {
+		// A rate source that is down or a pair with no spread is not a card
+		// problem, and not something to invent a number for.
+		return false, nil
+	}
+	redeemed, err := s.Quoter.Redeem(ctx, tx, quote.ID)
+	if err != nil {
+		return false, err
+	}
+	if _, err := movements.Convert(ctx, tx, cardholder, movements.Conversion{
+		Sold: redeemed.Sell, Bought: redeemed.Buy, Spread: redeemed.Fee,
+		QuoteID: redeemed.ID.String(),
+	}); err != nil {
+		// Insufficient funds here is the honest answer to the tap: the
+		// cardholder does not hold enough of the funding currency to buy what
+		// they are spending. It surfaces as a decline, not an error.
+		return false, err
+	}
+	return true, nil
 }
 
 func (s *Service) now() time.Time {

@@ -5,7 +5,6 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"errors"
-	"fmt"
 	"math/big"
 	mrand "math/rand/v2"
 	"os"
@@ -15,13 +14,11 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/usezoracle/tapp/api/internal/ledger"
 	"github.com/usezoracle/tapp/api/internal/money"
 	"github.com/usezoracle/tapp/api/internal/platform/migrate"
-	"github.com/usezoracle/tapp/api/internal/rates"
 )
 
 func testPool(t *testing.T) *pgxpool.Pool {
@@ -376,123 +373,4 @@ func TestASubCentDepositIsMarkedRatherThanRetried(t *testing.T) {
 	if state != "failed" {
 		t.Errorf("state = %q, want failed so it is not retried every pass", state)
 	}
-}
-
-// fixedQuoter prices at a flat rate with no spread, so a test asserts the
-// conversion happened rather than re-deriving arithmetic from a live source.
-type fixedQuoter struct {
-	rate  int64 // minor units of `buy` per one MAJOR unit of `sell`
-	offer *rates.Quote
-}
-
-func (f *fixedQuoter) Offer(
-	_ context.Context, sell money.Amount, buy money.Currency,
-) (*rates.Quote, error) {
-	bought := money.New(sell.Minor()*f.rate/sell.Currency().Scale(), buy)
-	f.offer = &rates.Quote{
-		ID: uuid.New(), Sell: sell, Buy: bought, Fee: money.New(0, buy),
-		Pair: rates.Pair{Base: sell.Currency(), Quote: buy},
-	}
-	return f.offer, nil
-}
-
-func (f *fixedQuoter) Redeem(_ context.Context, _ pgx.Tx, id uuid.UUID) (*rates.Quote, error) {
-	if f.offer == nil || f.offer.ID != id {
-		return nil, fmt.Errorf("no such quote %s", id)
-	}
-	return f.offer, nil
-}
-
-// A dollar balance is a balance no card can spend: the card, its limit ladder
-// and the payout rail are all naira. A deposit has to arrive as something the
-// thing it was deposited for can actually use.
-func TestADepositIsCreditedInTheCurrencyTheCardSpends(t *testing.T) {
-	addrs, deposits := fixture(t)
-	ctx := context.Background()
-	user := uuid.New()
-
-	address, err := addrs.For(ctx, user)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	deposits.CreditCurrency = money.NGN
-	deposits.Quoter = &fixedQuoter{rate: 150_000} // ₦1,500.00 per $1
-
-	if err := deposits.Record(ctx, Transfer{
-		TxHash: txHash(t), LogIndex: 0, From: "0x01", To: address,
-		AmountMicro: 1_000_000, BlockNumber: 100,
-	}); err != nil {
-		t.Fatal(err)
-	}
-	if credited, err := deposits.CreditConfirmed(ctx, 200); err != nil || credited != 1 {
-		t.Fatalf("credited=%d err=%v, want 1", credited, err)
-	}
-
-	ngn, err := ledger.Balance(ctx, deposits.Pool, ledger.User(user), ledger.KindAvailable, money.NGN)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if ngn.Minor() != 150_000 {
-		t.Errorf("naira balance = %s, want ₦1,500.00", ngn)
-	}
-
-	// And no dollar residue: a leftover USD balance is exactly the
-	// unspendable money this converts away from.
-	usd, err := ledger.Balance(ctx, deposits.Pool, ledger.User(user), ledger.KindAvailable, money.USD)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !usd.IsZero() {
-		t.Errorf("dollar balance = %s, want nothing left in a currency no card spends", usd)
-	}
-}
-
-// No rate means the deposit waits. Crediting it in dollars would be money the
-// user owns and cannot spend, and no later pass would ever correct it.
-func TestWithoutARateADepositIsNotCreditedAtAll(t *testing.T) {
-	addrs, deposits := fixture(t)
-	ctx := context.Background()
-	user := uuid.New()
-
-	address, err := addrs.For(ctx, user)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	deposits.CreditCurrency = money.NGN
-	deposits.Quoter = &failingQuoter{}
-
-	if err := deposits.Record(ctx, Transfer{
-		TxHash: txHash(t), LogIndex: 0, From: "0x01", To: address,
-		AmountMicro: 1_000_000, BlockNumber: 100,
-	}); err != nil {
-		t.Fatal(err)
-	}
-	credited, err := deposits.CreditConfirmed(ctx, 200)
-	if err != nil {
-		t.Fatalf("a missing rate must not fail the whole pass: %v", err)
-	}
-	if credited != 0 {
-		t.Fatalf("credited %d, want 0 -- an unpriceable deposit must wait", credited)
-	}
-
-	for _, c := range []money.Currency{money.NGN, money.USD} {
-		b, err := ledger.Balance(ctx, deposits.Pool, ledger.User(user), ledger.KindAvailable, c)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if !b.IsZero() {
-			t.Errorf("%s balance = %s, want nothing credited", c, b)
-		}
-	}
-}
-
-type failingQuoter struct{}
-
-func (failingQuoter) Offer(context.Context, money.Amount, money.Currency) (*rates.Quote, error) {
-	return nil, fmt.Errorf("no rate available")
-}
-func (failingQuoter) Redeem(context.Context, pgx.Tx, uuid.UUID) (*rates.Quote, error) {
-	return nil, fmt.Errorf("no rate available")
 }

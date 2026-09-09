@@ -3,12 +3,18 @@ package tap
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
+
 	"github.com/usezoracle/tapp/api/internal/card/auth"
 	"github.com/usezoracle/tapp/api/internal/ledger"
+	"github.com/usezoracle/tapp/api/internal/ledger/movements"
 	"github.com/usezoracle/tapp/api/internal/money"
+	"github.com/usezoracle/tapp/api/internal/rates"
 )
 
 // challenge asks for a tier and nonce the way a merchant app does.
@@ -267,5 +273,109 @@ func TestALargeAmountNeedsCardholderApproval(t *testing.T) {
 	}
 	if _, err := f.Svc.Debit(context.Background(), req); err != nil {
 		t.Fatalf("an approved step-up was refused: %v", err)
+	}
+}
+
+// fixedQuoter prices at a flat rate with no spread, so the test asserts that
+// the conversion happened rather than re-deriving live arithmetic.
+type fixedQuoter struct {
+	// ratePerMajor is minor units of the bought currency per one MAJOR unit
+	// of the sold one: 150_000 means ₦1,500.00 per $1.
+	ratePerMajor int64
+	issued       *rates.Quote
+	calls        int
+}
+
+func (f *fixedQuoter) OfferForBuy(
+	_ context.Context, sell money.Currency, buy money.Amount,
+) (*rates.Quote, error) {
+	f.calls++
+	// Ceiling, as the real reverse quote does: a sale that rounds down leaves
+	// the buy short and the debit declines after the card has been read.
+	sellMinor := (buy.Minor()*sell.Scale() + f.ratePerMajor - 1) / f.ratePerMajor
+	f.issued = &rates.Quote{
+		ID: uuid.New(), Pair: rates.Pair{Base: sell, Quote: buy.Currency()},
+		Sell: money.New(sellMinor, sell), Buy: buy, Fee: money.Zero(buy.Currency()),
+	}
+	return f.issued, nil
+}
+
+func (f *fixedQuoter) Redeem(_ context.Context, _ pgx.Tx, id uuid.UUID) (*rates.Quote, error) {
+	if f.issued == nil || f.issued.ID != id {
+		return nil, fmt.Errorf("no such quote %s", id)
+	}
+	return f.issued, nil
+}
+
+// Balances are held in the currency they arrived as -- dollars, from USDC --
+// and the exchange happens at the till for exactly what is being spent. So a
+// naira tap has to buy its naira out of a dollar balance first.
+func TestATapBuysItsNairaOutOfADollarBalance(t *testing.T) {
+	f := newFixture(t, money.Amount{})
+	ctx := context.Background()
+
+	// Fund in dollars, which is what a deposit actually credits.
+	if _, err := movements.Deposit(ctx, f.Pool, f.Cardholder,
+		money.New(1000, money.USD), "test", uuid.NewString()); err != nil {
+		t.Fatal(err)
+	}
+
+	q := &fixedQuoter{ratePerMajor: 150_000} // ₦1,500.00 per $1
+	f.Svc.Funding = money.USD
+	f.Svc.Quoter = q
+
+	if _, err := f.pay(t, money.Naira(1_500)); err != nil {
+		t.Fatalf("Debit: %v", err)
+	}
+	if q.calls != 1 {
+		t.Errorf("quoted %d times, want exactly once per tap", q.calls)
+	}
+
+	// The naira bought is spent in full: what the cardholder paid plus the
+	// platform's fee. Anything left would be dust nobody asked to hold.
+	ngn, err := ledger.Balance(ctx, f.Pool, ledger.User(f.Cardholder), ledger.KindAvailable, money.NGN)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !ngn.IsZero() {
+		t.Errorf("naira left over = %s, want nothing", ngn)
+	}
+
+	// And the dollars actually went down.
+	usd, err := ledger.Balance(ctx, f.Pool, ledger.User(f.Cardholder), ledger.KindAvailable, money.USD)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if usd.Minor() >= 1000 {
+		t.Errorf("dollar balance = %s, want less than $10.00 -- the tap was not funded from it", usd)
+	}
+}
+
+// No rate is a refusal, not a fault: the cardholder has the money and the
+// platform cannot say what it is worth. Guessing one at a till would charge
+// somebody a price nobody quoted.
+func TestATapWithoutARateIsRefusedNotGuessed(t *testing.T) {
+	f := newFixture(t, money.Amount{})
+	ctx := context.Background()
+
+	if _, err := movements.Deposit(ctx, f.Pool, f.Cardholder,
+		money.New(1000, money.USD), "test", uuid.NewString()); err != nil {
+		t.Fatal(err)
+	}
+
+	f.Svc.Funding = money.USD
+	f.Svc.Quoter = nil // configured to convert, unable to price
+
+	_, err := f.pay(t, money.Naira(1_500))
+	if !errors.Is(err, ErrCannotPrice) {
+		t.Fatalf("err = %v, want ErrCannotPrice", err)
+	}
+
+	usd, err := ledger.Balance(ctx, f.Pool, ledger.User(f.Cardholder), ledger.KindAvailable, money.USD)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if usd.Minor() != 1000 {
+		t.Errorf("dollar balance = %s, want $10.00 untouched by a refused tap", usd)
 	}
 }

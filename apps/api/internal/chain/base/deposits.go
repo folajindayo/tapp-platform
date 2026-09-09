@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log/slog"
 	"strings"
 
 	"github.com/google/uuid"
@@ -13,7 +12,6 @@ import (
 
 	"github.com/usezoracle/tapp/api/internal/ledger/movements"
 	"github.com/usezoracle/tapp/api/internal/money"
-	"github.com/usezoracle/tapp/api/internal/rates"
 )
 
 // USDCDecimals is what USDC uses on chain. The ledger's USD minor unit is
@@ -37,38 +35,11 @@ type Transfer struct {
 	BlockNumber uint64
 }
 
-// Quoter prices a conversion. Satisfied by rates.Quoter.
-//
-// An interface here rather than the concrete type because this package has no
-// business knowing how a price is sourced or stored -- only that a deposit can
-// be priced into the currency the ledger spends.
-type Quoter interface {
-	Offer(ctx context.Context, sell money.Amount, buy money.Currency) (*rates.Quote, error)
-	Redeem(ctx context.Context, tx pgx.Tx, id uuid.UUID) (*rates.Quote, error)
-}
-
 // Deposits records observed transfers and credits confirmed ones.
 type Deposits struct {
 	Pool          *pgxpool.Pool
 	Addresses     *Addresses
 	Confirmations uint64
-
-	// Quoter converts a deposit into CreditCurrency as it is credited.
-	//
-	// USDC arrives as dollars, and everything downstream of the ledger spends
-	// naira: the card, its limit ladder, the payout rail. A dollar balance is
-	// therefore a balance no card can reach -- money the user owns and cannot
-	// spend, with nothing on screen to say why. Converting on the way in is
-	// what makes a deposit usable by the thing it was deposited for.
-	//
-	// Nil disables conversion and credits the deposit in its own currency.
-	// That is the honest behaviour for a deployment with no rate source: it
-	// is visibly incomplete rather than quietly holding funds hostage.
-	Quoter Quoter
-
-	// CreditCurrency is what balances are held in. Zero means USD, which is
-	// what USDC already is, so conversion is skipped.
-	CreditCurrency money.Currency
 }
 
 func (d *Deposits) confirmations() uint64 {
@@ -167,43 +138,10 @@ func (d *Deposits) CreditConfirmed(ctx context.Context, head uint64) (int, error
 		}
 
 		reference := fmt.Sprintf("%s:%d", p.txHash, p.logIdx)
-
-		// Priced before the transaction opens, because Offer records the quote
-		// and a quote is a row of its own -- taking it inside would hold the
-		// deposit's locks across an outbound HTTP call to a rate source.
-		var quote *rates.Quote
-		if conv, err := d.quotable(ctx, amount); err != nil {
-			// Leave the deposit `seen` and try again next pass. The money is
-			// on chain and nothing is lost by waiting; crediting it in dollars
-			// instead would hand somebody a balance their card cannot spend
-			// and no later pass would ever correct it.
-			slog.Warn("base: deposit not credited yet, no usable rate",
-				"deposit", p.id, "amount", amount, "into", d.creditCurrency(), "err", err)
-			continue
-		} else {
-			quote = conv
-		}
-
 		err := movements.InTx(ctx, d.Pool, func(tx pgx.Tx) error {
 			ledgerTx, err := movements.Deposit(ctx, tx, p.user, amount, "base", reference)
 			if err != nil {
 				return err
-			}
-			if quote != nil {
-				// Redeemed inside the transaction so one quote can price
-				// exactly one conversion, and converted in the same one as
-				// the deposit: a crash between them would leave a dollar
-				// balance nothing spends.
-				redeemed, err := d.Quoter.Redeem(ctx, tx, quote.ID)
-				if err != nil {
-					return fmt.Errorf("redeem quote: %w", err)
-				}
-				if _, err := movements.Convert(ctx, tx, p.user, movements.Conversion{
-					Sold: redeemed.Sell, Bought: redeemed.Buy, Spread: redeemed.Fee,
-					QuoteID: redeemed.ID.String(),
-				}); err != nil {
-					return fmt.Errorf("convert deposit: %w", err)
-				}
 			}
 			_, err = tx.Exec(ctx, `
 				UPDATE base_deposits
@@ -217,29 +155,6 @@ func (d *Deposits) CreditConfirmed(ctx context.Context, head uint64) (int, error
 		credited++
 	}
 	return credited, nil
-}
-
-// creditCurrency is what deposits are credited in. USD when unset, which is
-// what USDC already is.
-func (d *Deposits) creditCurrency() money.Currency {
-	if d.CreditCurrency == "" {
-		return money.USD
-	}
-	return d.CreditCurrency
-}
-
-// quotable prices the deposit into the credit currency, or returns nil when no
-// conversion is needed.
-//
-// Nil means "credit as-is" and is not an error: the deposit currency already
-// matching the credit currency is the ordinary case for a USD deployment, and
-// a missing Quoter is a deployment that has deliberately not configured rates.
-func (d *Deposits) quotable(ctx context.Context, amount money.Amount) (*rates.Quote, error) {
-	into := d.creditCurrency()
-	if into == amount.Currency() || d.Quoter == nil {
-		return nil, nil
-	}
-	return d.Quoter.Offer(ctx, amount, into)
 }
 
 // usdFromMicro converts USDC's six decimals to the ledger's cents.

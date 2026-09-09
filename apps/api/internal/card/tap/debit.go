@@ -148,6 +148,30 @@ func (s *Service) Debit(ctx context.Context, req Request) (*Receipt, error) {
 
 		// 7.
 		fee := s.Fee.FeeFor(req.Amount)
+
+		// 7a. Buy the spend, if the balance is held in another currency.
+		//
+		// Exactly the tap amount, and not a unit more: the platform's fee
+		// comes OUT of it -- movements.Tap debits the cardholder the full
+		// amount and pays the merchant amount-minus-fee -- so buying
+		// amount+fee would leave the fee's worth of naira stranded in the
+		// cardholder's account after every single tap.
+		//
+		// In the same transaction as the debit: a conversion that commits
+		// without its tap would leave somebody's dollars exchanged for naira
+		// they never agreed to spend.
+		if funded, err := s.fundTap(ctx, tx, *k.Cardholder, req.Amount); err != nil {
+			if errors.Is(err, movements.ErrInsufficientFunds) {
+				refusal = err
+				return nil
+			}
+			return err
+		} else if !funded {
+			refusal = fmt.Errorf("%w: no rate to price %s from %s",
+				ErrCannotPrice, req.Amount, s.Funding)
+			return nil
+		}
+
 		tapID := uuid.New()
 		ledgerTx, err := movements.Tap(ctx, tx, *k.Cardholder, req.MerchantID, req.Amount, fee, tapID)
 		if err != nil {
