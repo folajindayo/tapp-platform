@@ -49,9 +49,19 @@ function Body() {
   const setLinkSession = useLinkStore((s) => s.setSession);
   const setLimits = useLinkStore((s) => s.setLimits);
 
-  const [daily, setDaily] = useState(DEFAULTS.dailyNGN);
-  const [perTap, setPerTap] = useState(DEFAULTS.perTapNGN);
-  const [stepUp, setStepUp] = useState(DEFAULTS.stepUpNGN);
+  // Clamped at the first render, not just once the tier arrives. A range
+  // input whose value exceeds its max pins the thumb visually but leaves the
+  // state untouched, so an unclamped default would sit at 40,000 behind a
+  // slider that appears to read 20,000 -- and submit the number nobody saw.
+  const [daily, setDaily] = useState(
+    Math.min(DEFAULTS.dailyNGN, FALLBACK_DAILY_MAX_NGN),
+  );
+  const [perTap, setPerTap] = useState(
+    Math.min(DEFAULTS.perTapNGN, FALLBACK_DAILY_MAX_NGN),
+  );
+  const [stepUp, setStepUp] = useState(
+    Math.min(DEFAULTS.stepUpNGN, FALLBACK_DAILY_MAX_NGN),
+  );
   const [pin, setPin] = useState("");
   const [pinConfirm, setPinConfirm] = useState("");
   const [error, setError] = useState<string | null>(null);
