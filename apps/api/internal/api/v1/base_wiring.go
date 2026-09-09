@@ -15,6 +15,7 @@ import (
 	"github.com/usezoracle/tapp/api/internal/chain/base"
 	"github.com/usezoracle/tapp/api/internal/chain/cdp"
 	"github.com/usezoracle/tapp/api/internal/chain/gas"
+	"github.com/usezoracle/tapp/api/internal/money"
 	"github.com/usezoracle/tapp/api/storage"
 	"github.com/usezoracle/tapp/api/utils/logger"
 )
@@ -105,9 +106,28 @@ func NewBaseRail(ctx context.Context) (*BaseRail, error) {
 		logger.Infof("base: CDP is not configured -- existing deposit addresses still " +
 			"credit and sweep, but no new address can be issued")
 	}
+	// Deposits are credited in the currency the rest of the platform spends.
+	//
+	// USDC arrives as dollars; the card, its limit ladder and the payout rail
+	// are all naira. Crediting dollars leaves somebody holding a balance no
+	// card can reach -- money they own and cannot spend, with nothing on
+	// screen explaining why. The conversion is priced through the same quoter
+	// the offramp uses, so a deposit and a withdrawal cannot disagree about
+	// what a dollar is worth.
+	//
+	// With no quoter configured the deposit is credited in its own currency:
+	// visibly incomplete beats silently unusable.
 	deposits := &base.Deposits{
 		Pool: storage.Pool, Addresses: addresses,
-		Confirmations: uint64(viper.GetInt("BASE_CONFIRMATIONS")),
+		Confirmations:  uint64(viper.GetInt("BASE_CONFIRMATIONS")),
+		CreditCurrency: money.Currency(viper.GetString("LEDGER_CURRENCY")),
+	}
+	if q := SharedQuoter(); q != nil {
+		deposits.Quoter = q
+	} else if deposits.CreditCurrency != "" && deposits.CreditCurrency != money.USD {
+		logger.Errorf("base: deposits are configured to credit %s but no FX source is "+
+			"configured, so they will not be credited at all -- set FX_SOURCES and FX_SPREADS",
+			deposits.CreditCurrency)
 	}
 
 	if !chain.CanSend() {
