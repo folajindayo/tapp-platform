@@ -114,6 +114,9 @@ func NewBaseRail(ctx context.Context) (*BaseRail, error) {
 	deposits := &base.Deposits{
 		Pool: storage.Pool, Addresses: addresses,
 		Confirmations: uint64(viper.GetInt("BASE_CONFIRMATIONS")),
+		// So money returned from the treasury is not credited as a fresh
+		// deposit. See Deposits.Record.
+		Treasury: chain.Treasury,
 	}
 
 	if !chain.CanSend() {

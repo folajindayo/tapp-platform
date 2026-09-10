@@ -374,3 +374,49 @@ func TestASubCentDepositIsMarkedRatherThanRetried(t *testing.T) {
 		t.Errorf("state = %q, want failed so it is not retried every pass", state)
 	}
 }
+
+// Money sent back from the treasury is not a deposit. Returning funds swept
+// before the platform went non-custodial credited them a second time -- the
+// same money counted once when it arrived and again when it was given back.
+func TestMoneyReturnedFromTheTreasuryIsNotADeposit(t *testing.T) {
+	addrs, deposits := fixture(t)
+	ctx := context.Background()
+	user := uuid.New()
+
+	treasury := common.HexToAddress("0x1232c53d0e537e275E70C401AAB7e9E7E97E57C5")
+	deposits.Treasury = treasury
+
+	address, err := addrs.For(ctx, user)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// A stranger paying in still credits.
+	if err := deposits.Record(ctx, Transfer{
+		TxHash: txHash(t), LogIndex: 0, From: "0x00000000000000000000000000000000000000A1",
+		To: address, AmountMicro: 1_000_000, BlockNumber: 100,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	// The same amount coming back from the treasury does not.
+	if err := deposits.Record(ctx, Transfer{
+		TxHash: txHash(t), LogIndex: 0, From: treasury.Hex(),
+		To: address, AmountMicro: 1_000_000, BlockNumber: 101,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	if credited, err := deposits.CreditConfirmed(ctx, 200); err != nil {
+		t.Fatalf("CreditConfirmed: %v", err)
+	} else if credited != 1 {
+		t.Fatalf("credited %d deposits, want 1 -- the return was counted as money arriving", credited)
+	}
+
+	b, err := ledger.Balance(ctx, deposits.Pool, ledger.User(user), ledger.KindAvailable, money.USD)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if b.Minor() != 100 {
+		t.Errorf("balance = %s, want $1.00 -- the same money was credited twice", b)
+	}
+}

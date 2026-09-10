@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -40,6 +41,11 @@ type Deposits struct {
 	Pool          *pgxpool.Pool
 	Addresses     *Addresses
 	Confirmations uint64
+
+	// Treasury is the platform's own address. Transfers FROM it into a
+	// deposit address are returns, not deposits, and crediting them counts
+	// the same money twice. Zero disables the check.
+	Treasury common.Address
 }
 
 func (d *Deposits) confirmations() uint64 {
@@ -65,6 +71,22 @@ func (d *Deposits) Record(ctx context.Context, t Transfer) error {
 		return err
 	}
 	if t.AmountMicro <= 0 {
+		return nil
+	}
+
+	// Money coming back from our own treasury is not a deposit.
+	//
+	// A deposit address credits whatever arrives at it, which is right for a
+	// stranger paying somebody and wrong for us returning what we took. When
+	// funds swept before the platform went non-custodial were sent back to
+	// their owners, the watcher saw ordinary USDC transfers into watched
+	// addresses and credited them a second time -- the same money counted
+	// twice, once when it arrived and once when it was returned.
+	//
+	// Comparing the sender is the whole guard: nobody else's payment can
+	// arrive from an address whose key we hold.
+	if d.Treasury != (common.Address{}) &&
+		strings.EqualFold(t.From, d.Treasury.Hex()) {
 		return nil
 	}
 
