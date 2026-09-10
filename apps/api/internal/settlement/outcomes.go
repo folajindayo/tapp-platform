@@ -225,25 +225,17 @@ func (w *Worker) Run(ctx context.Context, every time.Duration) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			// Turn what merchants are owed into payouts before submitting.
+			// PayMerchants is deliberately NOT called here.
 			//
-			// This is the step that was missing: a tap credited
-			// merchant_payable and nothing ever drew it down, so merchants
-			// accrued balances no process delivered. Opened first so money
-			// taken in this cycle can go out in the same one.
+			// Card taps are settled on chain now: the cardholder's own USDC
+			// is sold to the settlement gateway and a liquidity provider pays
+			// the merchant's bank, so the platform never holds their money.
+			// Draining merchant_payable through a bank rail as well would pay
+			// the same tap twice -- once by the provider and once by us.
 			//
-			// A failure here does not skip the submit below: payouts already
-			// queued are owed regardless of whether new ones could be opened.
-			if opened, err := w.PayMerchants(ctx); err != nil {
-				// ErrNoRail is a deployment without a payout provider, which
-				// Tick reports below; saying it twice a minute adds nothing.
-				if !errors.Is(err, ErrNoRail) {
-					slog.Error("settlement: opening merchant payouts failed", "err", err)
-				}
-			} else if opened > 0 {
-				slog.Info("settlement: merchant payouts opened", "count", opened)
-			}
-
+			// It remains for a deployment that settles merchants from a float
+			// instead, which is a different arrangement with different
+			// custody, not a fallback for this one.
 			submitted, chased, err := w.Tick(ctx)
 			if err != nil {
 				if !errors.Is(err, ErrNoRail) {

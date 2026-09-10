@@ -327,6 +327,7 @@ func senderRoutes(route *gin.Engine) {
 	// The fee is configuration, not a constant buried in the handler -- the
 	// predecessor applied a hardcoded 100 basis points inline, with a comment
 	// apologising for it.
+	offrampSettler := apiv1.SharedSettler()
 	tapHandler := &apiv1.TapHandler{
 		Svc: &tap.Service{
 			Pool: storage.Pool,
@@ -337,6 +338,9 @@ func senderRoutes(route *gin.Engine) {
 			// platform long naira against money nobody has spent yet.
 			Funding: money.Currency(viper.GetString("FUNDING_CURRENCY")),
 			Quoter:  apiv1.SharedQuoter(),
+			// The tap records what has to be sold; the settler sells it a
+			// moment later, from the cardholder's own account.
+			Settle: apiv1.RecordTapSettlement(offrampSettler),
 		},
 		Merchant: apiv1.MerchantFromContext,
 	}

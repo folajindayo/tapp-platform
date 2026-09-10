@@ -105,6 +105,15 @@ type Service struct {
 	// Quoter prices Funding -> the tap currency. Required when they differ; a
 	// tap that cannot be priced is refused rather than guessed at.
 	Quoter Quoter
+
+	// Settle records that a tap must be sold on chain, in the tap's own
+	// transaction.
+	//
+	// A function rather than a dependency, because this package must not know
+	// what a settlement gateway is: it charges cards, and the fact that the
+	// charge is later financed by selling a token belongs to whoever wired
+	// the two together. Nil means settlement is handled elsewhere.
+	Settle func(ctx context.Context, tx pgx.Tx, tapID, cardholder uuid.UUID, amount money.Amount) error
 	// Now is injectable so lockout and daily-window behaviour can be tested
 	// without waiting a day. Nil means time.Now.
 	Now func() time.Time

@@ -102,17 +102,30 @@ func main() {
 
 		if baseRail != nil {
 			go baseRail.Watcher.Run(context.Background(), apiv1.BasePollInterval())
-			// Pooling is the point: one key protects everything. Until a
-			// deposit is swept it sits at an address whose key must be
-			// re-derived to touch, and a withdrawal cannot be paid from money
-			// spread across a thousand addresses.
-			go baseRail.Sweeper.Run(context.Background(), apiv1.BasePollInterval())
+
+			// The sweeper is deliberately NOT started.
+			//
+			// It pooled every deposit into the treasury, which is what made
+			// the platform custodian of the money. A card tap now sells the
+			// cardholder's own USDC to the settlement gateway from their own
+			// smart account, so the money has to still be there: a swept
+			// balance is an account that cannot pay for anything.
+			//
+			// The code is kept because retired deposit addresses still hold
+			// seed-derived funds that only it can move. Starting it again
+			// would empty every account the offramp spends from.
 			go baseRail.Withdrawals.Run(context.Background(), apiv1.BasePollInterval())
 		}
 
-		// Deliver what the ledger says is owed. Until this runs, merchants
-		// accrue money that nothing pays out -- which is the one state where
-		// the system is wrong rather than merely incomplete.
+		// Sell each tap's USDC to the settlement gateway, from the
+		// cardholder's own account, so a liquidity provider pays the
+		// merchant's bank. This is what actually delivers a card payment.
+		if s := apiv1.SharedSettler(); s != nil {
+			go s.Run(context.Background(), settlementInterval())
+		}
+
+		// Bank payouts for everything that is not a card tap: the sender
+		// offramp still reserves and delivers through a provider.
 		go (&settlement.Worker{Pool: storage.Pool, Rail: baas.Default()}).
 			Run(context.Background(), settlementInterval())
 	}

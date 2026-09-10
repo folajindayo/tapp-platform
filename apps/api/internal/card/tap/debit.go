@@ -193,6 +193,19 @@ func (s *Service) Debit(ctx context.Context, req Request) (*Receipt, error) {
 			return err
 		}
 
+		// 8a. Note that this tap has to be settled on chain.
+		//
+		// Written in the tap's own transaction, so a charge cannot exist
+		// without a record that the money still has to be sold. A settlement
+		// row with no tap would sell somebody's USDC for a payment that never
+		// happened; a tap with no settlement row is a merchant who is never
+		// paid, and neither is recoverable by looking at the other.
+		if s.Settle != nil {
+			if err := s.Settle(ctx, tx, tapID, *k.Cardholder, req.Amount); err != nil {
+				return err
+			}
+		}
+
 		// 9. The new token is PENDING. It becomes current only when the
 		//    merchant app confirms it reached the card.
 		next, err := token.New()
