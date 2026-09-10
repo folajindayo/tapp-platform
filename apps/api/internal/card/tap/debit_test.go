@@ -379,3 +379,70 @@ func TestATapWithoutARateIsRefusedNotGuessed(t *testing.T) {
 		t.Errorf("dollar balance = %s, want $10.00 untouched by a refused tap", usd)
 	}
 }
+
+// A funding currency with coarser minor units cannot buy an exact amount: one
+// US cent is worth about thirteen naira, so buying ₦1,500 means buying the
+// next whole cent and keeping the change. That change has to be spent by the
+// next tap rather than left behind on every one of them.
+func TestATapSpendsLeftoverNairaBeforeBuyingMore(t *testing.T) {
+	f := newFixture(t, money.Amount{})
+	ctx := context.Background()
+
+	if _, err := movements.Deposit(ctx, f.Pool, f.Cardholder,
+		money.New(1000, money.USD), "test", uuid.NewString()); err != nil {
+		t.Fatal(err)
+	}
+	// Change left by an earlier tap.
+	if _, err := movements.Deposit(ctx, f.Pool, f.Cardholder,
+		money.Naira(400), "test", uuid.NewString()); err != nil {
+		t.Fatal(err)
+	}
+
+	q := &fixedQuoter{ratePerMajor: 150_000} // ₦1,500.00 per $1
+	f.Svc.Funding = money.USD
+	f.Svc.Quoter = q
+
+	if _, err := f.pay(t, money.Naira(1_500)); err != nil {
+		t.Fatalf("Debit: %v", err)
+	}
+
+	// It must have bought ₦1,100, not ₦1,500: the ₦400 already held is spent
+	// first. At ₦1,500 per dollar that is 74 cents rather than a whole dollar.
+	if q.issued == nil {
+		t.Fatal("no quote was taken")
+	}
+	if got, want := q.issued.Buy, money.Naira(1_100); got.Minor() != want.Minor() {
+		t.Errorf("bought %s, want %s -- the naira already held was not spent first", got, want)
+	}
+}
+
+// Enough on hand means no conversion at all: a tap that can be paid from the
+// balance already held must not touch a rate source or spend a quote.
+func TestATapWithEnoughNairaBuysNothing(t *testing.T) {
+	f := newFixture(t, money.Naira(5_000))
+	ctx := context.Background()
+
+	if _, err := movements.Deposit(ctx, f.Pool, f.Cardholder,
+		money.New(1000, money.USD), "test", uuid.NewString()); err != nil {
+		t.Fatal(err)
+	}
+
+	q := &fixedQuoter{ratePerMajor: 150_000}
+	f.Svc.Funding = money.USD
+	f.Svc.Quoter = q
+
+	if _, err := f.pay(t, money.Naira(1_500)); err != nil {
+		t.Fatalf("Debit: %v", err)
+	}
+	if q.calls != 0 {
+		t.Errorf("quoted %d times, want 0 -- the naira on hand covered it", q.calls)
+	}
+
+	usd, err := ledger.Balance(ctx, f.Pool, ledger.User(f.Cardholder), ledger.KindAvailable, money.USD)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if usd.Minor() != 1000 {
+		t.Errorf("dollar balance = %s, want $10.00 untouched", usd)
+	}
+}

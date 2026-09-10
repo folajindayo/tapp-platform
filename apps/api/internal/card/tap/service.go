@@ -11,6 +11,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/usezoracle/tapp/api/internal/card/auth"
+	"github.com/usezoracle/tapp/api/internal/ledger"
 	"github.com/usezoracle/tapp/api/internal/ledger/movements"
 	"github.com/usezoracle/tapp/api/internal/money"
 	"github.com/usezoracle/tapp/api/internal/rates"
@@ -109,8 +110,8 @@ type Service struct {
 	Now func() time.Time
 }
 
-// fundTap buys the spend in the tap's currency out of the cardholder's funding
-// balance, and reports whether it did.
+// fundTap makes sure the cardholder holds the spend in the tap's currency,
+// buying only what they are short, and reports whether it succeeded.
 //
 // (false, nil) means it could not be priced -- a refusal the caller turns into
 // ErrCannotPrice. (true, nil) with no conversion means none was needed.
@@ -127,7 +128,28 @@ func (s *Service) fundTap(
 		return false, nil
 	}
 
-	quote, err := s.Quoter.OfferForBuy(ctx, s.Funding, spend)
+	// Buy only the shortfall.
+	//
+	// The cardholder may already hold some of the tap currency, because a
+	// funding currency with coarser minor units cannot buy an exact amount:
+	// a US cent is worth about thirteen naira, so buying ₦1,500 means buying
+	// the next whole cent up and keeping the difference. Ignoring that and
+	// buying the full spend every time would leave the remainder behind on
+	// every tap, accumulating dust the holder can see and never spends.
+	held, err := ledger.Balance(ctx, tx, ledger.User(cardholder), ledger.KindAvailable, spend.Currency())
+	if err != nil {
+		return false, err
+	}
+	if held.Minor() >= spend.Minor() {
+		// Already covered by what is on hand; no conversion, no quote.
+		return true, nil
+	}
+	shortfall, err := spend.Sub(held)
+	if err != nil {
+		return false, err
+	}
+
+	quote, err := s.Quoter.OfferForBuy(ctx, s.Funding, shortfall)
 	if err != nil {
 		// A rate source that is down or a pair with no spread is not a card
 		// problem, and not something to invent a number for.
