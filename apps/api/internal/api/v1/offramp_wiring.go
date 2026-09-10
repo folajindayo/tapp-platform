@@ -72,9 +72,18 @@ func SharedSettler() *offramp.Settler {
 				Keys:    keys,
 				Gateway: common.HexToAddress(gateway),
 				USDC:    common.HexToAddress(viper.GetString("BASE_USDC_CONTRACT")),
-				// No sender fee unless somewhere is configured to receive it.
-				// A fee with no recipient is one the gateway cannot pay out.
-				SenderFeeBPS: viper.GetInt64("BASE_SENDER_FEE_BPS"),
+				// No on-chain sender fee.
+				//
+				// The platform's margin is already taken at the till, booked
+				// to revenue in fiat when the tap posts. Charging it again
+				// here would take the same cut twice -- once in the ledger and
+				// once out of the tokens -- and the second one would come out
+				// of what the merchant receives.
+				//
+				// A deployment that would rather earn on chain sets a
+				// recipient and drops the card fee, but it must be one or the
+				// other.
+				SenderFeeBPS: 0,
 				FeeRecipient: common.HexToAddress(viper.GetString("BASE_FEE_RECIPIENT")),
 			},
 		}

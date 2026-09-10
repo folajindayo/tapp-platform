@@ -136,6 +136,53 @@ func MerchantSettled(
 // in payable would be the platform quietly holding money it neither earned nor
 // delivered, and it would go on looking like an outstanding obligation nobody
 // was acting on.
+// MerchantSettledOnChain discharges what a merchant is owed when the payment
+// has been sold to a settlement gateway instead of paid from here.
+//
+// The claim does not move to `payable`, because the platform is not the one
+// paying: a liquidity provider is, out of the cardholder's own tokens. Holding
+// it in payable would say we owe money we have no way to send, and leaving it
+// in merchant_payable would say we still owe it after somebody else has paid.
+// It leaves the books entirely, which is what actually happened.
+func MerchantSettledOnChain(
+	ctx context.Context,
+	tx pgx.Tx,
+	merchant uuid.UUID,
+	amount money.Amount,
+	tapID uuid.UUID,
+) (uuid.UUID, error) {
+	if !amount.IsPositive() {
+		return uuid.Nil, fmt.Errorf("movements: a settlement must be positive, got %s", amount)
+	}
+
+	c := amount.Currency()
+	r := newResolver(ctx, tx)
+
+	// A merchant cannot be discharged of more than they are owed. Spending
+	// account first, then its lock, then everything else. See Tap.
+	owed := r.account(ledger.Merchant(merchant), ledger.KindMerchantPayable, c)
+	if r.err != nil {
+		return uuid.Nil, r.err
+	}
+	if err := ensureFunds(ctx, tx, owed, amount); err != nil {
+		return uuid.Nil, err
+	}
+
+	external := r.account(ledger.System(), ledger.KindExternal, c)
+	if r.err != nil {
+		return uuid.Nil, r.err
+	}
+
+	return ledger.Post(ctx, tx, ledger.Ref{
+		Type:    "merchant_settled_onchain",
+		ID:      &tapID,
+		IdemKey: "merchant_settled_onchain:" + tapID.String(),
+	}, []ledger.Entry{
+		{AccountID: owed, Amount: amount.Neg(), Reason: "merchant.settled_onchain"},
+		{AccountID: external, Amount: amount, Reason: "merchant.paid_by_provider"},
+	})
+}
+
 func MerchantPayoutReturned(
 	ctx context.Context,
 	tx pgx.Tx,

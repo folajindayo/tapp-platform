@@ -9,9 +9,11 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/usezoracle/tapp/api/internal/ledger/movements"
 	"github.com/usezoracle/tapp/api/internal/money"
 )
 
@@ -82,7 +84,7 @@ func (s *Settler) Tick(ctx context.Context) (created int, err error) {
 	// their taps outstanding rather than sending money to a mistyped digit.
 	rows, err := s.Pool.Query(ctx, `
 		SELECT st.tap_id, st.from_address, st.sell_micro, st.attempts,
-		       t.currency, t.amount_minor,
+		       t.merchant_id, t.currency, t.amount_minor - t.fee_minor,
 		       b.bank_code, b.account_number, b.account_name
 		  FROM card_tap_settlements st
 		  JOIN card_taps t ON t.id = st.tap_id
@@ -103,18 +105,24 @@ func (s *Settler) Tick(ctx context.Context) (created int, err error) {
 		from     string
 		sell     int64
 		attempts int
+		merchant uuid.UUID
 		deliver  money.Amount
 		bank     Bank
 	}
 	var due []pending
 	for rows.Next() {
 		var (
-			p     pending
+			p pending
+			// What the MERCHANT receives: the tap less the platform's fee.
+			// Selling against the gross would deliver them money the ledger
+			// says is ours, and pairing that with an on-chain sender fee
+			// would take the same margin twice.
 			cur   string
 			minor int64
 		)
 		if err := rows.Scan(&p.tap, &p.from, &p.sell, &p.attempts,
-			&cur, &minor, &p.bank.Institution, &p.bank.AccountNumber, &p.bank.AccountName); err != nil {
+			&p.merchant, &cur, &minor,
+			&p.bank.Institution, &p.bank.AccountNumber, &p.bank.AccountName); err != nil {
 			rows.Close()
 			return 0, err
 		}
@@ -170,10 +178,24 @@ func (s *Settler) Tick(ctx context.Context) (created int, err error) {
 			continue
 		}
 
-		if _, err := s.Pool.Exec(ctx, `
-			UPDATE card_tap_settlements
-			   SET state = 'submitted', tx_hash = $2, last_error = NULL, updated_at = now()
-			 WHERE tap_id = $1`, p.tap, txHash); err != nil {
+		// Marking it submitted and discharging what the merchant is owed
+		// commit together.
+		//
+		// The order is already on chain either way, so the question is only
+		// what the books say about it. A submitted order with the claim still
+		// standing would have us owing money a provider has been paid to
+		// deliver; a discharged claim with no record of the order would lose
+		// the only thing tying it to a transaction.
+		if err := movements.InTx(ctx, s.Pool, func(tx pgx.Tx) error {
+			if _, err := tx.Exec(ctx, `
+				UPDATE card_tap_settlements
+				   SET state = 'submitted', tx_hash = $2, last_error = NULL, updated_at = now()
+				 WHERE tap_id = $1`, p.tap, txHash); err != nil {
+				return err
+			}
+			_, err := movements.MerchantSettledOnChain(ctx, tx, p.merchant, p.deliver, p.tap)
+			return err
+		}); err != nil {
 			// The order is on chain. Failing here loses only our note of it,
 			// and the attempt counter above stops it being sold again.
 			return created, fmt.Errorf("offramp: record submitted order for tap %s (tx %s): %w",
