@@ -158,8 +158,17 @@ func NewBaseRail(ctx context.Context) (*BaseRail, error) {
 			Deposits:   deposits,
 			StartBlock: uint64(viper.GetInt64("BASE_START_BLOCK")),
 		},
-		Sweeper:     sweeper,
-		Withdrawals: &base.Withdrawals{Pool: storage.Pool, Chain: chain},
+		Sweeper: sweeper,
+		// Paid from the person's own deposit address, sponsored, because
+		// nothing is swept into the treasury any more. Addresses and
+		// SmartAccounts come from the same objects the deposit side uses, so
+		// a withdrawal cannot disagree with a deposit about where somebody's
+		// money is.
+		Withdrawals: &base.Withdrawals{
+			Pool: storage.Pool, Chain: chain,
+			Addresses:     addresses,
+			SmartAccounts: smart,
+		},
 	}, nil
 }
 

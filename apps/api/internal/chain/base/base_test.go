@@ -420,3 +420,76 @@ func TestMoneyReturnedFromTheTreasuryIsNotADeposit(t *testing.T) {
 		t.Errorf("balance = %s, want $1.00 -- the same money was credited twice", b)
 	}
 }
+
+// Nothing is swept into the treasury any more, so a withdrawal paid from it
+// would fail with nothing to send. It comes out of the person's own deposit
+// address instead, sponsored, so withdrawing costs them no gas.
+func TestAWithdrawalIsPaidFromTheUsersOwnAccount(t *testing.T) {
+	addrs, deposits := fixture(t)
+	ctx := context.Background()
+	user := uuid.New()
+
+	address, err := addrs.For(ctx, user)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Fund them, so the withdrawal has something to debit.
+	if err := deposits.Record(ctx, Transfer{
+		TxHash: txHash(t), LogIndex: 0, From: "0x00000000000000000000000000000000000000A1",
+		To: address, AmountMicro: 5_000_000, BlockNumber: 100,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := deposits.CreditConfirmed(ctx, 200); err != nil {
+		t.Fatal(err)
+	}
+
+	sender := &recordingSender{}
+	w := &Withdrawals{
+		Pool: deposits.Pool, Chain: &Chain{USDC: common.HexToAddress("0x8335")},
+		Addresses: addrs, SmartAccounts: sender,
+	}
+
+	dest := "0x00000000000000000000000000000000000000B2"
+	if _, err := w.Open(ctx, Request{
+		UserID: user, Amount: money.New(200, money.USD), To: dest,
+	}); err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	if _, err := w.Send(ctx); err != nil {
+		t.Fatalf("Send: %v", err)
+	}
+
+	if sender.from == "" {
+		t.Fatal("nothing was sent -- the withdrawal did not reach the smart account")
+	}
+	if !strings.EqualFold(sender.from, address) {
+		t.Errorf("sent from %s, want the user's own deposit address %s", sender.from, address)
+	}
+	if !strings.EqualFold(sender.to.Hex(), dest) {
+		t.Errorf("sent to %s, want %s", sender.to, dest)
+	}
+	// $2.00 is 2,000,000 in USDC's six decimals.
+	if sender.amount == nil || sender.amount.Int64() != 2_000_000 {
+		t.Errorf("sent %v, want 2000000 micro-USDC", sender.amount)
+	}
+	// The withdrawal id keys the operation, so a retry after a lost response
+	// cannot send the same money twice.
+	if !strings.HasPrefix(sender.idem, "withdrawal:") {
+		t.Errorf("idempotency key %q does not identify the withdrawal", sender.idem)
+	}
+}
+
+type recordingSender struct {
+	from   string
+	to     common.Address
+	amount *big.Int
+	idem   string
+}
+
+func (r *recordingSender) SweepSmartAccount(
+	_ context.Context, account string, _, to common.Address, amount *big.Int, idem string,
+) (string, error) {
+	r.from, r.to, r.amount, r.idem = account, to, amount, idem
+	return "0x" + strings.Repeat("ab", 32), nil
+}
