@@ -225,6 +225,21 @@ func (w *Worker) Run(ctx context.Context, every time.Duration) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
+			// Turn what merchants are owed into payouts before submitting.
+			//
+			// This is the step that was missing: a tap credited
+			// merchant_payable and nothing ever drew it down, so merchants
+			// accrued balances no process delivered. Opened first so money
+			// taken in this cycle can go out in the same one.
+			//
+			// A failure here does not skip the submit below: payouts already
+			// queued are owed regardless of whether new ones could be opened.
+			if opened, err := w.PayMerchants(ctx); err != nil {
+				slog.Error("settlement: opening merchant payouts failed", "err", err)
+			} else if opened > 0 {
+				slog.Info("settlement: merchant payouts opened", "count", opened)
+			}
+
 			submitted, chased, err := w.Tick(ctx)
 			if err != nil {
 				if !errors.Is(err, ErrNoRail) {
