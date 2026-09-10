@@ -235,7 +235,11 @@ func (w *Worker) Run(ctx context.Context, every time.Duration) {
 			// A failure here does not skip the submit below: payouts already
 			// queued are owed regardless of whether new ones could be opened.
 			if opened, err := w.PayMerchants(ctx); err != nil {
-				slog.Error("settlement: opening merchant payouts failed", "err", err)
+				// ErrNoRail is a deployment without a payout provider, which
+				// Tick reports below; saying it twice a minute adds nothing.
+				if !errors.Is(err, ErrNoRail) {
+					slog.Error("settlement: opening merchant payouts failed", "err", err)
+				}
 			} else if opened > 0 {
 				slog.Info("settlement: merchant payouts opened", "count", opened)
 			}

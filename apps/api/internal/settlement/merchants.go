@@ -38,6 +38,23 @@ const MinMerchantPayoutMinor = 10_000 // ₦100.00
 // time out, and returns the money on a terminal refusal -- all of which
 // already handle merchant beneficiaries.
 func (w *Worker) PayMerchants(ctx context.Context) (opened int, err error) {
+	// No rail, nothing opened.
+	//
+	// Opening reserves the claim out of merchant_payable and into the
+	// system's payable, which is the honest place for "owed and not yet
+	// landed" -- but only once something can actually land it. With no
+	// provider configured that reservation would empty the account the
+	// merchant is shown while no transfer is even attempted, making a gap in
+	// our configuration look like money that has left. It stays where they
+	// can see it until there is a rail to deliver it.
+	//
+	// Nil Rail means UNCONFIGURED, which is exactly the case this guards. A
+	// provider that is merely down fails at submission instead, where the
+	// retry and chase logic belongs.
+	if w.Rail == nil {
+		return 0, ErrNoRail
+	}
+
 	// One query for the whole decision: who is owed, and where it goes.
 	//
 	// The bank account must be VERIFIED. account_name is what the bank
