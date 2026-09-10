@@ -349,6 +349,73 @@ func (c *Client) SweepSmartAccount(
 	return c.waitUserOperation(ctx, account, sent.JSON200.UserOpHash)
 }
 
+// Call is one contract call in a user operation.
+//
+// Deliberately generic: the same sponsored path that sweeps a deposit also
+// sells one, and the difference between them is calldata, not machinery.
+type Call struct {
+	To   common.Address
+	Data string // 0x-prefixed hex, as PackTransfer and abi.Pack produce
+}
+
+// SendCalls submits calls from a smart account as one sponsored user
+// operation and returns the transaction hash once it is final.
+//
+// One operation, not several: an approve that lands without the call it was
+// granted for leaves an allowance sitting on a contract, and a call that
+// lands without its approve simply reverts. Atomicity here is what makes
+// "approve then spend" safe to retry.
+//
+// idem must be stable for the operation being attempted, so a retry after a
+// lost response cannot send twice.
+func (c *Client) SendCalls(
+	ctx context.Context, account string, calls []Call, idem string,
+) (string, error) {
+	if len(calls) == 0 {
+		return "", errors.New("cdp: no calls to send")
+	}
+	// CDP addresses smart accounts in EIP-55 and matches exactly; see
+	// checksummed.
+	account = checksummed(account)
+
+	// One slice feeds both the signature and the request, so they cannot
+	// disagree about what is being sent.
+	signed := make([]any, 0, len(calls))
+	typed := make([]openapi.EvmCall, 0, len(calls))
+	for _, call := range calls {
+		to := call.To.Hex()
+		signed = append(signed, map[string]any{"to": to, "value": "0", "data": call.Data})
+		typed = append(typed, openapi.EvmCall{To: to, Value: "0", Data: call.Data})
+	}
+
+	body := map[string]any{
+		"calls":        signed,
+		"network":      string(c.network),
+		"paymasterUrl": c.cfg.PaymasterURL,
+	}
+	path := "/v2/evm/smart-accounts/" + account + "/user-operations/prepare-and-send"
+	walletAuth, err := c.walletJWT(http.MethodPost, path, body)
+	if err != nil {
+		return "", err
+	}
+	paymaster := c.cfg.PaymasterURL
+
+	sent, err := c.api.PrepareAndSendUserOperationWithResponse(ctx, account,
+		&openapi.PrepareAndSendUserOperationParams{XWalletAuth: &walletAuth, XIdempotencyKey: &idem},
+		openapi.PrepareAndSendUserOperationJSONRequestBody{
+			Calls:        typed,
+			Network:      c.network,
+			PaymasterUrl: &paymaster,
+		})
+	if err != nil {
+		return "", fmt.Errorf("cdp: send user operation: %w", err)
+	}
+	if sent.JSON200 == nil {
+		return "", apiError(sent.StatusCode(), sent.Body)
+	}
+	return c.waitUserOperation(ctx, account, sent.JSON200.UserOpHash)
+}
+
 // waitUserOperation polls until the operation is final and returns the
 // on-chain transaction hash. The user operation hash is not it: one
 // transaction bundles many operations, and it is the transaction that a
