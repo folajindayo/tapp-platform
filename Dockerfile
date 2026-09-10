@@ -22,6 +22,10 @@ RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/rails .
 # private network and cannot be reached from a workstation, so `railway ssh`
 # into this container is the only place the command can run.
 RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/cdp-reissue ./cmd/cdp-reissue
+# abandon-payout returns money reserved for a payout that will never be sent.
+# Ships here for the same reason: Railway's Postgres is private-network only,
+# so this container is the only place a command can reach it.
+RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/abandon-payout ./cmd/abandon-payout
 
 # ---- runtime: minimal, non-root ----
 FROM alpine:3.20
@@ -32,6 +36,7 @@ RUN apk add --no-cache ca-certificates tzdata \
 USER app
 COPY --from=build /out/rails /usr/local/bin/rails
 COPY --from=build /out/cdp-reissue /usr/local/bin/cdp-reissue
+COPY --from=build /out/abandon-payout /usr/local/bin/abandon-payout
 # Railway/containers inject PORT; the app honours it (falls back to SERVER_PORT).
 EXPOSE 8000
 ENTRYPOINT ["rails"]

@@ -530,3 +530,60 @@ func TestATinyBalanceWaitsRatherThanPayingAFee(t *testing.T) {
 		t.Errorf("owed = %s, want ₦50.00 still owed and visible", owed)
 	}
 }
+
+// A payout stranded by a change of arrangement still owes its beneficiary the
+// money. Leaving it reserved in `payable` is the platform quietly holding what
+// it neither earned nor delivered.
+func TestAbandoningAPayoutReturnsWhatIsOwed(t *testing.T) {
+	f := newFixture(t, money.Naira(1_500))
+	ctx := context.Background()
+
+	p, err := f.Worker.Open(ctx, f.request(money.Naira(1_500)))
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	if owed := f.owed(t); !owed.IsZero() {
+		t.Fatalf("owed %s after opening, want it reserved", owed)
+	}
+
+	if _, err := f.Worker.Abandon(ctx, p.ID, "the rail was retired"); err != nil {
+		t.Fatalf("Abandon: %v", err)
+	}
+	if owed := f.owed(t); owed.Minor() != 150_000 {
+		t.Errorf("owed = %s after abandoning, want ₦1,500.00 back", owed)
+	}
+	if s := f.state(t, p.ID); s != "failed" {
+		t.Errorf("payout state = %q, want failed", s)
+	}
+
+	// Twice must not pay twice.
+	if _, err := f.Worker.Abandon(ctx, p.ID, "again"); err == nil {
+		t.Error("abandoning an already-returned payout was allowed")
+	}
+	if owed := f.owed(t); owed.Minor() != 150_000 {
+		t.Errorf("owed = %s after a second abandon, want it unchanged", owed)
+	}
+}
+
+// A confirmed payout moved real money. Returning its reservation would credit
+// the beneficiary a second time for a transfer they have already received.
+func TestAConfirmedPayoutCannotBeAbandoned(t *testing.T) {
+	f := newFixture(t, money.Naira(1_500))
+	ctx := context.Background()
+
+	p, err := f.Worker.Open(ctx, f.request(money.Naira(1_500)))
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	if _, err := f.Pool.Exec(ctx,
+		`UPDATE payouts SET state = 'confirmed' WHERE id = $1`, p.ID); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := f.Worker.Abandon(ctx, p.ID, "should be refused"); err == nil {
+		t.Fatal("a confirmed payout was abandoned -- the beneficiary would be paid twice")
+	}
+	if owed := f.owed(t); !owed.IsZero() {
+		t.Errorf("owed = %s, want nothing restored for a delivered payout", owed)
+	}
+}
