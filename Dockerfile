@@ -26,6 +26,8 @@ RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/cdp-rei
 # Ships here for the same reason: Railway's Postgres is private-network only,
 # so this container is the only place a command can reach it.
 RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/abandon-payout ./cmd/abandon-payout
+# reverse-deposit takes back a credit the chain never justified.
+RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/reverse-deposit ./cmd/reverse-deposit
 
 # ---- runtime: minimal, non-root ----
 FROM alpine:3.20
@@ -37,6 +39,7 @@ USER app
 COPY --from=build /out/rails /usr/local/bin/rails
 COPY --from=build /out/cdp-reissue /usr/local/bin/cdp-reissue
 COPY --from=build /out/abandon-payout /usr/local/bin/abandon-payout
+COPY --from=build /out/reverse-deposit /usr/local/bin/reverse-deposit
 # Railway/containers inject PORT; the app honours it (falls back to SERVER_PORT).
 EXPOSE 8000
 ENTRYPOINT ["rails"]
