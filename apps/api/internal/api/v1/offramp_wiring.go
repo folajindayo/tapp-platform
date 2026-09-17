@@ -65,11 +65,24 @@ func SharedSettler() *offramp.Settler {
 			time.Duration(config.OrderConfig().SettlementPubkeyTTLSeconds)*time.Second,
 		)
 
+		// Outcomes are read through the rail's own client: one connection to
+		// the chain, and the settler cannot exist without the deposit
+		// accounts it sells from anyway.
+		var reader offramp.Reader
+		if r := Rail(); r != nil && r.Chain != nil && r.Chain.Client != nil {
+			reader = r.Chain.Client
+		} else {
+			logger.Errorf("offramp: no Base rail, so orders can be created but " +
+				"never followed to fulfilled or refunded")
+		}
+
 		settler = &offramp.Settler{
-			Pool: storage.Pool,
+			Pool:  storage.Pool,
+			Price: priceWith(keys, settlementNetwork(chainID)),
 			Orders: &offramp.Client{
 				Sender:  signer,
 				Keys:    keys,
+				Reader:  reader,
 				Gateway: common.HexToAddress(gateway),
 				USDC:    common.HexToAddress(viper.GetString("BASE_USDC_CONTRACT")),
 				// No on-chain sender fee.
@@ -160,6 +173,54 @@ func sellFor(ctx context.Context, owed money.Amount) (int64, error) {
 		return 0, errNoRate
 	}
 	return micro.BigInt().Int64(), nil
+}
+
+// priceWith prices an order at the aggregator's own sell-side rate for the
+// amount being sold, which is the only rate its matcher will accept.
+//
+// The rate depends on the amount -- providers serve different size brackets
+// at different prices -- and the amount depends on the rate. One pass from
+// the recorded estimate lands in the right bracket almost always; a second
+// pass with the amount that pass produced catches the case where it did not.
+// The sale is rounded UP, so the order delivers at least what the merchant
+// is owed, and the order's rate (what it delivers over what it sells) sits
+// a fraction of a kobo under the quote rather than over it.
+func priceWith(p *paycrest.Client, network string) func(context.Context, money.Amount, int64) (int64, error) {
+	return func(ctx context.Context, owed money.Amount, estimate int64) (int64, error) {
+		fiat := decimal.NewFromInt(owed.Minor()).Div(decimal.NewFromInt(owed.Currency().Scale()))
+		sell := decimal.NewFromInt(estimate).Div(decimal.New(1, 6))
+
+		for pass := 0; pass < 2; pass++ {
+			q, err := p.FetchRate(ctx, network, "USDC", sell, string(owed.Currency()))
+			if err != nil {
+				return 0, err
+			}
+			if q.Rate.Sign() <= 0 {
+				return 0, errNoRate
+			}
+			next := fiat.Div(q.Rate).Mul(decimal.New(1, 6)).Ceil().Div(decimal.New(1, 6))
+			if next.Equal(sell) {
+				break
+			}
+			sell = next
+		}
+
+		micro := sell.Mul(decimal.New(1, 6))
+		if micro.Sign() <= 0 || !micro.BigInt().IsInt64() {
+			return 0, errNoRate
+		}
+		return micro.BigInt().Int64(), nil
+	}
+}
+
+// settlementNetwork is the aggregator's name for a chain, which is not its id.
+func settlementNetwork(chainID int64) string {
+	switch chainID {
+	case 84532:
+		return "base-sepolia"
+	default:
+		return "base"
+	}
 }
 
 var (

@@ -19,7 +19,9 @@ import (
 	"fmt"
 	"math/big"
 
+	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/shopspring/decimal"
 
 	"github.com/usezoracle/tapp/api/internal/chain/base"
@@ -40,6 +42,22 @@ type Sender interface {
 type Keys interface {
 	FetchPublicKey(ctx context.Context) (string, error)
 }
+
+// Reader reads the chain: a receipt for the order's id, a call for its
+// outcome. Satisfied by ethclient.Client.
+type Reader interface {
+	TransactionReceipt(ctx context.Context, txHash common.Hash) (*types.Receipt, error)
+	CallContract(ctx context.Context, call ethereum.CallMsg, blockNumber *big.Int) ([]byte, error)
+}
+
+// ErrOrderNotCreated means the transaction landed but created no order for
+// this account: it reverted, or it was somebody else's operation in the same
+// bundle. Either way nothing was sold, and the books that said otherwise
+// have to be put back.
+var ErrOrderNotCreated = errors.New("offramp: the transaction created no order for this account")
+
+// ErrNotMined means the transaction has no receipt yet. Asked again later.
+var ErrNotMined = errors.New("offramp: the transaction is not mined yet")
 
 // Bank is where the merchant is paid.
 //
@@ -77,6 +95,7 @@ type Order struct {
 type Client struct {
 	Sender  Sender
 	Keys    Keys
+	Reader  Reader
 	Gateway common.Address
 	USDC    common.Address
 
@@ -205,3 +224,61 @@ func (c *Client) rate(o Order) (*big.Int, error) {
 // contract: a wrong value here misprices an order by a factor of a hundred,
 // so it is stated rather than discovered.
 const usdcDecimals = 6
+
+// OrderID finds the order a settlement transaction created for an account.
+//
+// A sponsored operation is bundled: one transaction can carry several
+// accounts' operations, so the log is matched on the sender as well as the
+// Gateway, and on the amount when one account somehow has two. A receipt
+// that shows the transaction reverted, or that carries no such log, means no
+// order exists and the caller has to treat it as never sold.
+func (c *Client) OrderID(ctx context.Context, txHash, from string, sell *big.Int) ([32]byte, error) {
+	if c.Reader == nil {
+		return [32]byte{}, ErrNotConfigured
+	}
+	receipt, err := c.Reader.TransactionReceipt(ctx, common.HexToHash(txHash))
+	if errors.Is(err, ethereum.NotFound) {
+		return [32]byte{}, ErrNotMined
+	}
+	if err != nil {
+		return [32]byte{}, fmt.Errorf("offramp: receipt %s: %w", txHash, err)
+	}
+	if receipt.Status != types.ReceiptStatusSuccessful {
+		return [32]byte{}, fmt.Errorf("%w: %s reverted", ErrOrderNotCreated, txHash)
+	}
+
+	sender := common.HexToAddress(from)
+	for _, l := range receipt.Logs {
+		if l.Address != c.Gateway {
+			continue
+		}
+		ev, ok, err := unpackOrderCreated(*l)
+		if err != nil {
+			return [32]byte{}, err
+		}
+		if !ok || ev.Sender != sender {
+			continue
+		}
+		if sell != nil && ev.Amount.Cmp(sell) != 0 {
+			continue
+		}
+		return ev.OrderID, nil
+	}
+	return [32]byte{}, fmt.Errorf("%w: %s", ErrOrderNotCreated, txHash)
+}
+
+// Info asks the Gateway what became of an order.
+func (c *Client) Info(ctx context.Context, orderID [32]byte) (OrderInfo, error) {
+	if c.Reader == nil {
+		return OrderInfo{}, ErrNotConfigured
+	}
+	data, err := packGetOrderInfo(orderID)
+	if err != nil {
+		return OrderInfo{}, err
+	}
+	out, err := c.Reader.CallContract(ctx, ethereum.CallMsg{To: &c.Gateway, Data: data}, nil)
+	if err != nil {
+		return OrderInfo{}, fmt.Errorf("offramp: getOrderInfo: %w", err)
+	}
+	return unpackOrderInfo(out)
+}

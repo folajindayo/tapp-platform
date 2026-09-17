@@ -421,6 +421,53 @@ func TestMoneyReturnedFromTheTreasuryIsNotADeposit(t *testing.T) {
 	}
 }
 
+// A settlement order nobody filled is refunded by the Gateway to the account
+// that funded it. That is the cardholder's own USDC coming back, for a tap the
+// ledger has already charged, and crediting it would give them a second
+// balance for the same money.
+func TestARefundFromTheGatewayIsNotADeposit(t *testing.T) {
+	addrs, deposits := fixture(t)
+	ctx := context.Background()
+	user := uuid.New()
+
+	gateway := common.HexToAddress("0x30F6A8457F8E42371E204a9c103f2Bd42341dD0F")
+	deposits.Gateway = gateway
+
+	address, err := addrs.For(ctx, user)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := deposits.Record(ctx, Transfer{
+		TxHash: txHash(t), LogIndex: 0, From: "0x00000000000000000000000000000000000000A1",
+		To: address, AmountMicro: 1_208_679, BlockNumber: 100,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	// The order's refund, as the Gateway sends it: lower-cased, the way an
+	// RPC prints addresses, against a checksummed configured value.
+	if err := deposits.Record(ctx, Transfer{
+		TxHash: txHash(t), LogIndex: 0, From: strings.ToLower(gateway.Hex()),
+		To: address, AmountMicro: 1_208_679, BlockNumber: 101,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	if credited, err := deposits.CreditConfirmed(ctx, 200); err != nil {
+		t.Fatalf("CreditConfirmed: %v", err)
+	} else if credited != 1 {
+		t.Fatalf("credited %d deposits, want 1 -- the refund was counted as money arriving", credited)
+	}
+
+	b, err := ledger.Balance(ctx, deposits.Pool, ledger.User(user), ledger.KindAvailable, money.USD)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if b.Minor() != 120 {
+		t.Errorf("balance = %s, want $1.20 -- the refund was credited as a deposit", b)
+	}
+}
+
 // Nothing is swept into the treasury any more, so a withdrawal paid from it
 // would fail with nothing to send. It comes out of the person's own deposit
 // address instead, sponsored, so withdrawing costs them no gas.

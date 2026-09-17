@@ -144,12 +144,17 @@ func MerchantSettled(
 // it in payable would say we owe money we have no way to send, and leaving it
 // in merchant_payable would say we still owe it after somebody else has paid.
 // It leaves the books entirely, which is what actually happened.
+//
+// Round is which order for this tap was submitted. It is part of the
+// idempotency key because a refunded order is sold again as a new round, and
+// that round's discharge is a new movement, not a replay of the first.
 func MerchantSettledOnChain(
 	ctx context.Context,
 	tx pgx.Tx,
 	merchant uuid.UUID,
 	amount money.Amount,
 	tapID uuid.UUID,
+	round int,
 ) (uuid.UUID, error) {
 	if !amount.IsPositive() {
 		return uuid.Nil, fmt.Errorf("movements: a settlement must be positive, got %s", amount)
@@ -176,10 +181,62 @@ func MerchantSettledOnChain(
 	return ledger.Post(ctx, tx, ledger.Ref{
 		Type:    "merchant_settled_onchain",
 		ID:      &tapID,
-		IdemKey: "merchant_settled_onchain:" + tapID.String(),
+		IdemKey: fmt.Sprintf("merchant_settled_onchain:%s:%d", tapID, round),
 	}, []ledger.Entry{
 		{AccountID: owed, Amount: amount.Neg(), Reason: "merchant.settled_onchain"},
 		{AccountID: external, Amount: amount, Reason: "merchant.paid_by_provider"},
+	})
+}
+
+// MerchantSettlementRefunded puts a merchant's claim back after the Gateway
+// refunded the order that was meant to pay it.
+//
+// The exact mirror of MerchantSettledOnChain. That movement said a provider
+// had paid the merchant; the refund says nobody did, and the cardholder's
+// tokens went back to their own account. The claim therefore returns to
+// merchant_payable, where it is a liability the audit can see, rather than
+// staying discharged against a payment that never happened.
+//
+// Only the merchant's side moves. The cardholder was charged at the till and
+// the tap stands: they have their goods, and the tokens that came back are
+// still the ones that pay for them. What happens next is either another order
+// or an operator's decision, and neither is this movement's business.
+func MerchantSettlementRefunded(
+	ctx context.Context,
+	tx pgx.Tx,
+	merchant uuid.UUID,
+	amount money.Amount,
+	tapID uuid.UUID,
+	round int,
+	reason string,
+) (uuid.UUID, error) {
+	if !amount.IsPositive() {
+		return uuid.Nil, fmt.Errorf("movements: a refunded settlement must be positive, got %s", amount)
+	}
+	if reason == "" {
+		return uuid.Nil, fmt.Errorf("movements: a refunded settlement must say why")
+	}
+
+	c := amount.Currency()
+	r := newResolver(ctx, tx)
+
+	// No funds check on external: it is the outside world's contra account
+	// and its sign says nothing about what can be taken back. That an order
+	// was discharged before it is refunded is the tracker's invariant,
+	// enforced by the settlement row's state and this movement's key.
+	external := r.account(ledger.System(), ledger.KindExternal, c)
+	owed := r.account(ledger.Merchant(merchant), ledger.KindMerchantPayable, c)
+	if r.err != nil {
+		return uuid.Nil, r.err
+	}
+
+	return ledger.Post(ctx, tx, ledger.Ref{
+		Type:    "merchant_settlement_refunded",
+		ID:      &tapID,
+		IdemKey: fmt.Sprintf("merchant_settlement_refunded:%s:%d", tapID, round),
+	}, []ledger.Entry{
+		{AccountID: external, Amount: amount.Neg(), Reason: "merchant.refunded_by_gateway:" + reason},
+		{AccountID: owed, Amount: amount, Reason: "merchant.still_owed"},
 	})
 }
 

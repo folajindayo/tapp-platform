@@ -46,6 +46,12 @@ type Deposits struct {
 	// deposit address are returns, not deposits, and crediting them counts
 	// the same money twice. Zero disables the check.
 	Treasury common.Address
+
+	// Gateway is the settlement contract a card tap sells USDC to. An order
+	// nobody fills is refunded from it to the cardholder's account, and that
+	// arrival is not a deposit either: the tap already spent this money, and
+	// the settler will sell it again or the merchant is owed it. See Record.
+	Gateway common.Address
 }
 
 func (d *Deposits) confirmations() uint64 {
@@ -85,8 +91,17 @@ func (d *Deposits) Record(ctx context.Context, t Transfer) error {
 	//
 	// Comparing the sender is the whole guard: nobody else's payment can
 	// arrive from an address whose key we hold.
+	//
+	// The Gateway is the other such address. A refund from it is the
+	// cardholder's own USDC coming back from an order a provider declined;
+	// crediting it would hand them a second balance for money the ledger
+	// already charged at the till, on top of the merchant they still owe.
 	if d.Treasury != (common.Address{}) &&
 		strings.EqualFold(t.From, d.Treasury.Hex()) {
+		return nil
+	}
+	if d.Gateway != (common.Address{}) &&
+		strings.EqualFold(t.From, d.Gateway.Hex()) {
 		return nil
 	}
 
