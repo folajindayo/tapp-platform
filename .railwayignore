@@ -18,3 +18,4 @@ docs
 *.md
 apps/api/.env
 apps/api/cdp-reissue
+apps/api/unsweep
