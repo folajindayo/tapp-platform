@@ -468,11 +468,13 @@ func cardsRoutes(route *gin.Engine) {
 	adminConsole.POST("agents/:id/verify", adminAgents.Verify)
 	adminConsole.POST("agents/:id/allocate", adminAgents.Allocate)
 
-	// The transaction console and the deposit-address views went with Sui.
-	// Both were reads over Route A orders and Sui receive addresses; a
-	// ledger-backed replacement belongs on ledger_transactions and
-	// base_deposits, and shipping a half-ported version that silently showed
-	// an empty timeline would be worse than showing nothing.
+	// Every payment -- card taps and integrator offramps -- with the ledger's
+	// own record of each as its timeline. Read straight off the tables that
+	// hold them; there is no log to keep in step.
+	txCtrl := adminCtrl.NewTransactionsController()
+	adminConsole.GET("transactions", txCtrl.GetTransactions)
+	adminConsole.GET("transactions/:id", txCtrl.GetTransaction)
+
 	integratorsCtrl := adminCtrl.NewIntegratorsController()
 	adminConsole.POST("integrators", integratorsCtrl.CreateIntegrator)
 	adminConsole.GET("integrators", integratorsCtrl.GetIntegrators)
