@@ -557,3 +557,54 @@ func TestAnOrderThatCannotBePricedWaits(t *testing.T) {
 		t.Error("an order was sent without a price")
 	}
 }
+
+// A reversed tap has nothing to pay for, and is not sold however its
+// settlement row is left.
+func TestAReversedTapIsNeverSold(t *testing.T) {
+	pool := testPool(t)
+	ctx := context.Background()
+	s := trackingSettler(pool, &fakeReader{})
+	tap, cardholder, merchant, owed := submittedTap(t, pool, s, txA)
+
+	// The order refunded, the operator re-queued it, and the merchant then
+	// reversed the tap from their till.
+	if _, err := pool.Exec(ctx, `
+		UPDATE card_tap_settlements
+		   SET state = 'pending', tx_hash = NULL, attempts = 0, round = 1,
+		       updated_at = now() - interval '1 hour'
+		 WHERE tap_id = $1`, tap); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO merchant_bank_accounts (id, currency, bank_code, account_number, account_name,
+		                                    verified_at, sender_profile_merchant_bank_account, created_at, updated_at)
+		VALUES ($1, 'NGN', 'OPAYNGPC', '9034409271', 'OLUMIDE SILAS OGUNDELE', now(), $2, now(), now())`,
+		uuid.New(), merchant); err != nil {
+		t.Fatalf("bank: %v", err)
+	}
+	if err := movements.InTx(ctx, pool, func(tx pgx.Tx) error {
+		if _, err := movements.MerchantSettlementRefunded(ctx, tx, merchant, owed, tap, 0, "test"); err != nil {
+			return err
+		}
+		amount := money.Naira(1_600)
+		fee := money.FeeFor(amount, 50)
+		ledgerTx, err := movements.TapReversal(ctx, tx, cardholder, merchant, amount, fee, tap, "goods_not_supplied")
+		if err != nil {
+			return err
+		}
+		_, err = tx.Exec(ctx, `
+			INSERT INTO card_tap_reversals (id, tap_id, reason, ledger_tx_id)
+			VALUES (gen_random_uuid(), $1, 'goods_not_supplied', $2)`, tap, ledgerTx)
+		return err
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	created, err := s.Tick(ctx)
+	if err != nil || created != 0 {
+		t.Fatalf("Tick sold a reversed tap: created=%d err=%v", created, err)
+	}
+	if len(s.Orders.Sender.(*fakeSender).calls) != 0 {
+		t.Error("an order was sent for a reversed tap")
+	}
+}

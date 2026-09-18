@@ -115,6 +115,11 @@ func (s *Settler) Tick(ctx context.Context) (created int, err error) {
 	//
 	// A later round waits RetryDelay from when the refund was noticed; the
 	// first round is due at once.
+	//
+	// A reversed tap is never sold. The cardholder has their money back and
+	// the merchant's claim is withdrawn, so there is nothing an order would
+	// pay for -- and a settlement row put back to pending by an operator
+	// after a reversal must not undo that from the chain side.
 	rows, err := s.Pool.Query(ctx, `
 		SELECT st.tap_id, st.from_address, st.sell_micro, st.attempts, st.round,
 		       t.merchant_id, t.currency, t.amount_minor - t.fee_minor,
@@ -128,6 +133,7 @@ func (s *Settler) Tick(ctx context.Context) (created int, err error) {
 		 WHERE st.state = 'pending'
 		   AND st.attempts < $1
 		   AND (st.round = 0 OR st.updated_at <= $2)
+		   AND NOT EXISTS (SELECT 1 FROM card_tap_reversals r WHERE r.tap_id = st.tap_id)
 		 ORDER BY st.created_at
 		 LIMIT 20`, MaxAttempts, s.now().Add(-RetryDelay))
 	if err != nil {
